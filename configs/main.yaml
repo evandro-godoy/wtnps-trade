@@ -1,17 +1,19 @@
 # configs/main.yaml
 
-# Configurações para a busca de dados
 data_settings:
   ticker: "SPY"
   start_date: "2010-01-01"
   end_date: "2024-01-01"
 
-# Configurações para o backtest
 backtest_settings:
-  strategy_name: "LSTMStrategy" # O nome da CLASSE da estratégia
-  strategy_module: "lstm"             # O nome do ARQUIVO .py da estratégia
+  strategy_name: "LSTMStrategy"
+  strategy_module: "lstm"
   n_splits: 10
 
-# Configurações para o relatório
+# Nova seção para regras de trading
+trading_rules:
+  stop_loss_pct: 0.02  # Stop loss de 2%
+  take_profit_pct: 0.04 # Take profit de 4%
+
 reporting_settings:
-  output_path: "report.html"
+  output_path: "report_lstm_stops.html" # Novo nome para o relatório

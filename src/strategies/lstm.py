@@ -46,7 +46,7 @@ class KerasLSTMWrapper(BaseEstimator, ClassifierMixin):
         model.add(LSTM(units=self.lstm_units, return_sequences=False))
         model.add(Dropout(0.2))
         model.add(Dense(units=25))
-        model.add(Dense(units=1, activation='sigmoid')) # Sigmoid para classificação binária (alta/baixa)
+        model.add(Dense(units=1, activation='sigmoid'))
         
         model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
         return model
@@ -56,25 +56,21 @@ class KerasLSTMWrapper(BaseEstimator, ClassifierMixin):
         Treina o modelo. Esta função irá escalar os dados, criar as sequências
         e então treinar o modelo Keras.
         """
-        # 1. Escalar os dados de treino
         X_scaled = self.scaler.fit_transform(X)
-
-        # 2. Criar sequências
         X_seq, y_seq = create_sequences(X_scaled, y.values, self.lookback)
         
         if len(X_seq) == 0:
             print("Não há dados suficientes para criar sequências com o lookback fornecido.")
             return self
 
-        # 3. Treinar o modelo
         early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
         self.model.fit(
             X_seq, y_seq,
             epochs=self.epochs,
             batch_size=self.batch_size,
-            validation_split=0.1, # Usa 10% dos dados para validação
+            validation_split=0.1,
             callbacks=[early_stopping],
-            verbose=0 # Desliga o log de treino para não poluir a saída do backtest
+            verbose=0
         )
         return self
 
@@ -83,26 +79,18 @@ class KerasLSTMWrapper(BaseEstimator, ClassifierMixin):
         Faz previsões. Os dados de teste são escalados usando o mesmo scaler
         do treino e transformados em sequências.
         """
-        # 1. Escalar os dados de teste
         X_scaled = self.scaler.transform(X)
-        
-        # 2. Criar sequências
         X_seq, _ = create_sequences(X_scaled, np.zeros(len(X_scaled)), self.lookback)
         
         if len(X_seq) == 0:
-            # Se não for possível criar sequências, retorna um array vazio com o formato correto.
             return np.array([])
             
-        # 3. Fazer a predição
         predictions_proba = self.model.predict(X_seq)
-        
-        # 4. Converter probabilidades em classes (0 ou 1)
         predictions = (predictions_proba > 0.5).astype(int)
         
         return predictions.flatten()
 
     def get_params(self, deep=True):
-        """Método necessário para compatibilidade com Scikit-Learn."""
         return {
             'lookback': self.lookback,
             'lstm_units': self.lstm_units,
@@ -112,46 +100,58 @@ class KerasLSTMWrapper(BaseEstimator, ClassifierMixin):
         }
 
     def set_params(self, **params):
-        """Método necessário para compatibilidade com Scikit-Learn."""
         for param, value in params.items():
             setattr(self, param, value)
         return self
 
-# --- Implementação da Estratégia LSTM ---
+# --- Implementação da Estratégia LSTM Aprimorada ---
 
 class LSTMStrategy(BaseStrategy):
     """
-    Estratégia de trading que utiliza uma rede neural LSTM.
-    O foco desta estratégia está no preço de fechamento.
+    Estratégia de trading que utiliza uma rede neural LSTM com um conjunto
+    expandido de indicadores técnicos.
     """
     def __init__(self, lookback=60, lstm_units=50):
         self.lookback = lookback
         self.lstm_units = lstm_units
-        self.feature_names = ['Close'] # Para este exemplo simples, usamos apenas o preço de fechamento
+        self.feature_names = [
+            'SMA_9', 'EMA_21', 'EMA_50', 'EMA_200',
+            'Volume', 'Volatility'
+        ]
 
     def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        Calcula os retornos diários, que são necessários para a avaliação da performance
-        pelo motor de backtest. A criação de sequências e a normalização das features
-        para o modelo serão feitas dentro do wrapper.
+        Adiciona os indicadores técnicos que servirão de features para o modelo.
         """
         df = data.copy()
+        
+        # 1. Médias Móveis
+        df['SMA_9'] = df['Close'].rolling(window=9).mean()
+        df['EMA_21'] = df['Close'].ewm(span=21, adjust=False).mean()
+        df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
+        df['EMA_200'] = df['Close'].ewm(span=200, adjust=False).mean()
+
+        # 2. Volume (já presente nos dados)
+        # Apenas garantimos que a coluna 'Volume' está sendo usada.
+
+        # 3. Volatilidade (desvio padrão dos retornos em uma janela)
         df['Returns'] = df['Close'].pct_change()
+        df['Volatility'] = df['Returns'].rolling(window=21).std() * np.sqrt(252) # Volatilidade anualizada
+        
         return df
 
     def define_model(self) -> BaseEstimator:
         """
-        Retorna uma instância do nosso wrapper do modelo LSTM, que se comporta
-        como um classificador Scikit-Learn.
+        Retorna uma instância do nosso wrapper do modelo LSTM.
         """
         return KerasLSTMWrapper(
             lookback=self.lookback,
             lstm_units=self.lstm_units,
-            n_features=len(self.feature_names)
+            n_features=len(self.feature_names) # Informa ao modelo quantas features estamos usando
         )
     
     def get_feature_names(self) -> list[str]:
         """
-        Retorna a lista de colunas a serem usadas. Neste caso, apenas 'Close'.
+        Retorna a lista de colunas a serem usadas como features.
         """
         return self.feature_names
