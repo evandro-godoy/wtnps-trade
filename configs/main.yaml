@@ -8,8 +8,8 @@ data_settings:
 
 # Configurações para o backtest
 backtest_settings:
-  strategy_name: "RandomForestFeatureStrategy" # O nome da CLASSE da estratégia
-  strategy_module: "random_forest"             # O nome do ARQUIVO .py da estratégia
+  strategy_name: "LSTMStrategy" # O nome da CLASSE da estratégia
+  strategy_module: "lstm"             # O nome do ARQUIVO .py da estratégia
   n_splits: 10
 
 # Configurações para o relatório

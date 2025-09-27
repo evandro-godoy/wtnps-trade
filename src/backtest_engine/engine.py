@@ -56,9 +56,20 @@ class WalkForwardBacktester:
             
             predictions = model.predict(X_test)
             
-            all_predictions.extend(predictions)
-            all_real_values.extend(y_test)
-            prediction_indices.extend(y_test.index)
+            # all_predictions.extend(predictions)
+            # all_real_values.extend(y_test)
+            # prediction_indices.extend(y_test.index)
+            
+            if len(predictions) > 0:
+                # O primeiro índice da predição corresponde ao último índice dos dados de teste
+                # que foi possível formar uma sequência completa.
+                start_index = len(y_test) - len(predictions)
+                
+                valid_y_test = y_test.iloc[start_index:]
+                
+                all_predictions.extend(predictions)
+                all_real_values.extend(valid_y_test.values)
+                prediction_indices.extend(valid_y_test.index)            
 
         # 4. Compilar resultados
         accuracy = accuracy_score(all_real_values, all_predictions)
