@@ -1,0 +1,17 @@
+# configs/main.yaml
+
+# Configurações para a busca de dados
+data_settings:
+  ticker: "SPY"
+  start_date: "2010-01-01"
+  end_date: "2024-01-01"
+
+# Configurações para o backtest
+backtest_settings:
+  strategy_name: "RandomForestFeatureStrategy" # O nome da CLASSE da estratégia
+  strategy_module: "random_forest"             # O nome do ARQUIVO .py da estratégia
+  n_splits: 10
+
+# Configurações para o relatório
+reporting_settings:
+  output_path: "report.html"
