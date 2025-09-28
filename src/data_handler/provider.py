@@ -17,30 +17,34 @@ class YFinanceProvider:
         self.cache_path.mkdir(parents=True, exist_ok=True)
         logging.info(f"Diretório de cache de dados inicializado em: {self.cache_path.resolve()}")
 
-    def get_data(self, ticker: str, start_date: str, end_date: str) -> pd.DataFrame:
+    def get_data(self, ticker: str, start_date: str, end_date: str, sentiment_ticker: str = "^VIX") -> pd.DataFrame:
         """
-        Busca os dados de um ticker. Primeiro, tenta carregar do cache.
-        Se não encontrar, busca via yfinance e salva no cache.
+        Busca dados de mercado para um ticker principal e um ticker de sentimento (VIX).
         """
-        filename = f"{ticker}_{start_date}_{end_date}.parquet"
-        file_path = self.cache_path / filename
-
-        if file_path.exists():
-            logging.info(f"Carregando dados de '{ticker}' do cache: {file_path}")
-            return pd.read_parquet(file_path)
+        cache_path = self._get_cache_path(ticker, start_date, end_date)
         
-        logging.info(f"Buscando dados de '{ticker}' via API (yfinance)...")
-        data = yf.download(ticker, start=start_date, end=end_date, progress=False)
+        try:
+            if cache_path.exists():
+                logging.info(f"Carregando dados de '{ticker}' do cache: {cache_path}")
+                data = pd.read_parquet(cache_path)
+            else:
+                logging.info(f"Buscando dados de '{ticker}' via yfinance...")
+                data = yf.download(ticker, start=start_date, end=end_date, progress=False)
+                
+                # --- NOVA LÓGICA PARA BUSCAR E MESCLAR DADOS DE SENTIMENTO (VIX) ---
+                if sentiment_ticker:
+                    logging.info(f"Buscando dados de sentimento de '{sentiment_ticker}' via yfinance...")
+                    sentiment_data = yf.download(sentiment_ticker, start=start_date, end=end_date, progress=False)
+                    # Renomeia a coluna 'Close' do VIX para 'Sentiment' e a mescla
+                    data['Sentiment'] = sentiment_data['Close']
+                    # Preenche quaisquer dias faltantes (ex: feriados) com o valor anterior
+                    data['Sentiment'] = data['Sentiment'].ffill()
 
-        if data.empty:
-            logging.warning(f"Nenhum dado encontrado para '{ticker}' no período especificado.")
-            return data
+                data.to_parquet(cache_path)
+                logging.info(f"Dados de '{ticker}' salvos no cache.")
 
-        # Achata as colunas de múltiplos níveis se existirem
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.droplevel(1)
-
-        data.to_parquet(file_path)
-        logging.info(f"Dados de '{ticker}' salvos no cache: {file_path}")
-        
+        except Exception as e:
+            logging.error(f"Falha ao obter dados de mercado: {e}")
+            return pd.DataFrame()
+            
         return data
