@@ -65,7 +65,7 @@ def simulate_trades_with_stops(market_data: pd.DataFrame, signals: pd.DataFrame,
             # Assume que a entrada ocorre no preço de abertura do dia seguinte
             if i + 1 < len(trade_data):
                 position_open = True
-                entry_price = trade_data['Open'].iloc[i+1]
+                entry_price = trade_data['open'].iloc[i+1]
     
     if not trade_returns:
         logging.warning("Nenhum trade foi executado na simulação.")
