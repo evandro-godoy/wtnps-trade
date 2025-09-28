@@ -9,7 +9,7 @@ def generate_report(results: pd.DataFrame, report_path: str, config: dict):
     """
     # 1. Calcular retornos acumulados
     results['Cumulative_Strategy_Returns'] = (1 + results['Strategy_Returns']).cumprod()
-    results['Cumulative_BuyAndHold_Returns'] = (1 + results['Returns']).cumprod()
+    results['Cumulative_BuyAndHold_Returns'] = (1 + results['returns']).cumprod()
     
     # 2. Criar a figura do Plotly
     fig = go.Figure()

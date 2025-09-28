@@ -12,22 +12,14 @@ from src.reporting.plot import generate_report
 # Configuração do logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Dentro do arquivo src/run.py
+
 def simulate_trades_with_stops(market_data: pd.DataFrame, signals: pd.DataFrame, stop_loss_pct: float, take_profit_pct: float) -> pd.DataFrame:
     """
     Simula trades com base nos sinais do modelo, aplicando regras de stop-loss e take-profit.
-
-    Args:
-        market_data: DataFrame com dados OHLCV.
-        signals: DataFrame com os sinais de 'Prediction' do modelo.
-        stop_loss_pct: Percentual para o stop-loss (ex: 0.02 para 2%).
-        take_profit_pct: Percentual para o take-profit (ex: 0.04 para 4%).
-
-    Returns:
-        Um DataFrame com os retornos diários da estratégia.
     """
     logging.info(f"Simulando trades com SL={stop_loss_pct:.2%} e TP={take_profit_pct:.2%}")
     
-    # Alinha os dados de mercado com os sinais disponíveis
     trade_data = market_data.loc[signals.index].copy()
     trade_data['Prediction'] = signals['Prediction']
     
@@ -35,46 +27,42 @@ def simulate_trades_with_stops(market_data: pd.DataFrame, signals: pd.DataFrame,
     entry_price = 0
     trade_returns = []
     
-    # Itera dia a dia para simular as operações
     for i in range(len(trade_data)):
         current_date = trade_data.index[i]
         
-        # Se uma posição está aberta, verifica as condições de saída
         if position_open:
-            current_low = trade_data['Low'].iloc[i]
-            current_high = trade_data['High'].iloc[i]
+            # --- CORREÇÃO AQUI ---
+            current_low = trade_data['low'].iloc[i]
+            current_high = trade_data['high'].iloc[i]
             
-            # 1. Checa Stop Loss
+            # Checa Stop Loss
             if current_low <= entry_price * (1 - stop_loss_pct):
                 exit_price = entry_price * (1 - stop_loss_pct)
                 trade_return = (exit_price / entry_price) - 1
                 trade_returns.append({'Date': current_date, 'Strategy_Returns': trade_return})
                 position_open = False
-                continue # Pula para o próximo dia
+                continue
 
-            # 2. Checa Take Profit
+            # Checa Take Profit
             if current_high >= entry_price * (1 + take_profit_pct):
                 exit_price = entry_price * (1 + take_profit_pct)
                 trade_return = (exit_price / entry_price) - 1
                 trade_returns.append({'Date': current_date, 'Strategy_Returns': trade_return})
                 position_open = False
-                continue # Pula para o próximo dia
+                continue
 
-        # Se não há posição aberta, verifica se há um novo sinal de entrada
         if not position_open and trade_data['Prediction'].iloc[i] == 1:
-            # Assume que a entrada ocorre no preço de abertura do dia seguinte
             if i + 1 < len(trade_data):
                 position_open = True
+                # --- CORREÇÃO AQUI ---
                 entry_price = trade_data['open'].iloc[i+1]
     
     if not trade_returns:
         logging.warning("Nenhum trade foi executado na simulação.")
         return pd.DataFrame(columns=['Strategy_Returns'])
 
-    # Compila os resultados
     results_df = pd.DataFrame(trade_returns).set_index('Date')
     
-    # Preenche os dias sem trade com retorno zero
     all_days_returns = pd.Series(0.0, index=trade_data.index, name="Strategy_Returns")
     all_days_returns.update(results_df['Strategy_Returns'])
     
