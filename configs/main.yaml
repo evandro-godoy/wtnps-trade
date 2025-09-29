@@ -1,16 +1,16 @@
 # configs/main.yaml
 
 data_settings:
-  ticker: "SPY"
+  ticker: "ITUB4.SA"
   # Período de dados para treino e validação do modelo
-  
+
   in_sample:
     start_date: "2010-01-01"
     end_date: "2023-12-31"
   # Período de dados para simular operações "reais" com o modelo já treinado
   out_of_sample:
     start_date: "2024-01-01"
-    end_date: "2024-12-31" # Use uma data recente
+    end_date: "2025-08-01" # Use uma data recente
 
   use_sentiment: true  # Novo parâmetro para usar dados de sentimento
   sentiment_ticker: "^VIX"  # Novo parâmetro para ticker de sentimento
@@ -27,6 +27,6 @@ trading_rules:
   take_profit_pct: 0.04  # Take profit de 4%
 
 reporting_settings:
-  performance_report_path: "reports/perf_report_slst_stops_spy.html"
-  trades_report_path: "reports/trades_report_slst_stops_spy.html"
+  performance_report_path: "reports/perf_report_slstm_stops_itub4_2.html"
+  trades_report_path: "reports/trades_report_slstm_stops_itub4_2.html"
   # output_path: "reports/report_slst_stops_spy2045.html"

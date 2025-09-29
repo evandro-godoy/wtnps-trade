@@ -19,6 +19,8 @@ def generate_report(results: pd.DataFrame, output_path: str, config: dict):
     if 'Real_Target' in results.columns and 'Prediction' in results.columns:
         accuracy = results['Real_Target'].eq(results['Prediction']).mean()
         accuracy_text = f"Acurácia: {accuracy:.2%}"
+        strategy_returns = results['Strategy_Returns']
+        sharpe_ratio = (strategy_returns.mean() / strategy_returns.std()) * np.sqrt(252)
 
     # Adiciona os retornos de Buy & Hold para comparação
     if 'returns' not in results.columns:
@@ -36,7 +38,7 @@ def generate_report(results: pd.DataFrame, output_path: str, config: dict):
     fig.add_trace(go.Scatter(x=results.index, y=results['Buy_and_Hold_Cumulative'], mode='lines', name='Buy and Hold'))
 
     fig.update_layout(
-        title=f"Performance da Estratégia vs. Buy and Hold - {accuracy_text}",
+        title=f"Performance da Estratégia vs. Buy and Hold - {accuracy_text} | Sharpe Ratio Anualizado: {sharpe_ratio:.2f}",
         xaxis_title="Data",
         yaxis_title="Retorno Acumulado",
         template="plotly_dark"

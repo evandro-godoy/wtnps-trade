@@ -152,8 +152,7 @@ def main():
     fetch_start_date = pd.to_datetime(oos_start_date) - timedelta(days=180)
     market_data_oos = data_provider.get_data(
         ticker=ticker,
-        #start_date=fetch_start_date.strftime('%Y-%m-%d'),
-        start_date=config['data_settings']['out_of_sample']['start_date'],
+        start_date=fetch_start_date.strftime('%Y-%m-%d'),
         end_date=config['data_settings']['out_of_sample']['end_date'],
         sentiment_ticker=sentiment_ticker
     )
