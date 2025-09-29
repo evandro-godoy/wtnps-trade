@@ -11,7 +11,7 @@ class SentimentLSTMStrategy(BaseStrategy):
         self.lstm_units = lstm_units
         # Usando nomes em minúsculas
         self.feature_names = [
-            'sma_9', 'ema_21', 'ema_50', 'ema_200',
+            'sma_9', 'ema_21', 'ema_50', 'ema_200', 'rsi',
             'volume', 'volatility', 'sentiment'
         ]
 
@@ -23,6 +23,12 @@ class SentimentLSTMStrategy(BaseStrategy):
         df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
         df['ema_50'] = df['close'].ewm(span=50, adjust=False).mean()
         df['ema_200'] = df['close'].ewm(span=200, adjust=False).mean()
+
+        delta = df['close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        df['rsi'] = 100 - (100 / (1 + rs))
 
         df['returns'] = df['close'].pct_change()
         df['volatility'] = df['returns'].rolling(window=21).std() * 252**0.5

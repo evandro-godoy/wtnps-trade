@@ -115,8 +115,8 @@ class LSTMStrategy(BaseStrategy):
         self.lookback = lookback
         self.lstm_units = lstm_units
         self.feature_names = [
-            'SMA_9', 'EMA_21', 'EMA_50', 'EMA_200',
-            'Volume', 'Volatility'
+            'sma_9', 'ema_21', 'ema_50', 'ema_200',
+            'volume', 'volatility'
         ]
 
     def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -126,18 +126,18 @@ class LSTMStrategy(BaseStrategy):
         df = data.copy()
         
         # 1. Médias Móveis
-        df['SMA_9'] = df['Close'].rolling(window=9).mean()
-        df['EMA_21'] = df['Close'].ewm(span=21, adjust=False).mean()
-        df['EMA_50'] = df['Close'].ewm(span=50, adjust=False).mean()
-        df['EMA_200'] = df['Close'].ewm(span=200, adjust=False).mean()
+        df['sma_9'] = df['close'].rolling(window=9).mean()
+        df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
+        df['ema_50'] = df['close'].ewm(span=50, adjust=False).mean()
+        df['ema_200'] = df['close'].ewm(span=200, adjust=False).mean()
 
         # 2. Volume (já presente nos dados)
         # Apenas garantimos que a coluna 'Volume' está sendo usada.
 
         # 3. Volatilidade (desvio padrão dos retornos em uma janela)
-        df['Returns'] = df['Close'].pct_change()
-        df['Volatility'] = df['Returns'].rolling(window=21).std() * np.sqrt(252) # Volatilidade anualizada
-        
+        df['returns'] = df['close'].pct_change()
+        df['volatility'] = df['returns'].rolling(window=21).std() * np.sqrt(252) # Volatilidade anualizada
+
         return df
 
     def define_model(self) -> BaseEstimator:

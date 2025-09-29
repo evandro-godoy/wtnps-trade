@@ -1,4 +1,5 @@
 # src/reporting/plot.py
+import logging
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
@@ -49,3 +50,77 @@ def generate_report(results: pd.DataFrame, report_path: str, config: dict):
 
     # 5. Salvar o arquivo HTML
     fig.write_html(report_path)
+
+# Adicione esta nova função ao final de src/reporting/plot.py
+
+def generate_trades_report(trades_df: pd.DataFrame, output_path: str, config: dict):
+    """
+    Gera um relatório HTML com a lista detalhada de todas as operações.
+    """
+    if trades_df.empty:
+        logging.warning("O DataFrame de trades está vazio. Nenhum relatório de operações será gerado.")
+        return
+
+    # Formatação das colunas para melhor visualização
+    trades_to_display = trades_df.copy()
+    trades_to_display['Preço Entrada'] = trades_to_display['Preço Entrada'].map('${:,.2f}'.format)
+    trades_to_display['Preço Saída'] = trades_to_display['Preço Saída'].map('${:,.2f}'.format)
+    trades_to_display['Resultado (%)'] = trades_to_display['Resultado (%)'].map('{:,.2f}%'.format)
+    
+    # Formatação de datas
+    trades_to_display['Data Entrada'] = trades_to_display['Data Entrada'].dt.strftime('%Y-%m-%d')
+    trades_to_display['Data Saída'] = trades_to_display['Data Saída'].dt.strftime('%Y-%m-%d')
+
+    # Seleciona e renomeia as colunas para o relatório final
+    trades_to_display = trades_to_display[[
+        'Tipo', 'Data Entrada', 'Preço Entrada', 'Data Saída', 'Preço Saída',
+        'Resultado (%)', 'Motivo Saída'
+    ]]
+
+    # Estilização da tabela HTML
+    html_table = trades_to_display.to_html(index=False, classes='styled-table', border=0)
+    
+    # Template HTML completo
+    html_template = f"""
+    <html>
+    <head>
+        <title>Relatório de Operações</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; background-color: #f4f4f9; margin: 20px; }}
+            h1 {{ color: #333; }}
+            .styled-table {{
+                border-collapse: collapse;
+                margin: 25px 0;
+                font-size: 0.9em;
+                min-width: 400px;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+                width: 100%;
+            }}
+            .styled-table thead tr {{
+                background-color: #009879;
+                color: #ffffff;
+                text-align: left;
+            }}
+            .styled-table th, .styled-table td {{
+                padding: 12px 15px;
+            }}
+            .styled-table tbody tr {{
+                border-bottom: 1px solid #dddddd;
+            }}
+            .styled-table tbody tr:nth-of-type(even) {{
+                background-color: #f3f3f3;
+            }}
+            .styled-table tbody tr:last-of-type {{
+                border-bottom: 2px solid #009879;
+            }}
+        </style>
+    </head>
+    <body>
+        <h1>Relatório de Operações - {config['data_settings']['ticker']}</h1>
+        {html_table}
+    </body>
+    </html>
+    """
+
+    with open(output_path, 'w') as f:
+        f.write(html_template)

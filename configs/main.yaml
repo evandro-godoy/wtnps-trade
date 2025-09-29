@@ -4,6 +4,8 @@ data_settings:
   ticker: "SPY"
   start_date: "2010-01-01"
   end_date: "2024-01-01"
+  use_sentiment: true  # Novo parâmetro para usar dados de sentimento
+  sentiment_ticker: "^VIX"  # Novo parâmetro para ticker de sentimento
 
 backtest_settings:
   strategy_name: "SentimentLSTMStrategy"
@@ -13,7 +15,9 @@ backtest_settings:
 # Nova seção para regras de trading
 trading_rules:
   stop_loss_pct: 0.02  # Stop loss de 2%
-  take_profit_pct: 0.04 # Take profit de 4%
+  take_profit_pct: 0.04  # Take profit de 4%
 
 reporting_settings:
-  output_path: "reports/report_slstm_stops_spy.html" # Novo nome para o relatório
+  performance_report_path: "reports/perf_report_slst_stops_spy.html"
+  trades_report_path: "reports/trades_report_slst_stops_spy.html"
+  # output_path: "reports/report_slst_stops_spy2045.html"

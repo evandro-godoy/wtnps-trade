@@ -16,7 +16,7 @@ class YFinanceProvider:
         filename = f"{ticker}_{start_date}_{end_date}.parquet"
         return self.cache_path / filename
 
-    def get_data(self, ticker: str, start_date: str, end_date: str, sentiment_ticker: str = "^VIX") -> pd.DataFrame:
+    def get_data(self, ticker: str, start_date: str, end_date: str, sentiment_ticker: str) -> pd.DataFrame:
         cache_path = self._get_cache_path(ticker, start_date, end_date)
         
         try:

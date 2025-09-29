@@ -1,0 +1,2475 @@
+
+    <html>
+    <head>
+        <title>Relatório de Operações</title>
+        <style>
+            body { font-family: Arial, sans-serif; background-color: #f4f4f9; margin: 20px; }
+            h1 { color: #333; }
+            .styled-table {
+                border-collapse: collapse;
+                margin: 25px 0;
+                font-size: 0.9em;
+                min-width: 400px;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+                width: 100%;
+            }
+            .styled-table thead tr {
+                background-color: #009879;
+                color: #ffffff;
+                text-align: left;
+            }
+            .styled-table th, .styled-table td {
+                padding: 12px 15px;
+            }
+            .styled-table tbody tr {
+                border-bottom: 1px solid #dddddd;
+            }
+            .styled-table tbody tr:nth-of-type(even) {
+                background-color: #f3f3f3;
+            }
+            .styled-table tbody tr:last-of-type {
+                border-bottom: 2px solid #009879;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Relatório de Operações - SPY</h1>
+        <table class="dataframe styled-table">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Tipo</th>
+      <th>Data Entrada</th>
+      <th>Preço Entrada</th>
+      <th>Data Saída</th>
+      <th>Preço Saída</th>
+      <th>Resultado (%)</th>
+      <th>Motivo Saída</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Compra</td>
+      <td>2011-08-09</td>
+      <td>$88.34</td>
+      <td>2011-08-09</td>
+      <td>$86.57</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-08-10</td>
+      <td>$89.26</td>
+      <td>2011-08-10</td>
+      <td>$87.47</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-08-11</td>
+      <td>$87.71</td>
+      <td>2011-08-11</td>
+      <td>$91.22</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-08-12</td>
+      <td>$91.69</td>
+      <td>2011-08-18</td>
+      <td>$89.86</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-08-19</td>
+      <td>$87.48</td>
+      <td>2011-08-24</td>
+      <td>$90.98</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-08-25</td>
+      <td>$91.95</td>
+      <td>2011-08-25</td>
+      <td>$90.11</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-08-26</td>
+      <td>$89.59</td>
+      <td>2011-08-29</td>
+      <td>$93.18</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-08-30</td>
+      <td>$93.57</td>
+      <td>2011-09-02</td>
+      <td>$91.70</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-09-06</td>
+      <td>$88.58</td>
+      <td>2011-09-07</td>
+      <td>$92.13</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-09-08</td>
+      <td>$92.60</td>
+      <td>2011-09-09</td>
+      <td>$90.74</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-09-12</td>
+      <td>$88.65</td>
+      <td>2011-09-14</td>
+      <td>$92.19</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-09-15</td>
+      <td>$93.43</td>
+      <td>2011-09-21</td>
+      <td>$91.56</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-09-22</td>
+      <td>$88.16</td>
+      <td>2011-09-27</td>
+      <td>$91.68</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-09-28</td>
+      <td>$91.68</td>
+      <td>2011-09-28</td>
+      <td>$89.85</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-09-29</td>
+      <td>$91.11</td>
+      <td>2011-09-29</td>
+      <td>$89.29</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-09-30</td>
+      <td>$89.09</td>
+      <td>2011-10-03</td>
+      <td>$87.31</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-10-04</td>
+      <td>$84.34</td>
+      <td>2011-10-05</td>
+      <td>$87.72</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-10-06</td>
+      <td>$89.02</td>
+      <td>2011-10-10</td>
+      <td>$92.58</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-10-11</td>
+      <td>$92.53</td>
+      <td>2011-10-21</td>
+      <td>$96.23</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-10-24</td>
+      <td>$96.66</td>
+      <td>2011-10-27</td>
+      <td>$100.52</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-10-28</td>
+      <td>$99.64</td>
+      <td>2011-10-31</td>
+      <td>$97.64</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-11-01</td>
+      <td>$94.99</td>
+      <td>2011-11-08</td>
+      <td>$98.79</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-11-09</td>
+      <td>$97.22</td>
+      <td>2011-11-17</td>
+      <td>$95.27</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-11-18</td>
+      <td>$95.36</td>
+      <td>2011-11-21</td>
+      <td>$93.45</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-11-22</td>
+      <td>$92.94</td>
+      <td>2011-11-23</td>
+      <td>$91.08</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-11-25</td>
+      <td>$90.59</td>
+      <td>2011-11-30</td>
+      <td>$94.22</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-12-01</td>
+      <td>$97.19</td>
+      <td>2011-12-14</td>
+      <td>$95.24</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2011-12-15</td>
+      <td>$95.77</td>
+      <td>2012-01-03</td>
+      <td>$99.60</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-01-04</td>
+      <td>$99.64</td>
+      <td>2012-01-25</td>
+      <td>$103.63</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-01-26</td>
+      <td>$104.30</td>
+      <td>2012-01-30</td>
+      <td>$102.22</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-01-31</td>
+      <td>$103.42</td>
+      <td>2012-02-27</td>
+      <td>$107.56</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-02-28</td>
+      <td>$107.48</td>
+      <td>2012-03-06</td>
+      <td>$105.33</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-03-07</td>
+      <td>$105.80</td>
+      <td>2012-03-15</td>
+      <td>$110.03</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-03-16</td>
+      <td>$110.43</td>
+      <td>2012-04-10</td>
+      <td>$108.22</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-04-11</td>
+      <td>$108.02</td>
+      <td>2012-05-09</td>
+      <td>$105.86</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-05-10</td>
+      <td>$107.54</td>
+      <td>2012-05-14</td>
+      <td>$105.39</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-05-15</td>
+      <td>$105.45</td>
+      <td>2012-05-17</td>
+      <td>$103.34</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-05-18</td>
+      <td>$103.36</td>
+      <td>2012-06-01</td>
+      <td>$101.29</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-06-04</td>
+      <td>$101.02</td>
+      <td>2012-06-07</td>
+      <td>$105.06</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-06-08</td>
+      <td>$103.63</td>
+      <td>2012-07-02</td>
+      <td>$107.77</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-07-03</td>
+      <td>$107.94</td>
+      <td>2012-07-10</td>
+      <td>$105.78</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-07-11</td>
+      <td>$106.14</td>
+      <td>2012-08-03</td>
+      <td>$110.39</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-08-06</td>
+      <td>$110.50</td>
+      <td>2012-11-14</td>
+      <td>$108.29</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-11-15</td>
+      <td>$108.12</td>
+      <td>2012-11-28</td>
+      <td>$112.44</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2012-11-29</td>
+      <td>$112.89</td>
+      <td>2013-01-10</td>
+      <td>$117.41</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-01-11</td>
+      <td>$117.74</td>
+      <td>2013-02-19</td>
+      <td>$122.45</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-02-20</td>
+      <td>$122.62</td>
+      <td>2013-02-21</td>
+      <td>$120.17</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-02-22</td>
+      <td>$121.03</td>
+      <td>2013-03-28</td>
+      <td>$125.87</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-04-01</td>
+      <td>$125.94</td>
+      <td>2013-05-08</td>
+      <td>$130.98</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-05-09</td>
+      <td>$131.32</td>
+      <td>2013-06-20</td>
+      <td>$128.69</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-06-21</td>
+      <td>$129.08</td>
+      <td>2013-06-24</td>
+      <td>$126.49</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-06-25</td>
+      <td>$128.14</td>
+      <td>2013-07-09</td>
+      <td>$133.26</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-07-10</td>
+      <td>$133.39</td>
+      <td>2013-09-18</td>
+      <td>$138.72</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-09-19</td>
+      <td>$140.30</td>
+      <td>2013-09-24</td>
+      <td>$137.49</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-09-25</td>
+      <td>$137.83</td>
+      <td>2013-10-08</td>
+      <td>$135.07</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-10-09</td>
+      <td>$134.71</td>
+      <td>2013-10-17</td>
+      <td>$140.10</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2013-10-18</td>
+      <td>$141.26</td>
+      <td>2014-02-19</td>
+      <td>$146.91</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-02-20</td>
+      <td>$149.71</td>
+      <td>2014-05-12</td>
+      <td>$155.70</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-05-13</td>
+      <td>$155.93</td>
+      <td>2014-07-01</td>
+      <td>$162.16</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-07-02</td>
+      <td>$162.45</td>
+      <td>2014-07-31</td>
+      <td>$159.21</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-08-01</td>
+      <td>$158.75</td>
+      <td>2014-08-25</td>
+      <td>$165.10</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-08-26</td>
+      <td>$165.16</td>
+      <td>2014-10-01</td>
+      <td>$161.86</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-10-02</td>
+      <td>$160.84</td>
+      <td>2014-10-13</td>
+      <td>$157.62</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-10-14</td>
+      <td>$156.07</td>
+      <td>2014-10-15</td>
+      <td>$152.94</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-10-16</td>
+      <td>$151.63</td>
+      <td>2014-10-20</td>
+      <td>$157.69</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-10-21</td>
+      <td>$158.77</td>
+      <td>2014-10-30</td>
+      <td>$165.12</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-10-31</td>
+      <td>$167.13</td>
+      <td>2014-12-18</td>
+      <td>$173.82</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2014-12-19</td>
+      <td>$171.93</td>
+      <td>2015-01-05</td>
+      <td>$168.49</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-01-06</td>
+      <td>$168.31</td>
+      <td>2015-02-02</td>
+      <td>$164.95</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-02-03</td>
+      <td>$169.07</td>
+      <td>2015-02-20</td>
+      <td>$175.83</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-02-23</td>
+      <td>$175.68</td>
+      <td>2015-07-07</td>
+      <td>$172.17</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-07-08</td>
+      <td>$173.53</td>
+      <td>2015-08-21</td>
+      <td>$170.06</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-08-24</td>
+      <td>$157.61</td>
+      <td>2015-08-24</td>
+      <td>$154.46</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-08-25</td>
+      <td>$164.29</td>
+      <td>2015-08-25</td>
+      <td>$161.00</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-08-26</td>
+      <td>$161.47</td>
+      <td>2015-08-28</td>
+      <td>$167.93</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-08-31</td>
+      <td>$166.54</td>
+      <td>2015-09-01</td>
+      <td>$163.21</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-09-02</td>
+      <td>$163.61</td>
+      <td>2015-09-17</td>
+      <td>$170.15</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-09-18</td>
+      <td>$165.38</td>
+      <td>2015-09-24</td>
+      <td>$162.07</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-09-25</td>
+      <td>$164.47</td>
+      <td>2015-09-28</td>
+      <td>$161.18</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-09-29</td>
+      <td>$159.09</td>
+      <td>2015-10-05</td>
+      <td>$165.45</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-10-06</td>
+      <td>$167.57</td>
+      <td>2015-10-23</td>
+      <td>$174.28</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-10-26</td>
+      <td>$175.17</td>
+      <td>2015-11-13</td>
+      <td>$171.67</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-11-16</td>
+      <td>$170.96</td>
+      <td>2015-12-01</td>
+      <td>$177.80</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-12-02</td>
+      <td>$177.98</td>
+      <td>2015-12-03</td>
+      <td>$174.42</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-12-04</td>
+      <td>$173.74</td>
+      <td>2015-12-14</td>
+      <td>$170.27</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2015-12-15</td>
+      <td>$172.97</td>
+      <td>2016-01-04</td>
+      <td>$169.51</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-01-05</td>
+      <td>$171.20</td>
+      <td>2016-01-07</td>
+      <td>$167.77</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-01-08</td>
+      <td>$165.92</td>
+      <td>2016-01-11</td>
+      <td>$162.60</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-01-12</td>
+      <td>$164.76</td>
+      <td>2016-01-13</td>
+      <td>$161.46</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-01-14</td>
+      <td>$161.13</td>
+      <td>2016-01-15</td>
+      <td>$157.90</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-01-19</td>
+      <td>$161.47</td>
+      <td>2016-01-20</td>
+      <td>$158.24</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-01-21</td>
+      <td>$158.29</td>
+      <td>2016-01-29</td>
+      <td>$164.62</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-02-01</td>
+      <td>$163.66</td>
+      <td>2016-02-03</td>
+      <td>$160.39</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-02-04</td>
+      <td>$162.11</td>
+      <td>2016-02-08</td>
+      <td>$158.87</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-02-09</td>
+      <td>$155.86</td>
+      <td>2016-02-17</td>
+      <td>$162.10</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-02-18</td>
+      <td>$164.23</td>
+      <td>2016-02-24</td>
+      <td>$160.94</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-02-25</td>
+      <td>$164.68</td>
+      <td>2016-03-11</td>
+      <td>$171.27</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-03-14</td>
+      <td>$171.84</td>
+      <td>2016-04-18</td>
+      <td>$178.72</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-04-19</td>
+      <td>$179.21</td>
+      <td>2016-04-29</td>
+      <td>$175.62</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-05-02</td>
+      <td>$176.80</td>
+      <td>2016-05-19</td>
+      <td>$173.26</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-05-20</td>
+      <td>$175.09</td>
+      <td>2016-08-26</td>
+      <td>$182.09</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-08-29</td>
+      <td>$186.75</td>
+      <td>2016-09-12</td>
+      <td>$183.02</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-09-13</td>
+      <td>$184.52</td>
+      <td>2016-11-02</td>
+      <td>$180.83</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-11-03</td>
+      <td>$181.27</td>
+      <td>2016-11-17</td>
+      <td>$188.52</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-11-18</td>
+      <td>$189.10</td>
+      <td>2016-12-13</td>
+      <td>$196.67</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2016-12-14</td>
+      <td>$196.30</td>
+      <td>2017-02-15</td>
+      <td>$204.15</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2017-02-16</td>
+      <td>$204.01</td>
+      <td>2017-06-01</td>
+      <td>$212.17</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2017-06-02</td>
+      <td>$212.28</td>
+      <td>2017-11-30</td>
+      <td>$220.77</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2017-12-01</td>
+      <td>$233.17</td>
+      <td>2018-01-08</td>
+      <td>$242.49</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-01-09</td>
+      <td>$242.89</td>
+      <td>2018-01-26</td>
+      <td>$252.61</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-01-29</td>
+      <td>$253.10</td>
+      <td>2018-02-02</td>
+      <td>$248.04</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-02-05</td>
+      <td>$242.05</td>
+      <td>2018-02-05</td>
+      <td>$237.21</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-02-06</td>
+      <td>$230.09</td>
+      <td>2018-02-07</td>
+      <td>$239.30</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-02-08</td>
+      <td>$237.24</td>
+      <td>2018-02-08</td>
+      <td>$232.49</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-02-09</td>
+      <td>$230.85</td>
+      <td>2018-02-09</td>
+      <td>$226.24</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-02-12</td>
+      <td>$233.54</td>
+      <td>2018-02-16</td>
+      <td>$242.88</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-02-20</td>
+      <td>$240.79</td>
+      <td>2018-03-01</td>
+      <td>$235.98</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-03-02</td>
+      <td>$235.28</td>
+      <td>2018-03-09</td>
+      <td>$244.69</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-03-12</td>
+      <td>$247.14</td>
+      <td>2018-03-19</td>
+      <td>$242.20</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-03-20</td>
+      <td>$240.79</td>
+      <td>2018-03-22</td>
+      <td>$235.97</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-03-23</td>
+      <td>$234.77</td>
+      <td>2018-03-23</td>
+      <td>$230.08</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-03-26</td>
+      <td>$232.96</td>
+      <td>2018-04-02</td>
+      <td>$228.30</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-04-03</td>
+      <td>$230.06</td>
+      <td>2018-04-17</td>
+      <td>$239.27</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-04-18</td>
+      <td>$240.57</td>
+      <td>2018-04-24</td>
+      <td>$235.76</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-04-25</td>
+      <td>$233.65</td>
+      <td>2018-05-14</td>
+      <td>$243.00</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-05-15</td>
+      <td>$241.37</td>
+      <td>2018-07-24</td>
+      <td>$251.02</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-07-25</td>
+      <td>$251.15</td>
+      <td>2018-09-20</td>
+      <td>$261.19</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-09-21</td>
+      <td>$262.83</td>
+      <td>2018-10-05</td>
+      <td>$257.57</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-10-08</td>
+      <td>$257.41</td>
+      <td>2018-10-10</td>
+      <td>$252.27</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-10-11</td>
+      <td>$248.47</td>
+      <td>2018-10-11</td>
+      <td>$243.50</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-10-12</td>
+      <td>$248.19</td>
+      <td>2018-10-23</td>
+      <td>$243.23</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-10-24</td>
+      <td>$245.11</td>
+      <td>2018-10-24</td>
+      <td>$240.21</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-10-25</td>
+      <td>$239.77</td>
+      <td>2018-10-29</td>
+      <td>$234.98</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-10-30</td>
+      <td>$236.45</td>
+      <td>2018-11-02</td>
+      <td>$245.91</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-11-05</td>
+      <td>$244.31</td>
+      <td>2018-11-20</td>
+      <td>$239.43</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-11-21</td>
+      <td>$238.41</td>
+      <td>2018-12-03</td>
+      <td>$247.95</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-12-04</td>
+      <td>$249.63</td>
+      <td>2018-12-04</td>
+      <td>$244.64</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2018-12-06</td>
+      <td>$238.46</td>
+      <td>2018-12-10</td>
+      <td>$233.70</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-03-11</td>
+      <td>$248.28</td>
+      <td>2019-03-21</td>
+      <td>$258.21</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-03-22</td>
+      <td>$256.59</td>
+      <td>2019-05-01</td>
+      <td>$266.85</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-05-02</td>
+      <td>$264.25</td>
+      <td>2019-05-07</td>
+      <td>$258.97</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-05-08</td>
+      <td>$260.49</td>
+      <td>2019-05-13</td>
+      <td>$255.28</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-05-14</td>
+      <td>$255.47</td>
+      <td>2019-05-31</td>
+      <td>$250.36</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-06-03</td>
+      <td>$249.42</td>
+      <td>2019-06-07</td>
+      <td>$259.40</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-06-10</td>
+      <td>$262.16</td>
+      <td>2019-07-10</td>
+      <td>$272.65</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-07-11</td>
+      <td>$272.49</td>
+      <td>2019-08-02</td>
+      <td>$267.04</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-08-05</td>
+      <td>$262.27</td>
+      <td>2019-08-05</td>
+      <td>$257.02</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-08-06</td>
+      <td>$260.28</td>
+      <td>2019-09-05</td>
+      <td>$270.70</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-09-06</td>
+      <td>$271.45</td>
+      <td>2019-10-02</td>
+      <td>$266.02</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-10-03</td>
+      <td>$263.22</td>
+      <td>2019-10-15</td>
+      <td>$273.75</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-10-16</td>
+      <td>$272.88</td>
+      <td>2019-11-15</td>
+      <td>$283.80</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-11-18</td>
+      <td>$284.92</td>
+      <td>2019-12-26</td>
+      <td>$296.31</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2019-12-27</td>
+      <td>$297.54</td>
+      <td>2020-02-11</td>
+      <td>$309.44</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-02-12</td>
+      <td>$309.57</td>
+      <td>2020-02-24</td>
+      <td>$303.38</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-02-25</td>
+      <td>$297.72</td>
+      <td>2020-02-25</td>
+      <td>$291.77</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-02-26</td>
+      <td>$288.75</td>
+      <td>2020-02-27</td>
+      <td>$282.98</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-02-28</td>
+      <td>$265.34</td>
+      <td>2020-03-02</td>
+      <td>$275.95</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-03-03</td>
+      <td>$284.45</td>
+      <td>2020-03-03</td>
+      <td>$278.76</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-03-04</td>
+      <td>$281.35</td>
+      <td>2020-03-06</td>
+      <td>$275.72</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-03-09</td>
+      <td>$253.02</td>
+      <td>2020-03-10</td>
+      <td>$263.14</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-03-11</td>
+      <td>$257.98</td>
+      <td>2020-03-11</td>
+      <td>$252.82</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-03-12</td>
+      <td>$235.28</td>
+      <td>2020-03-12</td>
+      <td>$230.58</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-03-13</td>
+      <td>$241.80</td>
+      <td>2020-03-13</td>
+      <td>$236.96</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-03-16</td>
+      <td>$221.66</td>
+      <td>2020-03-16</td>
+      <td>$230.53</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-03-17</td>
+      <td>$225.21</td>
+      <td>2020-03-17</td>
+      <td>$220.70</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-06-12</td>
+      <td>$284.96</td>
+      <td>2020-06-12</td>
+      <td>$279.26</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-06-15</td>
+      <td>$275.51</td>
+      <td>2020-06-16</td>
+      <td>$286.53</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-06-17</td>
+      <td>$290.35</td>
+      <td>2020-06-24</td>
+      <td>$284.54</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-06-25</td>
+      <td>$281.79</td>
+      <td>2020-07-02</td>
+      <td>$293.06</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-07-06</td>
+      <td>$293.76</td>
+      <td>2020-08-03</td>
+      <td>$305.51</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-08-04</td>
+      <td>$304.43</td>
+      <td>2020-08-24</td>
+      <td>$316.61</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-08-25</td>
+      <td>$318.98</td>
+      <td>2020-09-02</td>
+      <td>$331.74</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-09-03</td>
+      <td>$330.44</td>
+      <td>2020-09-03</td>
+      <td>$323.83</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-09-04</td>
+      <td>$321.40</td>
+      <td>2020-09-04</td>
+      <td>$314.97</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-09-08</td>
+      <td>$312.65</td>
+      <td>2020-09-18</td>
+      <td>$306.40</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-09-21</td>
+      <td>$303.64</td>
+      <td>2020-10-01</td>
+      <td>$315.78</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-10-02</td>
+      <td>$309.23</td>
+      <td>2020-10-09</td>
+      <td>$321.60</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-10-12</td>
+      <td>$325.91</td>
+      <td>2020-10-19</td>
+      <td>$319.39</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-10-20</td>
+      <td>$320.19</td>
+      <td>2020-10-26</td>
+      <td>$313.79</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-10-27</td>
+      <td>$316.74</td>
+      <td>2020-10-28</td>
+      <td>$310.41</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-10-29</td>
+      <td>$304.77</td>
+      <td>2020-11-04</td>
+      <td>$316.96</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-11-05</td>
+      <td>$325.58</td>
+      <td>2020-11-09</td>
+      <td>$338.61</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-11-10</td>
+      <td>$329.54</td>
+      <td>2020-12-01</td>
+      <td>$342.73</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-12-02</td>
+      <td>$340.11</td>
+      <td>2020-12-21</td>
+      <td>$353.71</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2020-12-22</td>
+      <td>$344.73</td>
+      <td>2021-01-20</td>
+      <td>$358.52</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-01-21</td>
+      <td>$359.97</td>
+      <td>2021-01-27</td>
+      <td>$352.77</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-01-28</td>
+      <td>$352.36</td>
+      <td>2021-01-29</td>
+      <td>$345.31</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-02-01</td>
+      <td>$349.89</td>
+      <td>2021-02-08</td>
+      <td>$363.89</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-02-09</td>
+      <td>$364.77</td>
+      <td>2021-02-23</td>
+      <td>$357.47</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-02-24</td>
+      <td>$361.70</td>
+      <td>2021-02-26</td>
+      <td>$354.46</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-03-01</td>
+      <td>$361.00</td>
+      <td>2021-03-04</td>
+      <td>$353.78</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-03-05</td>
+      <td>$356.20</td>
+      <td>2021-03-05</td>
+      <td>$349.08</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-03-08</td>
+      <td>$360.13</td>
+      <td>2021-04-01</td>
+      <td>$374.54</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-04-05</td>
+      <td>$378.97</td>
+      <td>2021-04-29</td>
+      <td>$394.13</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-04-30</td>
+      <td>$392.28</td>
+      <td>2021-05-12</td>
+      <td>$384.43</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-05-13</td>
+      <td>$382.36</td>
+      <td>2021-06-10</td>
+      <td>$397.66</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-06-11</td>
+      <td>$398.45</td>
+      <td>2021-09-16</td>
+      <td>$414.39</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-09-17</td>
+      <td>$420.62</td>
+      <td>2021-09-20</td>
+      <td>$412.21</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-09-21</td>
+      <td>$412.69</td>
+      <td>2021-10-01</td>
+      <td>$404.44</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-10-04</td>
+      <td>$409.36</td>
+      <td>2021-10-19</td>
+      <td>$425.73</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-10-20</td>
+      <td>$426.50</td>
+      <td>2021-11-05</td>
+      <td>$443.56</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-11-08</td>
+      <td>$444.05</td>
+      <td>2021-11-26</td>
+      <td>$435.17</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-11-29</td>
+      <td>$438.73</td>
+      <td>2021-12-01</td>
+      <td>$429.95</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-12-02</td>
+      <td>$426.12</td>
+      <td>2021-12-07</td>
+      <td>$443.16</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-12-08</td>
+      <td>$443.11</td>
+      <td>2021-12-20</td>
+      <td>$434.24</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-12-21</td>
+      <td>$435.09</td>
+      <td>2021-12-27</td>
+      <td>$452.49</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2021-12-28</td>
+      <td>$453.22</td>
+      <td>2022-01-06</td>
+      <td>$444.16</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-01-07</td>
+      <td>$443.95</td>
+      <td>2022-01-10</td>
+      <td>$435.07</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-01-11</td>
+      <td>$441.37</td>
+      <td>2022-01-18</td>
+      <td>$432.54</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-01-19</td>
+      <td>$434.63</td>
+      <td>2022-01-20</td>
+      <td>$425.94</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-01-21</td>
+      <td>$422.71</td>
+      <td>2022-01-24</td>
+      <td>$414.26</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-01-25</td>
+      <td>$410.85</td>
+      <td>2022-02-01</td>
+      <td>$427.28</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-02-02</td>
+      <td>$432.14</td>
+      <td>2022-02-03</td>
+      <td>$423.50</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-02-04</td>
+      <td>$423.46</td>
+      <td>2022-02-14</td>
+      <td>$414.99</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-02-15</td>
+      <td>$420.97</td>
+      <td>2022-02-18</td>
+      <td>$412.55</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-02-22</td>
+      <td>$409.74</td>
+      <td>2022-02-23</td>
+      <td>$401.55</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-02-24</td>
+      <td>$389.94</td>
+      <td>2022-02-24</td>
+      <td>$405.54</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-02-25</td>
+      <td>$407.58</td>
+      <td>2022-03-07</td>
+      <td>$399.43</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-03-08</td>
+      <td>$398.10</td>
+      <td>2022-03-17</td>
+      <td>$414.02</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-03-18</td>
+      <td>$416.83</td>
+      <td>2022-03-28</td>
+      <td>$433.50</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-03-29</td>
+      <td>$437.78</td>
+      <td>2022-04-01</td>
+      <td>$429.03</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-04-04</td>
+      <td>$431.23</td>
+      <td>2022-04-06</td>
+      <td>$422.60</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-04-07</td>
+      <td>$424.05</td>
+      <td>2022-04-12</td>
+      <td>$415.57</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-04-13</td>
+      <td>$416.86</td>
+      <td>2022-04-22</td>
+      <td>$408.52</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-04-25</td>
+      <td>$403.19</td>
+      <td>2022-04-27</td>
+      <td>$395.13</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-04-28</td>
+      <td>$401.88</td>
+      <td>2022-04-29</td>
+      <td>$393.84</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-05-02</td>
+      <td>$392.15</td>
+      <td>2022-05-04</td>
+      <td>$407.84</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-05-05</td>
+      <td>$404.03</td>
+      <td>2022-05-05</td>
+      <td>$395.95</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-05-06</td>
+      <td>$391.23</td>
+      <td>2022-05-09</td>
+      <td>$383.40</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-05-10</td>
+      <td>$384.94</td>
+      <td>2022-05-10</td>
+      <td>$377.24</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-05-11</td>
+      <td>$378.83</td>
+      <td>2022-05-12</td>
+      <td>$371.25</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-05-13</td>
+      <td>$377.53</td>
+      <td>2022-05-19</td>
+      <td>$369.98</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-05-20</td>
+      <td>$374.24</td>
+      <td>2022-05-20</td>
+      <td>$366.76</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-05-23</td>
+      <td>$373.84</td>
+      <td>2022-05-27</td>
+      <td>$388.79</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-05-31</td>
+      <td>$393.56</td>
+      <td>2022-06-09</td>
+      <td>$385.69</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-06-10</td>
+      <td>$375.79</td>
+      <td>2022-06-13</td>
+      <td>$368.28</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-06-14</td>
+      <td>$358.63</td>
+      <td>2022-06-16</td>
+      <td>$351.46</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-06-17</td>
+      <td>$349.34</td>
+      <td>2022-06-24</td>
+      <td>$363.32</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-06-27</td>
+      <td>$373.75</td>
+      <td>2022-06-28</td>
+      <td>$366.28</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-06-29</td>
+      <td>$364.37</td>
+      <td>2022-06-30</td>
+      <td>$357.08</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-07-01</td>
+      <td>$359.91</td>
+      <td>2022-07-19</td>
+      <td>$374.30</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-07-20</td>
+      <td>$375.11</td>
+      <td>2022-07-29</td>
+      <td>$390.12</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-08-01</td>
+      <td>$391.05</td>
+      <td>2022-08-12</td>
+      <td>$406.70</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-08-15</td>
+      <td>$405.98</td>
+      <td>2022-08-22</td>
+      <td>$397.86</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-08-23</td>
+      <td>$394.64</td>
+      <td>2022-08-29</td>
+      <td>$386.75</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-08-30</td>
+      <td>$385.99</td>
+      <td>2022-08-31</td>
+      <td>$378.27</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-09-01</td>
+      <td>$375.51</td>
+      <td>2022-09-12</td>
+      <td>$390.53</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-09-13</td>
+      <td>$384.06</td>
+      <td>2022-09-13</td>
+      <td>$376.38</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-09-14</td>
+      <td>$377.02</td>
+      <td>2022-09-16</td>
+      <td>$369.48</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-09-19</td>
+      <td>$366.85</td>
+      <td>2022-09-22</td>
+      <td>$359.52</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-09-23</td>
+      <td>$355.65</td>
+      <td>2022-12-21</td>
+      <td>$369.87</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-12-22</td>
+      <td>$369.30</td>
+      <td>2022-12-22</td>
+      <td>$361.91</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2022-12-23</td>
+      <td>$366.02</td>
+      <td>2023-01-11</td>
+      <td>$380.66</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-01-12</td>
+      <td>$382.43</td>
+      <td>2023-01-19</td>
+      <td>$374.78</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-01-20</td>
+      <td>$376.10</td>
+      <td>2023-01-27</td>
+      <td>$391.14</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-01-30</td>
+      <td>$388.34</td>
+      <td>2023-02-24</td>
+      <td>$380.57</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-02-27</td>
+      <td>$385.52</td>
+      <td>2023-03-09</td>
+      <td>$377.81</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-03-10</td>
+      <td>$376.96</td>
+      <td>2023-03-13</td>
+      <td>$369.42</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-03-14</td>
+      <td>$376.48</td>
+      <td>2023-03-31</td>
+      <td>$391.54</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-04-03</td>
+      <td>$395.68</td>
+      <td>2023-06-02</td>
+      <td>$411.51</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-06-05</td>
+      <td>$414.48</td>
+      <td>2023-06-30</td>
+      <td>$431.06</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-07-03</td>
+      <td>$430.24</td>
+      <td>2023-08-18</td>
+      <td>$421.64</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-08-21</td>
+      <td>$425.03</td>
+      <td>2023-09-26</td>
+      <td>$416.53</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-09-27</td>
+      <td>$416.33</td>
+      <td>2023-10-23</td>
+      <td>$408.00</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-10-24</td>
+      <td>$412.00</td>
+      <td>2023-10-26</td>
+      <td>$403.76</td>
+      <td>-2.00%</td>
+      <td>Stop Loss</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-10-27</td>
+      <td>$403.76</td>
+      <td>2023-11-02</td>
+      <td>$419.91</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-11-03</td>
+      <td>$422.23</td>
+      <td>2023-11-15</td>
+      <td>$439.12</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-11-16</td>
+      <td>$437.90</td>
+      <td>2023-12-13</td>
+      <td>$455.42</td>
+      <td>4.00%</td>
+      <td>Take Profit</td>
+    </tr>
+    <tr>
+      <td>Compra</td>
+      <td>2023-12-14</td>
+      <td>$460.60</td>
+      <td>2023-12-29</td>
+      <td>$465.21</td>
+      <td>1.00%</td>
+      <td>End of Data</td>
+    </tr>
+  </tbody>
+</table>
+    </body>
+    </html>
+    

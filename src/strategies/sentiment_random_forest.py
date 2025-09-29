@@ -5,7 +5,7 @@ from sklearn.base import BaseEstimator
 
 from src.strategies.base import BaseStrategy
 
-class RandomForestFeatureStrategy(BaseStrategy):
+class SentimentRandomForestFeatureStrategy(BaseStrategy):
     """
     Implementação da estratégia baseada em features de indicadores técnicos
     e um modelo RandomForestClassifier.
@@ -14,7 +14,7 @@ class RandomForestFeatureStrategy(BaseStrategy):
         self.short_window = short_window
         self.long_window = long_window
         self.rsi_window = rsi_window
-        self.feature_names = ['ma_diff', 'rsi', 'returns']
+        self.feature_names = ['ma_diff', 'rsi', 'returns', 'sentiment']
 
     def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
         df = data.copy()
@@ -33,6 +33,9 @@ class RandomForestFeatureStrategy(BaseStrategy):
 
         # 3. Retornos Diários
         df['returns'] = df['close'].pct_change()
+        
+        if 'sentiment' not in df.columns:
+            raise ValueError("A coluna 'sentiment' não foi encontrada. Verifique o data_provider.")
         
         return df
 
