@@ -2,8 +2,16 @@
 
 data_settings:
   ticker: "SPY"
-  start_date: "2010-01-01"
-  end_date: "2024-01-01"
+  # Período de dados para treino e validação do modelo
+  
+  in_sample:
+    start_date: "2010-01-01"
+    end_date: "2023-12-31"
+  # Período de dados para simular operações "reais" com o modelo já treinado
+  out_of_sample:
+    start_date: "2024-01-01"
+    end_date: "2024-12-31" # Use uma data recente
+
   use_sentiment: true  # Novo parâmetro para usar dados de sentimento
   sentiment_ticker: "^VIX"  # Novo parâmetro para ticker de sentimento
 

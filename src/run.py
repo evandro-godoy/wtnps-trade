@@ -1,4 +1,5 @@
 # src/run.py
+from datetime import timedelta
 import yaml
 import importlib
 import logging
@@ -121,74 +122,127 @@ def simulate_trades_with_stops(market_data: pd.DataFrame, signals: pd.DataFrame,
 
 
 def main():
-    """Ponto de entrada principal para a execução do backtest."""
-    
+    """
+    Ponto de entrada principal que agora separa o treino (in-sample)
+    da simulação de performance (out-of-sample).
+    """
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
     # 1. Carregar configuração
     logging.info("Carregando arquivo de configuração...")
     with open("configs/main.yaml", 'r') as file:
         config = yaml.safe_load(file)
 
-    # 2. Obter dados de mercado
+    # 2. Obter dados de mercado para os dois períodos
     data_provider = YFinanceProvider()
+    ticker = config['data_settings']['ticker']
     sentiment_ticker = config['data_settings'].get('sentiment_ticker', '') if config['data_settings'].get('use_sentiment', False) else ''
-    market_data = data_provider.get_data(
-        ticker=config['data_settings']['ticker'],
-        start_date=config['data_settings']['start_date'],
-        end_date=config['data_settings']['end_date'],
+    logging.info("Buscando dados IN-SAMPLE para treino do modelo...")
+    market_data_is = data_provider.get_data(
+        ticker=ticker,
+        start_date=config['data_settings']['in_sample']['start_date'],
+        end_date=config['data_settings']['in_sample']['end_date'],
         sentiment_ticker=sentiment_ticker
     )
 
-    # 3. Carregar a estratégia dinamicamente
-    strategy_name = config['backtest_settings']['strategy_name']
-    strategy_module_name = config['backtest_settings']['strategy_module']
-    logging.info(f"Carregando classe '{strategy_name}' do módulo '{strategy_module_name}'")
-    try:
-        module_path = f"src.strategies.{strategy_module_name}"
-        strategy_module = importlib.import_module(module_path)
-        StrategyClass = getattr(strategy_module, strategy_name)
-    except (ImportError, AttributeError) as e:
-        logging.error(f"Não foi possível carregar a estratégia '{strategy_name}'. Erro: {e}")
+    logging.info("Buscando dados OUT-OF-SAMPLE para simulação...")
+    oos_start_date = config['data_settings']['out_of_sample']['start_date']
+    
+    # Buscamos dados um pouco antes para garantir o lookback da LSTM
+    fetch_start_date = pd.to_datetime(oos_start_date) - timedelta(days=180)
+    market_data_oos = data_provider.get_data(
+        ticker=ticker,
+        #start_date=fetch_start_date.strftime('%Y-%m-%d'),
+        start_date=config['data_settings']['out_of_sample']['start_date'],
+        end_date=config['data_settings']['out_of_sample']['end_date'],
+        sentiment_ticker=sentiment_ticker
+    )
+
+    if market_data_is.empty or market_data_oos.empty:
+        logging.error("Falha ao carregar dados. Abortando.")
         return
 
-    strategy_instance = StrategyClass()
+    # 3. Carregar a estratégia dinamicamente
+    try:
+        strategy_name = config['backtest_settings']['strategy_name']
+        module_path = f"src.strategies.{config['backtest_settings']['strategy_module']}"
+        strategy_module = importlib.import_module(module_path)
+        StrategyClass = getattr(strategy_module, strategy_name)
+        strategy_instance = StrategyClass()
+    except (ImportError, AttributeError) as e:
+        logging.error(f"Não foi possível carregar a estratégia. Erro: {e}")
+        return
+
+    # --- FASE 1: TREINO DO MODELO FINAL (IN-SAMPLE) ---
+    logging.info("Iniciando a fase de treino com dados In-Sample...")
     
-    # 4. Executar o backtest para obter os sinais
-    backtester = WalkForwardBacktester(
-        strategy=strategy_instance,
-        n_splits=config['backtest_settings']['n_splits']
-    )
-    results_signals = backtester.run(market_data)
+    # Preparar dados de treino
+    featured_data_is = strategy_instance.define_features(market_data_is)
+    featured_data_is['target'] = (featured_data_is['close'].shift(-1) > featured_data_is['close']).astype(int)
+    featured_data_is = featured_data_is.dropna()
+
+    X_is = featured_data_is[strategy_instance.get_feature_names()]
+    y_is = featured_data_is['target']
+
+    # Treinar o modelo final
+    production_model = strategy_instance.define_model()
+    production_model.fit(X_is, y_is)
+    logging.info("Modelo final treinado com sucesso.")
+
+    # --- FASE 2: SIMULAÇÃO (OUT-OF-SAMPLE) ---
+    logging.info("Iniciando a fase de simulação com dados Out-of-Sample...")
+
+    # Preparar dados de simulação
+    featured_data_oos = strategy_instance.define_features(market_data_oos)
+    featured_data_oos['target'] = (featured_data_oos['close'].shift(-1) > featured_data_oos['close']).astype(int)
+    featured_data_oos = featured_data_oos.dropna()
     
-    # 5. Simular a estratégia de trading com Stop Loss e Take Profit
-    initial_capital = config['trading_rules']['initial_capital']
-    stop_loss_pct = config['trading_rules']['stop_loss_pct']
-    take_profit_pct = config['trading_rules']['take_profit_pct']
+    X_oos = featured_data_oos[strategy_instance.get_feature_names()]
+    
+    # Garantir que estamos simulando apenas no período OOS correto
+    X_oos = X_oos.loc[oos_start_date:]
 
-    # strategy_returns = simulate_trades_with_stops(market_data, results_signals, stop_loss_pct, take_profit_pct)
-    strategy_returns, trades_log = simulate_trades_with_stops(market_data, results_signals, initial_capital, stop_loss_pct, take_profit_pct)
+    if not X_oos.empty:
+        predictions_oos = production_model.predict(X_oos)
+        
+        prediction_start_index = len(X_oos) - len(predictions_oos)
+        prediction_dates = X_oos.index[prediction_start_index:]
+        
+        # --- CORREÇÃO AQUI: Criar o DataFrame de resultados completo ---
+        results_signals = pd.DataFrame({
+            'Prediction': predictions_oos
+        }, index=prediction_dates)
+        
+        # Adiciona o 'Real_Target' para o cálculo da acurácia no relatório
+        results_signals['Real_Target'] = featured_data_oos.loc[prediction_dates, 'target']
 
-    # 6. Gerar os relatórios
-    if not strategy_returns.empty:
-        # Relatório de performance (gráfico)
-        results_report = results_signals.join(strategy_returns, how='left').fillna(0)
-        logging.info("Gerando relatório de performance...")
-        generate_report(results_report, config['reporting_settings']['performance_report_path'], config)
-        logging.info(f"Relatório de performance salvo em: {config['reporting_settings']['performance_report_path']}")
+        # Simular trades
+        trading_rules = config['trading_rules']
+        strategy_returns, trades_log = simulate_trades_with_stops(
+            market_data_oos, results_signals, 
+            trading_rules['initial_capital'], 
+            trading_rules['stop_loss_pct'], 
+            trading_rules['take_profit_pct']
+        )
 
-        # Relatório de operações (tabela)
-        logging.info("Gerando relatório de operações...")
-        generate_trades_report(trades_log, config['reporting_settings']['trades_report_path'], config)
-        logging.info(f"Relatório de operações salvo em: {config['reporting_settings']['trades_report_path']}")
+        # 7. Gerar relatórios da performance OUT-OF-SAMPLE
+        if not strategy_returns.empty:
+            reporting_cfg = config['reporting_settings']
+            # Adiciona a coluna de retornos de mercado para o gráfico de benchmark
+            results_signals['returns'] = market_data_oos['close'].pct_change()
+            results_report = results_signals.join(strategy_returns, how='left').fillna(0)
+            
+            logging.info("Gerando relatório de performance OOS...")
+            generate_report(results_report, reporting_cfg['performance_report_path'], config)
+            logging.info(f"Relatório de performance salvo em: {reporting_cfg['performance_report_path']}")
+
+            logging.info("Gerando relatório de operações OOS...")
+            generate_trades_report(trades_log, reporting_cfg['trades_report_path'], config)
+            logging.info(f"Relatório de operações salvo em: {reporting_cfg['trades_report_path']}")
+        else:
+            logging.warning("Nenhum resultado OOS para gerar relatórios.")
     else:
-        logging.warning("Nenhum resultado para gerar relatórios.")
-
-    # Juntar os resultados para o relatório
-    # results_report = results_signals.join(strategy_returns, how='left').fillna(0)
-    
-    # 6. Gerar o relatório
-    # logging.info("Gerando relatório de performance...")
-    # generate_report(results_report, config['reporting_settings']['output_path'], config)
-    #logging.info(f"Relatório salvo em: {config['reporting_settings']['output_path']}")
+        logging.warning("Não há dados Out-of-Sample para fazer previsões.")
 
 if __name__ == "__main__":
     main()
