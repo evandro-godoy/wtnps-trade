@@ -6,7 +6,7 @@ import logging
 import numpy as np
 import pandas as pd # Adicionado
 
-from src.data_handler.provider import YFinanceProvider
+from src.data_handler.provider import YFinanceProvider, MetaTraderProvider 
 from src.backtest_engine.engine import WalkForwardBacktester
 from src.reporting.plot import generate_report, generate_trades_report
 
@@ -134,7 +134,16 @@ def main():
         config = yaml.safe_load(file)
 
     # 2. Obter dados de mercado para os dois períodos
-    data_provider = YFinanceProvider()
+    provider_name = config['data_settings'].get('provider', 'YFinance') # Padrão para YFinance
+    if provider_name == 'MetaTrader5':
+        data_provider = MetaTraderProvider()
+        logging.info("Usando o provedor de dados: MetaTrader 5")
+    else:
+        data_provider = YFinanceProvider()
+        logging.info("Usando o provedor de dados: Yahoo Finance")
+
+
+
     ticker = config['data_settings']['ticker']
     sentiment_ticker = config['data_settings'].get('sentiment_ticker', '') if config['data_settings'].get('use_sentiment', False) else ''
     logging.info("Buscando dados IN-SAMPLE para treino do modelo...")

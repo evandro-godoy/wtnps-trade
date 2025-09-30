@@ -1,12 +1,15 @@
 # configs/main.yaml
 
 data_settings:
-  ticker: "ITUB4.SA"
-  # Período de dados para treino e validação do modelo
+  #provider: "yfinance"
+  provider: "Metatrader5"
+  ticker: "PETR4"
 
+  # Período de dados para treino e validação do modelo
   in_sample:
-    start_date: "2010-01-01"
+    start_date: "2020-01-01"
     end_date: "2023-12-31"
+
   # Período de dados para simular operações "reais" com o modelo já treinado
   out_of_sample:
     start_date: "2024-01-01"
