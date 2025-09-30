@@ -2,8 +2,8 @@
 
 data_settings:
   #provider: "yfinance"
-  provider: "Metatrader5"
-  ticker: "PETR4"
+  provider: "metatrader5"
+  ticker: "WDO$"
 
   # Período de dados para treino e validação do modelo
   in_sample:
@@ -15,21 +15,21 @@ data_settings:
     start_date: "2024-01-01"
     end_date: "2025-08-01" # Use uma data recente
 
-  use_sentiment: true  # Novo parâmetro para usar dados de sentimento
-  sentiment_ticker: "^VIX"  # Novo parâmetro para ticker de sentimento
+  use_sentiment: false  # Novo parâmetro para usar dados de sentimento
+  sentiment_ticker: ""  # Novo parâmetro para ticker de sentimento
 
 backtest_settings:
-  strategy_name: "SentimentLSTMStrategy"
-  strategy_module: "sentiment_lstm"
+  strategy_name: "LSTMStrategy"
+  strategy_module: "lstm"
   n_splits: 10
 
 # Nova seção para regras de trading
 trading_rules:
-  initial_capital: 10000  # Capital inicial
-  stop_loss_pct: 0.02  # Stop loss de 2%
-  take_profit_pct: 0.04  # Take profit de 4%
+  initial_capital: 5000  # Capital inicial
+  stop_loss_pct: 0.01  # Stop loss de 1%
+  take_profit_pct: 0.03  # Take profit de 3%
 
 reporting_settings:
-  performance_report_path: "reports/perf_report_slstm_stops_itub4_2.html"
-  trades_report_path: "reports/trades_report_slstm_stops_itub4_2.html"
+  performance_report_path: "reports/perf_report_lstm_stops_wdo$.html"
+  trades_report_path: "reports/trades_report_lstm_stops_wdo$.html"
   # output_path: "reports/report_slst_stops_spy2045.html"

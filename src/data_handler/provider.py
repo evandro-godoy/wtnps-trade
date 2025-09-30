@@ -75,10 +75,12 @@ class MetaTraderProvider:
         filename = f"MT5_{ticker}_{start_date}_{end_date}.parquet"
         return self.cache_path / filename
 
-    def get_data(self, ticker: str, start_date: str, end_date: str, timeframe=mt5.TIMEFRAME_D1) -> pd.DataFrame:
+    def get_data(self, ticker: str, start_date: str, end_date: str, sentiment_ticker: str) -> pd.DataFrame:
         """
         Busca dados de mercado do MetaTrader 5.
         """
+        timeframe=mt5.TIMEFRAME_D1
+        
         cache_path = self._get_cache_path(ticker, start_date, end_date)
         
         try:

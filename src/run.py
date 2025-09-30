@@ -134,8 +134,8 @@ def main():
         config = yaml.safe_load(file)
 
     # 2. Obter dados de mercado para os dois períodos
-    provider_name = config['data_settings'].get('provider', 'YFinance') # Padrão para YFinance
-    if provider_name == 'MetaTrader5':
+    provider_name = config['data_settings'].get('provider', 'metatrader5') # Padrão para MetaTrader5
+    if provider_name == 'metatrader5':
         data_provider = MetaTraderProvider()
         logging.info("Usando o provedor de dados: MetaTrader 5")
     else:
