@@ -29,6 +29,16 @@ trading_rules:
   stop_loss_pct: 0.01  # Stop loss de 1%
   take_profit_pct: 0.03  # Take profit de 3%
 
+live_trading:
+  # ATENÇÃO: Mude para 'execute' apenas quando estiver seguro e em conta DEMO.
+  execution_mode: "suggest"  # Opções: "suggest" (apenas imprime a ordem) ou "execute" (envia a ordem real)
+  
+  model_path: "models/prod_model.keras"
+  scaler_path: "models/prod_scaler.joblib"
+  
+  timeframe: 86400 # Timeframe em segundos (86400 = D1, 300 = M5, etc.) - Use os valores da lib mt5
+  trade_volume: 0.1 # Volume da operação (lotes)
+
 reporting_settings:
   performance_report_path: "reports/perf_report_lstm_stops_win$_0510252100.html"
   trades_report_path: "reports/trades_report_lstm_stops_win$_0510252100.html"

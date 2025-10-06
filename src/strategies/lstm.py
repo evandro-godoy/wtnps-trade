@@ -3,11 +3,17 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.base import BaseEstimator, ClassifierMixin
+from tensorflow import keras
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
+import joblib
+import logging
 
 from src.strategies.base import BaseStrategy
+
+# Configuração do logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Funções Auxiliares para Preparação de Dados ---
 
@@ -103,6 +109,37 @@ class KerasLSTMWrapper(BaseEstimator, ClassifierMixin):
         for param, value in params.items():
             setattr(self, param, value)
         return self
+    
+    def save_model(self, model_path: str, scaler_path: str):
+        """Salva o modelo Keras e o scaler em arquivos separados."""
+        self.model.save(model_path)
+        joblib.dump(self.scaler, scaler_path)
+        logging.info(f"Modelo salvo em {model_path} e scaler em {scaler_path}")
+
+    @classmethod
+    def load_model(cls, model_path: str, scaler_path: str):
+        """Carrega um modelo Keras e um scaler de arquivos e retorna uma nova instância do wrapper."""
+        logging.info(f"Carregando modelo de {model_path} e scaler de {scaler_path}")
+        
+        # Carrega o modelo e o scaler
+        loaded_keras_model = keras.models.load_model(model_path)
+        loaded_scaler = joblib.load(scaler_path)
+
+        # Cria uma nova instância do wrapper com os componentes carregados
+        # É preciso saber os parâmetros originais para recriar o wrapper
+        # Aqui, usamos os padrões, mas em um sistema complexo, salvaríamos os metadados
+        instance = cls() 
+        instance.model = loaded_keras_model
+        instance.scaler = loaded_scaler
+        
+        # Extrai parâmetros do modelo carregado
+        try:
+            instance.lookback = instance.model.input_shape[1]
+            instance.n_features = instance.model.input_shape[2]
+        except Exception as e:
+            logging.warning(f"Não foi possível extrair lookback/n_features do modelo carregado: {e}")
+
+        return instance
 
 # --- Implementação da Estratégia LSTM Aprimorada ---
 
