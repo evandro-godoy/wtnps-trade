@@ -8,15 +8,18 @@ import pandas as pd # Adicionado
 
 from src.data_handler.provider import YFinanceProvider, MetaTraderProvider 
 from src.backtest_engine.engine import WalkForwardBacktester
+from src.backtest_engine.runner import simulate_trades_with_stops
+
 from src.reporting.plot import generate_report, generate_trades_report
 
 # Configuração do logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+"""
+# método movido para o arquivo backtest_engine/runner.py
 def simulate_trades_with_stops(market_data: pd.DataFrame, signals: pd.DataFrame, initial_capital: float,stop_loss_pct: float, take_profit_pct: float) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Simula trades com capital inicial, posições compradas e vendidas.
-    """
+    # Simula trades com capital inicial, posições compradas e vendidas.
+    
     logging.info(f"Simulando trades com capital inicial de ${initial_capital:,.2f}, SL={stop_loss_pct:.2%} e TP={take_profit_pct:.2%}")
     
     capital = initial_capital
@@ -119,7 +122,7 @@ def simulate_trades_with_stops(market_data: pd.DataFrame, signals: pd.DataFrame,
         daily_returns_df.loc[date] = ret / 100 # Converte de volta para decimal
     
     return daily_returns_df.to_frame(), trades_df
-
+"""
 
 def main():
     """

@@ -30,6 +30,6 @@ trading_rules:
   take_profit_pct: 0.03  # Take profit de 3%
 
 reporting_settings:
-  performance_report_path: "reports/perf_report_lstm_stops_win$.html"
-  trades_report_path: "reports/trades_report_lstm_stops_win$.html"
+  performance_report_path: "reports/perf_report_lstm_stops_win$_0510252100.html"
+  trades_report_path: "reports/trades_report_lstm_stops_win$_0510252100.html"
   # output_path: "reports/report_slst_stops_spy2045.html"
