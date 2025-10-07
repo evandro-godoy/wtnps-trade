@@ -127,11 +127,11 @@ class LiveTrader:
     def _execute_trade(self, order_type):
         """Envia a ordem para o MetaTrader 5."""
         trade_type = mt5.ORDER_TYPE_BUY if order_type == 'BUY' else mt5.ORDER_TYPE_SELL
-        price = mt5.symbol_info_tick(self.ticker).ask if order_type == 'BUY' else mt5.symbol_info_tick(self.ticker).bid
+        price = mt5.symbol_info_tick(self.ticker_order).ask if order_type == 'BUY' else mt5.symbol_info_tick(self.ticker_order).bid
         
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
-            "symbol": self.ticker,
+            "symbol": self.ticker_order,
             "volume": self.live_config['trade_volume'],
             "type": trade_type,
             "price": price,
@@ -144,7 +144,10 @@ class LiveTrader:
 
         if self.live_config['execution_mode'] == 'suggest':
             logging.info(f"[MODO SUGESTÃO] Ordem de {order_type} para {self.live_config['trade_volume']} lotes de {self.ticker} a ~${price}")
-        
+        else:
+            logging.warning("Modo de execução não reconhecido.")
+
+        """
         elif self.live_config['execution_mode'] == 'execute':
             logging.info(f"[MODO EXECUÇÃO] Enviando ordem de {order_type} para {self.ticker}...")
             result = mt5.order_send(request)
@@ -153,9 +156,8 @@ class LiveTrader:
             else:
                 logging.info(f"Ordem enviada com sucesso: {result}")
                 self.current_position = 'LONG' if order_type == 'BUY' else 'SHORT'
-        else:
-            logging.warning("Modo de execução não reconhecido.")
-
+        """
+        
 if __name__ == "__main__":
     trader = LiveTrader()
     trader.run()

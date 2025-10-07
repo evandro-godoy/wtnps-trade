@@ -44,6 +44,8 @@ live_trading:
   timeframe: 3600 # Timeframe em segundos (86400 = D1, 300 = M5, etc.) - Use os valores da lib mt5
   trade_volume: 0.1 # Volume da operação (lotes)
 
+  ticker_order: "WINV25"  # Ticker para ordens (pode ser diferente do ticker de dados)
+
 reporting_settings:
   performance_report_path: "reports/perf_report_lstm_stops_win$_071025.html"
   trades_report_path: "reports/trades_report_lstm_stops_win$_071025.html"
