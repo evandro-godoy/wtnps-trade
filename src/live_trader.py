@@ -1,4 +1,6 @@
 
+import importlib
+from logging import config
 import yaml
 import logging
 import time
@@ -6,38 +8,66 @@ from pathlib import Path
 import MetaTrader5 as mt5
 
 from src.data_handler.provider import MetaTraderProvider
+from src.strategies.lstm import LSTMStrategy
 from src.strategies.sentiment_lstm import SentimentLSTMStrategy, KerasLSTMWrapper
 
 class LiveTrader:
     def __init__(self, config_path="configs/main.yaml"):
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         
-        with open(config_path, 'r') as file:
-            self.config = yaml.safe_load(file)
-        
+        # Armazena a raiz do projeto ---
+        self.project_root = Path(__file__).parent.parent
+        absolute_config_path = self.project_root / config_path
+
+        try:
+            with open(absolute_config_path, 'r') as file:
+                self.config = yaml.safe_load(file)
+        except FileNotFoundError:
+            # Fallback para quando executado de um notebook
+            self.project_root = Path.cwd() # Assume que a raiz é o diretório do notebook
+            absolute_config_path = self.project_root / config_path
+            with open(absolute_config_path, 'r') as file:
+                self.config = yaml.safe_load(file)
+
         self.live_config = self.config['live_trading']
         self.ticker = self.config['data_settings']['ticker']
         self.provider = MetaTraderProvider()
-        self.strategy = SentimentLSTMStrategy()
+        
+        # 3. Carregar a estratégia dinamicamente
+        try:
+            strategy_name = self.config['backtest_settings']['strategy_name']
+            module_path = f"src.strategies.{self.config['backtest_settings']['strategy_module']}"
+            strategy_module = importlib.import_module(module_path)
+            StrategyClass = getattr(strategy_module, strategy_name)
+            strategy_instance = StrategyClass()
+        except (ImportError, AttributeError) as e:
+            logging.error(f"Não foi possível carregar a estratégia. Erro: {e}")
+            return
+        
+        self.strategy = strategy_instance
         self.model = None
-        self.current_position = None # Pode ser 'LONG', 'SHORT' ou None
+        self.current_position = None
         self.timeframe_seconds = self._get_timeframe_seconds()
 
     def _get_timeframe_seconds(self):
-        # Mapeia timeframes do MT5 para segundos para o loop de espera
-        tf_map = { mt5.TIMEFRAME_M1: 60, mt5.TIMEFRAME_M5: 300, mt5.TIMEFRAME_D1: 86400 }
-        return tf_map.get(self.live_config['timeframe'], 86400) # Padrão para Diário
+        tf_map = { mt5.TIMEFRAME_M1: 60, mt5.TIMEFRAME_M5: 300, mt5.TIMEFRAME_H1: 3600, mt5.TIMEFRAME_D1: 86400 }
+        return tf_map.get(self.live_config['timeframe'], 86400)
 
     def initialize(self):
-        """Conecta ao MT5 e carrega o modelo pré-treinado."""
+        """Conecta ao MT5 e carrega o modelo pré-treinado usando caminhos absolutos."""
         logging.info("Inicializando o robô trader...")
         if not mt5.initialize():
             logging.error(f"Falha na inicialização do MetaTrader 5: {mt5.last_error()}")
             return False
         
-        model_path = self.live_config['model_path']
-        scaler_path = self.live_config['scaler_path']
-        self.model = KerasLSTMWrapper.load_model(model_path, scaler_path)
+        # Constrói os caminhos absolutos para o modelo e o scaler ---
+        relative_model_path = self.live_config['model_path']
+        relative_scaler_path = self.live_config['scaler_path']
+        
+        absolute_model_path = self.project_root / relative_model_path
+        absolute_scaler_path = self.project_root / relative_scaler_path
+        
+        self.model = KerasLSTMWrapper.load_model(absolute_model_path, absolute_scaler_path)
         logging.info("Robô inicializado com sucesso.")
         return True
 

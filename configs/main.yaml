@@ -1,5 +1,10 @@
 # configs/main.yaml
-
+project_details: 
+  project_name: "wtnps-trade"
+  project_root: "c:/projects/wtnps-trade/"  # Ajuste conforme necessário
+  strategy_path: "src/strategies/"
+  reports_path: "reports/"
+  
 data_settings:
   #provider: "yfinance"
   provider: "metatrader5"
@@ -8,12 +13,12 @@ data_settings:
   # Período de dados para treino e validação do modelo
   in_sample:
     start_date: "2022-01-01"
-    end_date: "2024-12-31"
+    end_date: "2025-09-30"
 
   # Período de dados para simular operações "reais" com o modelo já treinado
   out_of_sample:
-    start_date: "2024-01-01"
-    end_date: "2025-09-01" # Use uma data recente
+    start_date: "2025-10-01"
+    end_date: "2025-10-04" # Use uma data recente
 
   use_sentiment: false  # Novo parâmetro para usar dados de sentimento
   sentiment_ticker: ""  # Novo parâmetro para ticker de sentimento
@@ -25,7 +30,7 @@ backtest_settings:
 
 # Nova seção para regras de trading
 trading_rules:
-  initial_capital: 10000  # Capital inicial
+  initial_capital: 5000  # Capital inicial
   stop_loss_pct: 0.01  # Stop loss de 1%
   take_profit_pct: 0.03  # Take profit de 3%
 
@@ -36,10 +41,10 @@ live_trading:
   model_path: "models/prod_model.keras"
   scaler_path: "models/prod_scaler.joblib"
   
-  timeframe: 86400 # Timeframe em segundos (86400 = D1, 300 = M5, etc.) - Use os valores da lib mt5
+  timeframe: 3600 # Timeframe em segundos (86400 = D1, 300 = M5, etc.) - Use os valores da lib mt5
   trade_volume: 0.1 # Volume da operação (lotes)
 
 reporting_settings:
-  performance_report_path: "reports/perf_report_lstm_stops_win$_0510252100.html"
-  trades_report_path: "reports/trades_report_lstm_stops_win$_0510252100.html"
+  performance_report_path: "reports/perf_report_lstm_stops_win$_071025.html"
+  trades_report_path: "reports/trades_report_lstm_stops_win$_071025.html"
   # output_path: "reports/report_slst_stops_spy2045.html"
