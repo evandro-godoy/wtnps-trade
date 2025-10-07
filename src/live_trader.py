@@ -32,7 +32,8 @@ class LiveTrader:
         self.live_config = self.config['live_trading']
         self.ticker = self.config['data_settings']['ticker']
         self.provider = MetaTraderProvider()
-        
+        self.ticker_order = self.config['live_trading']['ticker_order']
+
         # 3. Carregar a estratégia dinamicamente
         try:
             strategy_name = self.config['backtest_settings']['strategy_name']
@@ -144,6 +145,7 @@ class LiveTrader:
 
         if self.live_config['execution_mode'] == 'suggest':
             logging.info(f"[MODO SUGESTÃO] Ordem de {order_type} para {self.live_config['trade_volume']} lotes de {self.ticker} a ~${price}")
+            logging.info(f"Detalhes da ordem: {request}")
         else:
             logging.warning("Modo de execução não reconhecido.")
 
