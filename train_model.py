@@ -1,73 +1,98 @@
-# train_model.py
 import yaml
 import logging
 from pathlib import Path
 import importlib
-from src.data_handler.provider import YFinanceProvider, MetaTraderProvider 
-from src.strategies.sentiment_lstm import SentimentLSTMStrategy
 
-def train_and_save_production_model():
-    """
-    Script para treinar o modelo de produção com todos os dados históricos
-    e salvá-lo para uso futuro pelo robô de trading.
-    """
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+from src.data_handler.provider import YFinanceProvider, MetaTraderProvider
+from src.strategies.lstm import KerasLSTMWrapper
 
-    # 1. Carregar configuração
-    logging.info("Carregando arquivo de configuração...")
-    with open("configs/main.yaml", 'r') as file:
+
+def train_all_models():
+    """
+    Itera sobre todos os ativos habilitados no main.yaml,
+    treina um modelo para cada um e o salva em um arquivo específico.
+    """
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    with open("configs/main.yaml", "r") as file:
         config = yaml.safe_load(file)
 
-    # 2. Obter dados de mercado para os dois períodos
-    provider_name = config['data_settings'].get('provider', 'metatrader5') # Padrão para MetaTrader5
-    if provider_name == 'metatrader5':
-        data_provider = MetaTraderProvider()
-        logging.info("Usando o provedor de dados: MetaTrader 5")
-    else:
-        data_provider = YFinanceProvider()
-        logging.info("Usando o provedor de dados: Yahoo Finance")
-
-    train_cfg = config['data_settings']['in_sample']
-    market_data_is = data_provider.get_data(
-        ticker=config['data_settings']['ticker'],
-        start_date=train_cfg['start_date'],
-        end_date=train_cfg['end_date'],
-        sentiment_ticker=config['data_settings'].get('sentiment_ticker', '')
-    )
-
-    # 3. Carregar a estratégia dinamicamente
-    try:
-        strategy_name = config['backtest_settings']['strategy_name']
-        module_path = f"src.strategies.{config['backtest_settings']['strategy_module']}"
-        strategy_module = importlib.import_module(module_path)
-        StrategyClass = getattr(strategy_module, strategy_name)
-        strategy_instance = StrategyClass()
-    except (ImportError, AttributeError) as e:
-        logging.error(f"Não foi possível carregar a estratégia. Erro: {e}")
-        return
-
-    # 3. Preparar dados
-    strategy = strategy_instance
-    featured_data = strategy.define_features(market_data_is)
-    featured_data['target'] = (featured_data['close'].shift(-1) > featured_data['close']).astype(int)
-    featured_data = featured_data.dropna()
-
-    X_train = featured_data[strategy.get_feature_names()]
-    y_train = featured_data['target']
-
-    # 4. Treinar o modelo
-    logging.info(f"Treinando modelo de produção com {len(X_train)} amostras...")
-    production_model = strategy.define_model()
-    production_model.fit(X_train, y_train)
-
-    # 5. Salvar o modelo
-    models_dir = Path("models")
+    models_dir = Path(config["global_settings"]["model_directory"])
     models_dir.mkdir(exist_ok=True)
-    production_model.save_model(
-        model_path=str(models_dir / "prod_model.keras"),
-        scaler_path=str(models_dir / "prod_scaler.joblib")
-    )
-    logging.info("Modelo de produção treinado e salvo com sucesso.")
+
+    # Itera sobre cada ativo configurado
+    for asset_config in config["assets"]:
+        if not asset_config.get("enabled", False):
+            continue
+
+        ticker = asset_config["ticker"]
+        logging.info(f"--- Iniciando treino para o ativo: {ticker} ---")
+
+        # 1. Seleciona o provedor de dados
+        provider_name = asset_config.get("provider", "YFinance")
+        if provider_name == "MetaTrader5":
+            data_provider = MetaTraderProvider()
+        else:
+            data_provider = YFinanceProvider()
+
+        # 2. Busca dados de treino
+        train_cfg = asset_config["data"]["in_sample"]
+        market_data_is = data_provider.get_data(
+            ticker=ticker,
+            start_date=train_cfg["start_date"],
+            end_date=train_cfg["end_date"],
+            sentiment_ticker= ""
+        )
+
+        if market_data_is.empty:
+            logging.error(f"Não foi possível obter dados para {ticker}. Pulando treino.")
+            continue
+
+        # 3. Carrega a estratégia e prepara os dados
+        try:
+            module_path = f"src.strategies.{asset_config['strategy_module']}"
+            strategy_module = importlib.import_module(module_path)
+            StrategyClass = getattr(strategy_module, asset_config["strategy_name"])
+            strategy = StrategyClass()
+        except (ImportError, AttributeError) as e:
+            logging.error(
+                f"Não foi possível carregar a estratégia para {ticker}. Erro: {e}"
+            )
+            continue
+
+        featured_data = strategy.define_features(market_data_is)
+        featured_data["target"] = (
+            featured_data["close"].shift(-1) > featured_data["close"]
+        ).astype(int)
+        featured_data = featured_data.dropna()
+
+        X_train = featured_data[strategy.get_feature_names()]
+        y_train = featured_data["target"]
+
+        if X_train.empty:
+            logging.warning(f"Não há dados de treino suficientes para {ticker} após o pré-processamento.")
+            continue
+
+        # 4. Treina o modelo
+        logging.info(
+            f"Treinando modelo de produção para {ticker} com {len(X_train)} amostras..."
+        )
+        production_model = strategy.define_model()
+        production_model.fit(X_train, y_train)
+
+        # 5. Salva o modelo com nome específico do ativo
+        model_path = str(models_dir / f"{ticker}_prod_model.keras")
+        scaler_path = str(models_dir / f"{ticker}_prod_scaler.joblib")
+        
+        # Garante que o modelo tenha o método save_model (caso seja um KerasLSTMWrapper)
+        if hasattr(production_model, 'save_model'):
+            production_model.save_model(model_path, scaler_path)
+            logging.info(f"Modelo para {ticker} salvo com sucesso.")
+        else:
+            logging.warning(f"A estratégia para {ticker} não suporta salvar o modelo (sem método save_model).")
+
 
 if __name__ == "__main__":
-    train_and_save_production_model()
+    train_all_models()

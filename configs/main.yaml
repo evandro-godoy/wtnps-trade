@@ -1,103 +1,70 @@
-# configs/main.yaml
+# ===================================================================
+# CONFIGURAÇÕES GLOBAIS DO FRAMEWORK
+# ===================================================================
 
-# Configurações globais do framework.
-global_project_details: 
-  project_name: "wtnps-trade"
-  project_root: "c:/projects/wtnps-trade/"  # Ajuste conforme necessário
-  strategy_path: "src/strategies/"
-  reports_path: "reports/"
+global_settings:
+  # Diretório para salvar os modelos treinados. Os arquivos serão nomeados com o ticker.
+  model_directory: "models"
 
-# Lista de ativos para o framework operar.
-# Cada item é uma configuração completa e independente.
+  # Nomes dos arquivos de relatório (use {ticker} para substituição automática).
+  reporting:
+    performance_report_path: "reports/{ticker}_performance_report.html"
+    trades_report_path: "reports/{ticker}_trades_report.html"
+
+
+# ===================================================================
+# LISTA DE ATIVOS PARA OPERAÇÃO
+# Cada item é uma configuração completa e independente para um ativo.
+# ===================================================================
+
 assets:
-  - ticker: "WIN$"
-
-    # Origem dos dados
-    data_settings:
-      provider: "metatrader5" # "yfinance"
-      use_sentiment: false  # Novo parâmetro para usar dados de sentimento
-      sentiment_ticker: ""  # Novo parâmetro para ticker de sentimento
-
-      # Período de dados para treino e validação do modelo
+  - ticker: "WDO$"
+    enabled: true  # Habilita ou desabilita este ativo para treino e live trading.
+    provider: "MetaTrader5"
+    strategy_module: "lstm"
+    strategy_name: "LSTMStrategy"
+    
+    data:
       in_sample:
         start_date: "2023-01-01"
         end_date: "2025-09-30"
-
-      # Período de dados para simular operações "reais" com o modelo já treinado
       out_of_sample:
         start_date: "2025-10-01"
-        end_date: "2025-10-06" # Use uma data recente
-    
-    backtest_settings:
-      strategy_name: "LSTMStrategy"
-      strategy_module: "lstm"
-      n_splits: 10
-      model_path: "models/{ticker}_prod_model.keras"
-      scaler_path: "models/{ticker}_prod_scaler.joblib"
+        end_date: "2025-10-08"
 
-    # Nova seção para regras de trading
     trading_rules:
-      initial_capital: 5000  # Capital inicial
-      stop_loss_pct: 0.01  # Stop loss de 1%
-      take_profit_pct: 0.03  # Take profit de 3%
-
+      initial_capital: 5000
+      stop_loss_pct: 0.02
+      take_profit_pct: 0.05
+    
     live_trading:
-      enabled: true  # Ativa ou desativa o trading ao vivo
-      
-      # ATENÇÃO: Mude para 'execute' apenas quando estiver seguro e em conta DEMO.
-      execution_mode: "suggest"  # Opções: "suggest" (apenas imprime a ordem) ou "execute" (envia a ordem real)
-      
-      timeframe: 3600 # Timeframe em segundos (86400 = D1, 300 = M5, etc.) - Use os valores da lib mt5
-      trade_volume: 1 # Volume da operação (lotes)
+      ticker_order: "WWDOX25"
+      timeframe_str: "H1" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
+      execution_mode: "suggest" # "suggest" ou "execute"
+      trade_volume: 1.0       # quantidade de contratos
 
-      ticker_order: "WINV25"  # Código do ativo para envio de ordens, usar o mesmo valor do ticker se não houver diferença
-
-  - ticker: "WDO$"
-
-    # Origem dos dados
-    data_settings:
-      provider: "metatrader5" # "yfinance"
-      use_sentiment: false  # Novo parâmetro para usar dados de sentimento
-      sentiment_ticker: ""  # Novo parâmetro para ticker de sentimento
-
-      # Período de dados para treino e validação do modelo
+  - ticker: "WIN$"
+    enabled: true
+    provider: "MetaTrader5"
+    strategy_module: "lstm"
+    strategy_name: "LSTMStrategy"
+    
+    data:
       in_sample:
         start_date: "2022-01-01"
-        end_date: "2025-09-30"
-
-      # Período de dados para simular operações "reais" com o modelo já treinado
+        end_date: "2024-12-31"
       out_of_sample:
-        start_date: "2025-10-01"
-        end_date: "2025-10-04" # Use uma data recente
-    
-    backtest_settings:
-      strategy_name: "LSTMStrategy"
-      strategy_module: "lstm"
-      n_splits: 10
-      model_path: "models/{ticker}_prod_model.keras"
-      scaler_path: "models/{ticker}_prod_scaler.joblib"
+        start_date: "2025-01-01"
+        end_date: "2025-10-08"
 
-    # Nova seção para regras de trading
     trading_rules:
-      initial_capital: 5000  # Capital inicial
-      stop_loss_pct: 0.01  # Stop loss de 1%
-      take_profit_pct: 0.03  # Take profit de 3%
-
+      initial_capital: 5000
+      stop_loss_pct: 0.02
+      take_profit_pct: 0.05
+      
     live_trading:
-      enabled: true  # Ativa ou desativa o trading ao vivo
-      
-      # ATENÇÃO: Mude para 'execute' apenas quando estiver seguro e em conta DEMO.
-      execution_mode: "suggest"  # Opções: "suggest" (apenas imprime a ordem) ou "execute" (envia a ordem real)
-      
-      timeframe: 900 # Timeframe em segundos (86400 = D1, 300 = M5, etc.) - Use os valores da lib mt5
-      trade_volume: 3 # Volume da operação (lotes)
-
-      ticker_order: "WDOX25"  # Código do ativo para envio de ordens, usar o mesmo valor do ticker se não houver diferença
-
-# Configurações de relatórios
-reporting_settings:
-  performance_report_path: "reports/{ticker}_performance_report_{date}.html"
-  trades_report_path: "reports/{ticker}_trades_report_{date}.html"
-
-
-
+      ticker_order: "WINV25"
+      timeframe_str: "M15"
+      execution_mode: "suggest"
+      trade_volume: 2.0  # quantidade de contratos  
+       
