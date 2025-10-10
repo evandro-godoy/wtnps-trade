@@ -4,12 +4,12 @@
 
 global_settings:
   # Diretório para salvar os modelos treinados. Os arquivos serão nomeados com o ticker.
-  model_directory: "models"
+  model_directory: "c:/projects/wtnps-trade/models"
 
   # Nomes dos arquivos de relatório (use {ticker} para substituição automática).
   reporting:
-    performance_report_path: "reports/{ticker}_performance_report.html"
-    trades_report_path: "reports/{ticker}_trades_report.html"
+    performance_report_path: "c:/projects/reports/{ticker}_performance_report.html"
+    trades_report_path: "c:/projects/reports/{ticker}_trades_report.html"
 
 
 # ===================================================================
@@ -38,8 +38,8 @@ assets:
       take_profit_pct: 0.05
     
     live_trading:
-      ticker_order: "WWDOX25"
-      timeframe_str: "H1" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
+      ticker_order: "WDOX25"
+      timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
       execution_mode: "suggest" # "suggest" ou "execute"
       trade_volume: 1.0       # quantidade de contratos
 

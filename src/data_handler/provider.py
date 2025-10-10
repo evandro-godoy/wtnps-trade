@@ -155,3 +155,4 @@ class MetaTraderProvider:
         except Exception as e:
             logging.error(f"Erro ao buscar dados recentes do MT5: {e}")
             return pd.DataFrame()        
+    

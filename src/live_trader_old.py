@@ -1,15 +1,12 @@
-
-import importlib
-from logging import config
 import yaml
 import logging
 import time
 from pathlib import Path
+import importlib
 import MetaTrader5 as mt5
 
 from src.data_handler.provider import MetaTraderProvider
-from src.strategies.lstm import LSTMStrategy
-from src.strategies.sentiment_lstm import SentimentLSTMStrategy, KerasLSTMWrapper
+from src.strategies.lstm import KerasLSTMWrapper
 
 class LiveTrader:
     def __init__(self, config_path="configs/main.yaml"):
