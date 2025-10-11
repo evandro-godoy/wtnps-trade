@@ -153,7 +153,7 @@ class LiveTrader:
 
         trade_type = mt5.ORDER_TYPE_BUY if order_type == "BUY" else mt5.ORDER_TYPE_SELL
         
-        symbol_info = mt5.symbol_info(ticker)
+        symbol_info = mt5.symbol_info(live_config.ticker_order)
         if symbol_info is None:
             logging.error(f"Não foi possível obter informações para o ativo {ticker}")
             return
