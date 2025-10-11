@@ -67,4 +67,39 @@ assets:
       timeframe_str: "M15"
       execution_mode: "suggest"
       trade_volume: 2.0  # quantidade de contratos  
+
+    setup:
+      - condition: 'buy'  # Esta regra só se aplica se o sinal da IA for de COMPRA
+        type: 'price_above_ema' # Critério: O preço deve estar acima da Média Móvel Exponencial
+        period: 21              # Período da EMA
+      
+      - condition: 'sell' # Esta regra só se aplica se o sinal da IA for de VENDA
+        type: 'price_below_ema' # Critério: O preço deve estar abaixo da Média Móvel Exponencial
+        period: 21        # Período da EMA
+
+    setup:
+      - condition: 'buy'
+        type: 'price_above_ema'
+        period: 9
+      - condition: 'buy'
+        type: 'rsi_above' # Exemplo de regra adicional: RSI também deve estar acima de 50
+        period: 14
+        level: 50
+
+      - condition: 'sell'
+        type: 'price_below_ema'
+        period: 9
+
+    setup:
+      - condition: 'buy'
+        type: 'price_above_ema'
+        period: 9
+      - condition: 'buy'
+        type: 'rsi_above' # Exemplo de regra adicional: RSI também deve estar acima de 50
+        period: 14
+        level: 50
+
+      - condition: 'sell'
+        type: 'price_below_ema'
+        period: 9      
        
