@@ -154,5 +154,22 @@ class MetaTraderProvider:
             return data[['open', 'high', 'low', 'close', 'volume']]
         except Exception as e:
             logging.error(f"Erro ao buscar dados recentes do MT5: {e}")
-            return pd.DataFrame()        
-    
+            return pd.DataFrame()
+
+    def get_rates(self, ticker: str, candle_position: int, count: int, timeframe=mt5.TIMEFRAME_D1) -> pd.DataFrame:
+        """Busca os 'count' candles entre um range de posições para um ativo."""
+        try:
+            # Não é necessário inicializar/desligar aqui, o robô gerenciará a conexão
+            rates = mt5.copy_rates_from_pos(ticker, timeframe, candle_position, count)
+            if rates is None or len(rates) == 0:
+                logging.warning(f"Nenhum dado recente retornado para '{ticker}'.")
+                return pd.DataFrame()
+
+            data = pd.DataFrame(rates)
+            data['time'] = pd.to_datetime(data['time'], unit='s')
+            data.set_index('time', inplace=True)
+            data.rename(columns={'tick_volume': 'volume'}, inplace=True)
+            return data[['open', 'high', 'low', 'close', 'volume']]
+        except Exception as e:
+            logging.error(f"Erro ao buscar dados recentes do MT5: {e}")
+            return pd.DataFrame()  

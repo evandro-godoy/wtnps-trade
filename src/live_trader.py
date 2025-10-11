@@ -150,19 +150,20 @@ class LiveTrader:
         state = self.asset_states[ticker]
         asset_config = state['config']
         live_config = asset_config['live_trading']
+        ticker_order = live_config.get('ticker_order', ticker)
 
         trade_type = mt5.ORDER_TYPE_BUY if order_type == "BUY" else mt5.ORDER_TYPE_SELL
         
-        symbol_info = mt5.symbol_info(live_config.ticker_order)
+        symbol_info = mt5.symbol_info(ticker_order)
         if symbol_info is None:
-            logging.error(f"Não foi possível obter informações para o ativo {ticker}")
+            logging.error(f"Não foi possível obter informações para o ativo {ticker_order}")
             return
 
         price = symbol_info.ask if order_type == "BUY" else symbol_info.bid
 
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
-            "symbol": ticker,
+            "symbol": ticker_order,
             "volume": float(live_config["trade_volume"]),
             "type": trade_type,
             "price": price,
@@ -175,18 +176,18 @@ class LiveTrader:
 
         if live_config["execution_mode"] == "suggest":
             logging.info(
-                f"[SUGESTÃO] Ordem de {order_type} para {live_config['trade_volume']} lotes de {ticker} a ~${price}"
+                f"[SUGESTÃO] Ordem de {order_type} para {live_config['trade_volume']} lotes de {ticker_order} a ~${price}"
             )
         elif live_config["execution_mode"] == "execute":
-            logging.info(f"[EXECUÇÃO] Enviando ordem de {order_type} para {ticker}...")
+            logging.info(f"[EXECUÇÃO] Enviando ordem de {order_type} para {ticker_order}...")
             result = mt5.order_send(request)
             if result.retcode != mt5.TRADE_RETCODE_DONE:
-                logging.error(f"Falha ao enviar ordem para {ticker}: {result.comment}")
+                logging.error(f"Falha ao enviar ordem para {ticker_order}: {result.comment}")
             else:
-                logging.info(f"Ordem para {ticker} enviada com sucesso: {result}")
+                logging.info(f"Ordem para {ticker_order} enviada com sucesso: {result}")
                 state["position"] = "LONG" if order_type == "BUY" else "SHORT"
         else:
-            logging.warning(f"Modo de execução não reconhecido para {ticker}.")
+            logging.warning(f"Modo de execução não reconhecido para {ticker_order}.")
 
 if __name__ == "__main__":
     trader = LiveTrader()
