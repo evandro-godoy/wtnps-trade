@@ -51,10 +51,10 @@ assets:
     
     data:
       in_sample:
-        start_date: "2022-01-01"
-        end_date: "2024-12-31"
+        start_date: "2023-01-01"
+        end_date: "2025-09-30"
       out_of_sample:
-        start_date: "2025-01-01"
+        start_date: "2025-10-01"
         end_date: "2025-10-08"
 
     trading_rules:
