@@ -7,12 +7,9 @@ from datetime import datetime, timedelta
 import pytz
 import MetaTrader5 as mt5
 
-# --- ALTERAÇÃO IMPORTANTE ---
-# 1. Define explicitamente o backend gráfico para o Matplotlib antes de importar o pyplot.
-# Isso garante que ele saiba como desenhar uma janela.
+# Define explicitamente o backend gráfico para o Matplotlib.
 import matplotlib
 matplotlib.use('TkAgg')
-# --- FIM DA ALTERAÇÃO ---
 
 import mplfinance as mpf
 import matplotlib.pyplot as plt
@@ -25,11 +22,6 @@ logging.basicConfig(
 
 
 class MarketReplayEngine:
-    """
-    Motor de replay de mercado que busca dados de tick do MetaTrader 5,
-    agrega-os em candles e exibe um gráfico animado.
-    """
-
     def __init__(self, ticker: str, replay_date_str: str):
         self.ticker = ticker
         self.replay_date = datetime.strptime(replay_date_str, "%Y-%m-%d")
@@ -44,7 +36,6 @@ class MarketReplayEngine:
         self.current_sim_time = self.start_time_utc
 
     def _fetch_tick_data(self) -> bool:
-        """Busca todos os dados de tick para o dia do replay."""
         logging.info(f"Conectando ao MetaTrader 5 para buscar dados de tick...")
         if not mt5.initialize():
             logging.error(f"Falha na inicialização do MT5: {mt5.last_error()}")
@@ -67,62 +58,69 @@ class MarketReplayEngine:
         return True
 
     def _update_plot(self, frame):
-        """Função chamada a cada intervalo de animação para atualizar o gráfico."""
         self.current_sim_time += timedelta(seconds=30)
+        print(f"\rSim Time: {self.current_sim_time.strftime('%H:%M:%S')}", end="")
 
         if self.current_sim_time > self.end_time_utc:
-            logging.info("\nFim do dia de replay. Fechando o gráfico...")
+            print("\nFim do dia de replay. Fechando o gráfico...")
             plt.close(self.fig)
             return
 
         current_ticks = self.ticks_df[self.ticks_df.index <= self.current_sim_time]
-        if current_ticks.empty:
-            return
+        if current_ticks.empty: return
 
         candles_m5 = current_ticks["last"].resample("5min").ohlc().dropna()
-        if candles_m5.empty:
-            return
+        if candles_m5.empty: return
 
         candles_m5["sma9"] = candles_m5["close"].rolling(window=9).mean()
         candles_m5["ema21"] = candles_m5["close"].ewm(span=21, adjust=False).mean()
         candles_m5["ema50"] = candles_m5["close"].ewm(span=50, adjust=False).mean()
         candles_m5["ema200"] = candles_m5["close"].ewm(span=200, adjust=False).mean()
 
+        # --- CORREÇÃO AQUI ---
+        # 1. Primeiro, selecionamos a janela de dados que será exibida.
+        plot_data = candles_m5.tail(100)
+
         self.ax.clear()
 
+        # 2. Em seguida, criamos os 'addplots' a partir dessa mesma janela de dados.
         addplots = [
-            mpf.make_addplot(candles_m5["sma9"], color="red"),
-            mpf.make_addplot(candles_m5["ema21"], color="blue"),
-            mpf.make_addplot(candles_m5["ema50"], color="orange"),
-            mpf.make_addplot(candles_m5["ema200"], color="black"),
+            mpf.make_addplot(plot_data["sma9"], color="red"),
+            mpf.make_addplot(plot_data["ema21"], color="blue"),
+            mpf.make_addplot(plot_data["ema50"], color="orange"),
+            mpf.make_addplot(plot_data["ema200"], color="black"),
         ]
 
+        # 3. Finalmente, plotamos a janela de dados e os addplots correspondentes.
         mpf.plot(
-            candles_m5,
+            plot_data,
             type="candle",
             style=self.chart_style,
             ax=self.ax,
             addplot=addplots,
-            update_width_config=dict(candle_linewidth=1.5),
         )
+        # --- FIM DA CORREÇÃO ---
 
         last_candle = candles_m5.iloc[-1]
         self.ax.set_title(
-            f"Replay de Mercado - {self.ticker} (M5) - Simulado até: {self.current_sim_time.strftime('%H:%M:%S')}"
+            f"Replay de Mercado - {self.ticker} (M5) - {self.current_sim_time.strftime('%Y-%m-%d %H:%M:%S')}"
         )
+        
         print(
             f"\rSim Time: {self.current_sim_time.strftime('%H:%M:%S')} | "
-            f"Último Candle: O={last_candle.open:.2f} H={last_candle.high:.2f} L={last_candle.low:.2f} C={last_candle.close:.2f}",
+            f"Último Candle ({last_candle.name.strftime('%H:%M')}): O={last_candle.open:.2f} H={last_candle.high:.2f} L={last_candle.low:.2f} C={last_candle.close:.2f}",
             end="",
         )
 
     def run_replay(self):
-        """Inicia e executa o motor de replay."""
         if not self._fetch_tick_data():
             return
+            
+        first_tick_time = self.ticks_df.index[0]
+        self.current_sim_time = first_tick_time
+        logging.info(f"Tempo de simulação ajustado para o primeiro tick às {first_tick_time.time()}.")
 
-        logging.info("Dados de tick carregados. Configurando o gráfico...")
-
+        logging.info("Configurando o gráfico...")
         self.chart_style = mpf.make_mpf_style(
             base_mpf_style="default",
             marketcolors=mpf.make_marketcolors(up="g", down="r", inherit=True),
@@ -134,13 +132,13 @@ class MarketReplayEngine:
         self.fig.suptitle(f"Replay de Mercado para {self.ticker}", fontsize=16)
         
         logging.info("Gráfico configurado. Iniciando a animação...")
-
+        
         ani = FuncAnimation(
             self.fig, self._update_plot, interval=200, save_count=1000
         )
         
-        logging.info("Mostrando o gráfico. A janela deve aparecer agora...")
         plt.show()
+        print("\nReplay finalizado.")
 
 
 if __name__ == "__main__":
