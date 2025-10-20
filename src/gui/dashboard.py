@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 class TradingDashboard(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("WtnpsTrade Dashboard v2.0")
+        self.title("Whatsneps Trade v1.0")
         self.geometry("900x700") # Aumentado um pouco para caber mais info
 
         # --- Carrega Configuração ---
