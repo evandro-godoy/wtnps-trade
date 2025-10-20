@@ -153,7 +153,7 @@ class LSTMStrategy(BaseStrategy):
         self.lookback = lookback
         self.lstm_units = lstm_units
         self.feature_names = [
-            'sma_9', 'ema_21', 'ema_50', 'ema_200',
+            'ema_9', 'sma_20', 'sma_50', 'sma_200',
             'volume', 'volatility'
         ]
 
@@ -164,10 +164,10 @@ class LSTMStrategy(BaseStrategy):
         df = data.copy()
         
         # 1. Médias Móveis
-        df['sma_9'] = df['close'].rolling(window=9).mean()
-        df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
-        df['ema_50'] = df['close'].ewm(span=50, adjust=False).mean()
-        df['ema_200'] = df['close'].ewm(span=200, adjust=False).mean()
+        df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
+        df['sma_20'] = df['close'].rolling(window=20).mean()
+        df['sma_50'] = df['close'].rolling(window=50).mean()
+        df['sma_200'] = df['close'].rolling(window=200).mean()
 
         # 2. Volume (já presente nos dados)
         # Apenas garantimos que a coluna 'Volume' está sendo usada.
