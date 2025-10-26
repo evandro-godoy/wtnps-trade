@@ -3,24 +3,43 @@ import pandas as pd
 import numpy as np
 
 # --- Funções de verificação para cada tipo de regra ---
-
-def check_price_above_ema(data: pd.DataFrame, period: int) -> bool:
-    """Verifica se o último preço de fecho está acima da EMA do período especificado."""
+def check_price_position_ma(data: pd.DataFrame, ma_type: str, period: int) -> bool:
+    """Verifica se o último preço de fecho está acima ou abaixo da média móvel do período especificado."""
     if len(data) < period:
         return False
-    ema = data['close'].ewm(span=period, adjust=False).mean()
+    
+    if ma_type == 'sma':
+        ma = data['close'].rolling(window=period).mean()
+    else:
+        ma = data['close'].ewm(span=period, adjust=False).mean()
     last_price = data['close'].iloc[-1]
-    last_ema = ema.iloc[-1]
-    return last_price > last_ema
+    last_ma = ma.iloc[-1]
 
-def check_price_below_ema(data: pd.DataFrame, period: int) -> bool:
-    """Verifica se o último preço de fecho está abaixo da EMA do período especificado."""
+    return last_price > last_ma if ma_type == 'above' else last_price < last_ma
+
+def check_price_above_ma(data: pd.DataFrame, ma_type: str, period: int) -> bool:
+    """Verifica se o último preço de fechamento está acima da Média Móvel do período especificado."""
     if len(data) < period:
         return False
-    ema = data['close'].ewm(span=period, adjust=False).mean()
+    if ma_type == 'sma':
+        ma = data['close'].rolling(window=period).mean()    
+    else:
+        ma = data['close'].ewm(span=period, adjust=False).mean()
     last_price = data['close'].iloc[-1]
-    last_ema = ema.iloc[-1]
-    return last_price < last_ema
+    last_ma = ma.iloc[-1]
+    return last_price > last_ma
+
+def check_price_below_ma(data: pd.DataFrame, ma_type: str, period: int) -> bool:
+    """Verifica se o último preço de fecho está abaixo da Média Móvel do período especificado."""
+    if len(data) < period:
+        return False
+    if ma_type == 'sma':
+        ma = data['close'].rolling(window=period).mean()    
+    else:
+        ma = data['close'].ewm(span=period, adjust=False).mean()
+    last_price = data['close'].iloc[-1]
+    last_ma = ma.iloc[-1]
+    return last_price < last_ma
 
 def check_rsi_above(data: pd.DataFrame, period: int, level: int) -> bool:
     """Verifica se o último valor do RSI está acima de um determinado nível."""
@@ -39,8 +58,9 @@ def check_rsi_above(data: pd.DataFrame, period: int, level: int) -> bool:
 # --- Mapeamento de tipos de regra para funções ---
 
 RULE_CHECKERS = {
-    'price_above_ema': check_price_above_ema,
-    'price_below_ema': check_price_below_ema,
+    'price_position_ma': check_price_position_ma,
+    'price_above_ma': check_price_above_ma,
+    'price_below_ma': check_price_below_ma,
     'rsi_above': check_rsi_above,
     # Adicione futuras funções de verificação aqui
 }

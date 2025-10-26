@@ -41,6 +41,17 @@ assets:
       execution_mode: "suggest" # "suggest" ou "execute"
       trade_volume: 1.0       # quantidade de contratos
 
+    setup:
+      - condition: 'buy'  # Esta regra só se aplica se o sinal da IA for de COMPRA
+        type: 'price_above_ma' # Critério: O preço deve estar acima da Média Móvel Simples
+        ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
+        period: 20              # Período da MA
+
+      - condition: 'sell' # Esta regra só se aplica se o sinal da IA for de VENDA
+        type: 'price_below_ma' # Critério: O preço deve estar abaixo da Média Móvel Simples
+        ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
+        period: 20        # Período da MA
+
   - ticker: "WIN$"
     enabled: false
     provider: "MetaTrader5"
