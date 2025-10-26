@@ -93,8 +93,10 @@ class MetaTraderProvider:
         filename = f"MT5_{safe_ticker}_{timeframe_str}_{start_date}_{end_date}.parquet"
         return self.cache_path / filename
 
-    def get_data(self, ticker: str, start_date: str, end_date: str, timeframe=mt5.TIMEFRAME_D1) -> pd.DataFrame:
+    def get_data(self, ticker: str, start_date: str, end_date: str, timeframe_str: str) -> pd.DataFrame:
         """Busca dados históricos do MetaTrader 5 (usa cache)."""
+
+        timeframe = self._get_mt5_timeframe_from_string(timeframe_str)
 
         # Converte constante MT5 para string para nome do cache
         timeframe_str = self._mt5_timeframe_to_string(timeframe)
@@ -242,6 +244,14 @@ class MetaTraderProvider:
             "D1": mt5.TIMEFRAME_D1 }.items()
         }
         return tf_map_str.get(timeframe, "D1")
+
+    def _get_mt5_timeframe_from_string(self, tf_str: str):
+        tf_map = {
+            "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
+            "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+            "D1": mt5.TIMEFRAME_D1,
+        }
+        return tf_map.get(tf_str.upper(), mt5.TIMEFRAME_D1)
 
     def shutdown(self):
          """Encerra a conexão com o MT5 se ela foi iniciada por este provider."""

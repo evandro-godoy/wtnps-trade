@@ -23,15 +23,11 @@ assets:
     provider: "MetaTrader5"
     strategy_module: "lstm"
     strategy_name: "LSTMStrategy"
-    timeframe_model: "H1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
-
+    
     data:
-      in_sample:
-        start_date: "2023-01-01"
-        end_date: "2025-09-26"
-      out_of_sample:
-        start_date: "2025-09-27"
-        end_date: "2025-10-17"
+      start_date: "2023-01-01"
+      end_date: "2025-09-26"
+      timeframe_model: "H1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
 
     trading_rules:
       initial_capital: 5000
@@ -52,21 +48,18 @@ assets:
     strategy_name: "LSTMStrategy"
     
     data:
-      in_sample:
-        start_date: "2023-01-01"
-        end_date: "2025-09-30"
-      out_of_sample:
-        start_date: "2025-10-01"
-        end_date: "2025-10-08"
+      start_date: "2023-01-01"
+      end_date: "2025-09-26"
+      timeframe_model: "H1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
 
     trading_rules:
       initial_capital: 5000
+      stop_loss_ticks: 20 # Stop loss em ticks
       stop_loss_pct: 0.02
       take_profit_pct: 0.05
-      
+    
     live_trading:
-      ticker_order: "WINV25"
-      timeframe_str: "M15"
-      execution_mode: "suggest"
-      trade_volume: 2.0  # quantidade de contratos  
-       
+      ticker_order: "WINZ25"
+      timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
+      execution_mode: "suggest" # "suggest" ou "execute"
+      trade_volume: 1.0       # quantidade de contratos

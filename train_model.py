@@ -38,12 +38,12 @@ def train_all_models():
             data_provider = YFinanceProvider()
 
         # 2. Busca dados de treino
-        train_cfg = asset_config["data"]["in_sample"]
+        train_cfg = asset_config["data"]
         market_data_is = data_provider.get_data(
             ticker=ticker,
             start_date=train_cfg["start_date"],
             end_date=train_cfg["end_date"],
-            sentiment_ticker= ""
+            timeframe_str=train_cfg.get("timeframe_model", "H1")
         )
 
         if market_data_is.empty:
