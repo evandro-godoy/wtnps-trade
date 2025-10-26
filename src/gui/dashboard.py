@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, messagebox
 import yaml
 from pathlib import Path
 import MetaTrader5 as mt5
@@ -7,7 +7,8 @@ import threading
 import time
 import importlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+import pytz
 import sys
 import pandas as pd
 
@@ -16,17 +17,16 @@ project_root = Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-# --- NOVA IMPORTAÇÃO DO MOTOR DE SIMULAÇÃO ---
 from src.simulation.engine import SimulationEngine
 
-# Configuração básica do logging para a GUI
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+log = logging.getLogger(__name__) # Logger específico para GUI
 
 class TradingDashboard(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("WtnpsTrade Dashboard v2.1 - Simulation Engine")
-        self.geometry("950x750") # Ajustado para novo layout
+        self.title("WtnpsTrade Dashboard v2.4 - Simulação Histórica")
+        self.geometry("950x800")
 
         # --- Carrega Configuração ---
         try:
@@ -35,25 +35,27 @@ class TradingDashboard(tk.Tk):
             self.assets_config = [
                 asset for asset in self.config["assets"] if asset.get("enabled", False)
             ]
+            if not self.assets_config:
+                 log.warning("Nenhum ativo habilitado encontrado na configuração.")
+                 # Poderia mostrar uma mensagem na GUI ou fechar
         except Exception as e:
-            logging.error(f"Erro ao carregar configuração: {e}")
+            log.critical(f"Erro fatal ao carregar configuração: {e}", exc_info=True)
+            messagebox.showerror("Erro de Configuração", f"Não foi possível carregar 'configs/main.yaml'.\nErro: {e}")
             self.destroy()
             return
 
-        self.checkbox_vars = {}
-        self.timeframe_comboboxes = {}
-        self.market_data_labels = {}
-        self.auto_refresh_var = tk.BooleanVar(value=True)
-        self.refresh_countdown = tk.IntVar(value=60)
-        self.market_data_running = False
+        self.checkbox_vars = {}; self.timeframe_comboboxes = {}
+        self.market_data_labels = {}; self.auto_refresh_var = tk.BooleanVar(value=True)
+        self.refresh_countdown = tk.IntVar(value=60); self.market_data_running = False
 
-        # --- Instancia o Novo Motor de Simulação ---
+        # --- Instancia o SimulationEngine ---
         try:
             self.simulation_engine = SimulationEngine()
         except Exception as e:
-            logging.error(f"Erro ao inicializar SimulationEngine: {e}")
-            self.destroy()
-            return
+             log.critical(f"Erro fatal ao inicializar SimulationEngine: {e}", exc_info=True)
+             messagebox.showerror("Erro de Inicialização", f"Não foi possível inicializar o motor de simulação.\nErro: {e}")
+             self.destroy()
+             return
 
         # --- Layout Principal ---
         self.main_frame = ttk.Frame(self, padding="10")
@@ -64,9 +66,9 @@ class TradingDashboard(tk.Tk):
         refresh_controls_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 10))
         self.timer_label = ttk.Label(refresh_controls_frame, text="Próxima atualização em: 60s")
         self.timer_label.pack(side=tk.LEFT, padx=5)
-        manual_refresh_button = ttk.Button(refresh_controls_frame, text="Atualizar Agora", command=self._manual_refresh)
+        manual_refresh_button = ttk.Button(refresh_controls_frame, text="Atualizar Monitor", command=self._manual_refresh)
         manual_refresh_button.pack(side=tk.LEFT, padx=5)
-        auto_refresh_check = ttk.Checkbutton(refresh_controls_frame, text="Auto Refresh (1 min)", variable=self.auto_refresh_var)
+        auto_refresh_check = ttk.Checkbutton(refresh_controls_frame, text="Auto Refresh (1 min)", variable=self.auto_refresh_var, command=self._toggle_auto_refresh)
         auto_refresh_check.pack(side=tk.LEFT, padx=5)
 
         # --- Frame Monitor de Mercado ---
@@ -76,64 +78,96 @@ class TradingDashboard(tk.Tk):
         # --- Frame Simulação ---
         sim_frame = ttk.LabelFrame(self.main_frame, text="Simulação de Ciclo Único", padding="10")
         sim_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
+        datetime_frame = ttk.Frame(sim_frame)
+        datetime_frame.pack(side=tk.TOP, fill=tk.X, pady=(5, 10))
+        ttk.Label(datetime_frame, text="Simular em Data/Hora Específica (UTC):").pack(side=tk.LEFT, padx=(0, 5))
+        self.sim_date_entry = ttk.Entry(datetime_frame, width=12)
+        self.sim_date_entry.pack(side=tk.LEFT, padx=5)
+        self.sim_date_entry.insert(0, "YYYY-MM-DD")
+        self.sim_time_entry = ttk.Entry(datetime_frame, width=8)
+        self.sim_time_entry.pack(side=tk.LEFT, padx=5)
+        self.sim_time_entry.insert(0, "HH:MM")
+        ttk.Button(datetime_frame, text="Agora", command=self._set_datetime_now, width=5).pack(side=tk.LEFT, padx=5)
+        ttk.Button(datetime_frame, text="Limpar", command=self._clear_datetime, width=6).pack(side=tk.LEFT)
+
         self.asset_selection_frame = ttk.Frame(sim_frame)
         self.asset_selection_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
-        simulate_button = ttk.Button(sim_frame, text="Executar Simulação de Ciclo Único", command=self._trigger_simulation)
+        simulate_button = ttk.Button(sim_frame, text="Executar Simulação", command=self._trigger_simulation)
         simulate_button.pack(side=tk.TOP, pady=10)
 
         # --- Frame Logs ---
         log_frame = ttk.LabelFrame(self.main_frame, text="Log da Simulação", padding="10")
         log_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True, pady=5)
-        self.log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=10, font=("Consolas", 9))
+        self.log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=15, font=("Consolas", 9))
         self.log_text.pack(expand=True, fill=tk.BOTH)
         self.log_text.configure(state='disabled')
 
-        # --- Inicialização ---
-        # A conexão MT5 agora é gerenciada principalmente pelo SimulationEngine
-        # Mas ainda precisamos de uma para o monitor de mercado
-        if not self._connect_mt5_monitor():
-             self.log_message("ERRO: Não foi possível conectar ao MT5 para monitoramento.")
-        else:
+        # --- Inicialização do Monitor ---
+        # Só inicia o monitor se a conexão MT5 foi bem-sucedida
+        if self._connect_mt5_monitor():
             self._create_asset_widgets()
             self._start_market_data_updates()
+        else:
+             self.log_message("ERRO: Monitor de mercado não iniciado devido à falha de conexão MT5.")
 
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
-    # --- Funções de Log e Conexão ---
+    # --- Funções de Log e Conexão (Monitor) ---
     def log_message(self, message):
+        """Adiciona uma mensagem ao ScrolledText da GUI, thread-safe."""
         if not hasattr(self, 'log_text') or not self.log_text.winfo_exists(): return
-        try:
-            self.log_text.configure(state='normal')
-            self.log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {message}\n")
-            self.log_text.see(tk.END)
-            self.log_text.configure(state='disabled')
-        except tk.TclError: pass
+        def _update_log():
+             try:
+                 self.log_text.configure(state='normal')
+                 self.log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {message}\n")
+                 self.log_text.see(tk.END)
+                 self.log_text.configure(state='disabled')
+             except tk.TclError: pass # Ignora erro se a janela estiver fechando
+        # Usa 'after' para garantir que a atualização ocorra na thread principal da GUI
+        self.after(0, _update_log)
 
     def _connect_mt5_monitor(self):
-        # Conexão separada para o monitor, pode falhar sem impedir a simulação
-        if not mt5.initialize():
-            logging.warning(f"Monitor: Falha na inicialização do MT5: {mt5.last_error()}")
-            return False
-        logging.info("Monitor: Conectado ao MetaTrader 5.")
+        """Inicializa a conexão com o MetaTrader 5 para o monitor."""
+        if not mt5.terminal_info():
+            log.info("Monitor: Tentando inicializar conexão MT5...")
+            if not mt5.initialize():
+                log.error(f"Monitor: Falha na inicialização do MT5: {mt5.last_error()}")
+                return False
+            log.info("Monitor: Conectado ao MetaTrader 5.")
         return True
-        
-    def _disconnect_mt5_monitor(self):
-        logging.info("Monitor: Desconectando do MetaTrader 5...")
-        mt5.shutdown() # O SimulationEngine gerencia sua própria conexão
 
-    # --- Criação de Widgets (sem alterações significativas) ---
+    def _disconnect_mt5_monitor(self):
+        """Desconecta a instância do MT5 usada pelo monitor."""
+        # Verifica se está conectado antes de desligar
+        # Cuidado: Isso pode afetar outras threads se não gerenciado corretamente.
+        # Idealmente, o SimulationEngine teria sua própria gestão de conexão.
+        # if mt5.terminal_info():
+        #     log.info("Monitor: Desconectando do MetaTrader 5...")
+        #     mt5.shutdown()
+        pass # Por ora, deixa o SimulationEngine gerenciar o shutdown global
+
+    # --- Criação de Widgets ---
     def _create_asset_widgets(self):
+        """Cria os labels de dados de mercado e controles de simulação."""
+        # Limpa frames
         for widget in self.asset_selection_frame.winfo_children(): widget.destroy()
         for widget in self.market_data_frame.winfo_children(): widget.destroy()
         self.market_data_labels.clear(); self.checkbox_vars.clear(); self.timeframe_comboboxes.clear()
+
+        # Cabeçalhos Monitor de Mercado
         headers = ["Ativo", "Abertura", "Máxima", "Mínima", "Último", "Médio", "Variação %"]
         for col, header in enumerate(headers):
             lbl = ttk.Label(self.market_data_frame, text=header, font=('Arial', 9, 'bold'))
             lbl.grid(row=0, column=col, padx=5, pady=2, sticky="w")
 
+        # Linhas para cada ativo no Monitor
+        if not self.assets_config:
+            ttk.Label(self.market_data_frame, text="Nenhum ativo habilitado na configuração.").grid(row=1, column=0, columnspan=len(headers))
+            return # Sai se não houver ativos
+
         for row_idx, asset_config in enumerate(self.assets_config, start=1):
-            data_ticker = asset_config['ticker']
-            order_ticker = asset_config['live_trading'].get('ticker_order', data_ticker)
+            data_ticker = asset_config.get('ticker', 'N/A')
+            order_ticker = asset_config.get('live_trading', {}).get('ticker_order', data_ticker)
             asset_labels = {}
             lbl_ticker = ttk.Label(self.market_data_frame, text=order_ticker, width=12)
             lbl_ticker.grid(row=row_idx, column=0, padx=5, pady=2, sticky="w")
@@ -144,132 +178,214 @@ class TradingDashboard(tk.Tk):
                 asset_labels[key] = lbl_data
             self.market_data_labels[order_ticker] = asset_labels
 
+            # Checkbox e Combobox para Simulação
             asset_sim_frame = ttk.Frame(self.asset_selection_frame)
-            asset_sim_frame.pack(side=tk.LEFT, padx=10, pady=2)
+            asset_sim_frame.pack(side=tk.LEFT, padx=10, pady=2, fill=tk.X) # Fill X
             var = tk.BooleanVar(value=True)
             chk = ttk.Checkbutton(asset_sim_frame, text=data_ticker, variable=var)
-            chk.pack(side=tk.LEFT, padx=(0, 5))
+            chk.pack(side=tk.TOP, anchor='w') # Anchor West
             self.checkbox_vars[data_ticker] = var
-            configured_tf = asset_config['live_trading']['timeframe_str']
+            configured_tf = asset_config.get('live_trading', {}).get('timeframe_str', 'D1')
             tf_options = sorted(list(set(["M5", "M15", "H1", "D1", configured_tf])))
             tf_combo = ttk.Combobox(asset_sim_frame, values=tf_options, width=5, state="readonly")
             tf_combo.set(configured_tf)
-            tf_combo.pack(side=tk.LEFT)
+            tf_combo.pack(side=tk.TOP, anchor='w', pady=(2,0)) # Anchor West
             self.timeframe_comboboxes[data_ticker] = tf_combo
 
-    # --- Lógica de Atualização de Dados de Mercado (sem alterações significativas) ---
+    # --- Lógica de Atualização de Dados de Mercado (Monitor) ---
     def _start_market_data_updates(self):
+        """Inicia a thread para atualizar os dados de mercado."""
+        log.info("Iniciando thread de atualização do monitor de mercado.")
         self.market_data_running = True
-        self.market_data_thread = threading.Thread(target=self._update_market_data_loop, daemon=True)
-        self.market_data_thread.start()
+        # Inicia o timer pela primeira vez
+        self.after(1000, self._update_timer_and_data)
 
-    def _update_market_data_loop(self):
-        while self.market_data_running:
-            try:
-                current_countdown = self.refresh_countdown.get()
-                if self.auto_refresh_var.get():
-                    if current_countdown <= 0:
-                        self._fetch_and_update_market_data_threadsafe() # Chama via thread-safe wrapper
-                        self.refresh_countdown.set(60)
-                    else:
-                        self.refresh_countdown.set(current_countdown - 1)
-                    timer_text = f"Próxima atualização em: {self.refresh_countdown.get()}s"
+    def _update_timer_and_data(self):
+        """Atualiza o timer e dispara a busca de dados se necessário."""
+        if not self.market_data_running: return # Para a recursão se a flag for False
+
+        try:
+            current_countdown = self.refresh_countdown.get()
+            if self.auto_refresh_var.get():
+                if current_countdown <= 0:
+                    self._manual_refresh() # Dispara a atualização (que reseta o timer)
+                    # Não reseta aqui, _manual_refresh faz isso
                 else:
-                    timer_text = "Auto Refresh: OFF"
-                self.after(0, self.timer_label.config, {"text": timer_text})
-            except Exception as e: logging.error(f"Erro no loop de atualização: {e}")
-            time.sleep(1)
+                    self.refresh_countdown.set(current_countdown - 1)
+                timer_text = f"Próxima atualização em: {self.refresh_countdown.get()}s"
+            else:
+                timer_text = "Auto Refresh: OFF"
+            self.timer_label.config(text=timer_text)
+        except tk.TclError:
+             log.warning("Erro ao atualizar timer (janela fechando?).")
+             return # Para a recursão se a janela foi fechada
+
+        # Reagenda a próxima verificação do timer
+        self.after(1000, self._update_timer_and_data)
+
 
     def _manual_refresh(self):
-        self.log_message("Atualização manual solicitada...")
+        """Força a atualização dos dados de mercado e reseta o timer."""
+        log.info("Atualização manual do monitor solicitada...")
         self._fetch_and_update_market_data_threadsafe()
-        self.refresh_countdown.set(60)
+        self.refresh_countdown.set(60) # Reseta timer imediatamente
+
+    def _toggle_auto_refresh(self):
+         """Chamado quando o checkbox de auto-refresh é clicado."""
+         if not self.auto_refresh_var.get():
+              self.timer_label.config(text="Auto Refresh: OFF")
+              log.info("Auto Refresh Desativado.")
+         else:
+              self.refresh_countdown.set(60) # Reseta ao reativar
+              log.info("Auto Refresh Ativado.")
+              # O loop _update_timer_and_data continuará o ciclo
 
     def _fetch_and_update_market_data_threadsafe(self):
-         # Executa a busca em thread para não travar
+         """Inicia a busca de dados em uma thread separada."""
+         log.debug("Disparando thread para buscar dados do monitor.")
          refresh_thread = threading.Thread(target=self._fetch_and_update_market_data, daemon=True)
          refresh_thread.start()
 
     def _fetch_and_update_market_data(self):
-        if not self._connect_mt5_monitor(): return
+        """Busca os dados de mercado para todos os ativos e agenda atualização da GUI."""
+        if not self._connect_mt5_monitor():
+             log.warning("Monitor: Não foi possível conectar ao MT5 para buscar dados.")
+             return # Não tenta buscar se não conectar
+
+        log.debug("Monitor: Buscando dados de mercado...")
         for order_ticker, labels in self.market_data_labels.items():
             try:
                 rates = mt5.copy_rates_from_pos(order_ticker, mt5.TIMEFRAME_D1, 0, 1)
                 tick = mt5.symbol_info_tick(order_ticker)
-                if rates is not None and len(rates) > 0 and tick:
+
+                if rates is not None and len(rates) > 0 and tick and tick.time > 0:
                     lr = rates[0]; o, h, l = lr['open'], lr['high'], lr['low']
                     lp = tick.last; avg = (h + l) / 2
                     var = ((lp / o) - 1) * 100 if o > 0 else 0
                     v_col = "green" if var >= 0 else "red"; v_txt = f"{var:+.2f}%"
-                    # Atualiza GUI (agendado via self.after)
+
+                    # Agenda atualização da GUI na thread principal
                     self.after(0, labels['open'].config, {"text": f"{o:.2f}"})
                     self.after(0, labels['high'].config, {"text": f"{h:.2f}"})
                     self.after(0, labels['low'].config, {"text": f"{l:.2f}"})
                     self.after(0, labels['last'].config, {"text": f"{lp:.2f}"})
                     self.after(0, labels['avg'].config, {"text": f"{avg:.2f}"})
                     self.after(0, labels['var'].config, {"text": v_txt, "foreground": v_col})
-            except Exception as e:
-                logging.warning(f"Monitor: Erro ao buscar dados para {order_ticker}: {e}")
-                self.after(0, lambda lbls=labels: [lbl.config(text="-") for k, lbl in lbls.items() if k != 'ticker'])
-        self._disconnect_mt5_monitor()
+                else:
+                    log.debug(f"Monitor: Dados inválidos ou ausentes para {order_ticker}.")
+                    # Limpa labels se dados forem inválidos
+                    self.after(0, lambda lbls=labels: [lbl.config(text="-", foreground="black") for k, lbl in lbls.items() if k != 'ticker'])
 
-    # --- Lógica de Simulação (Refatorada) ---
+            except Exception as e:
+                log.warning(f"Monitor: Erro ao buscar dados para {order_ticker}: {e}")
+                self.after(0, lambda lbls=labels: [lbl.config(text="-", foreground="black") for k, lbl in lbls.items() if k != 'ticker'])
+        # Não desconecta aqui, mantém a conexão para o próximo ciclo do monitor
+        # self._disconnect_mt5_monitor()
+        log.debug("Monitor: Atualização de dados concluída.")
+
+
+    # --- Lógica de Simulação (Usa SimulationEngine) ---
     def _trigger_simulation(self):
         """Dispara a simulação usando o SimulationEngine."""
         selected_tickers = [ticker for ticker, var in self.checkbox_vars.items() if var.get()]
         if not selected_tickers:
-            self.log_message("Nenhum ativo selecionado para simulação.")
-            return
+            self.log_message("Nenhum ativo selecionado para simulação."); return
 
         selected_timeframes = { ticker: self.timeframe_comboboxes[ticker].get()
                                 for ticker in selected_tickers if ticker in self.timeframe_comboboxes }
 
+        # Valida e processa Data/Hora da GUI (Assume UTC)
+        sim_datetime_utc = None
+        date_str = self.sim_date_entry.get().strip()
+        time_str = self.sim_time_entry.get().strip()
+        user_input_date = date_str not in ["", "YYYY-MM-DD"]
+        user_input_time = time_str not in ["", "HH:MM"]
+
+        if user_input_date and user_input_time:
+            try:
+                datetime_str = f"{date_str} {time_str}"
+                naive_dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
+                sim_datetime_utc = pytz.utc.localize(naive_dt) # Localiza como UTC
+                self.log_message(f"Simulação agendada para UTC: {sim_datetime_utc.strftime('%Y-%m-%d %H:%M')}")
+            except ValueError:
+                messagebox.showerror("Erro de Formato", "Data/Hora inválida. Use YYYY-MM-DD e HH:MM (em UTC).")
+                return
+        elif user_input_date or user_input_time:
+             messagebox.showwarning("Entrada Incompleta", "Preencha ambos os campos de data e hora (em UTC) ou deixe-os como padrão.")
+             return
+        else:
+             self.log_message("Simulando com os dados mais recentes.")
+
         self.log_message(f"Iniciando simulação via Engine para: {', '.join(selected_tickers)}")
         sim_thread = threading.Thread(target=self._run_simulation_thread,
-                                      args=(selected_tickers, selected_timeframes),
+                                      args=(selected_tickers, selected_timeframes, sim_datetime_utc),
                                       daemon=True)
         sim_thread.start()
 
-    def _run_simulation_thread(self, tickers_to_simulate, selected_timeframes):
-        """Executa a simulação para cada ativo selecionado usando o SimulationEngine."""
+    def _run_simulation_thread(self, tickers_to_simulate, selected_timeframes, simulation_datetime_utc):
+        """Executa a simulação para cada ativo usando o SimulationEngine."""
+        # O SimulationEngine gerencia sua própria conexão MT5
         for data_ticker in tickers_to_simulate:
-            timeframe_str = selected_timeframes.get(data_ticker, "D1") # Pega TF selecionado
-            self.after(0, self.log_message, f"--- Simulando {data_ticker} ({timeframe_str}) via Engine ---")
+            timeframe_str = selected_timeframes.get(data_ticker, "D1")
+            sim_time_log = f"em {simulation_datetime_utc.strftime('%Y-%m-%d %H:%M')} UTC" if simulation_datetime_utc else "com dados recentes"
+            self.log_message(f"--- Simulando {data_ticker} ({timeframe_str}) {sim_time_log} ---")
 
             # Chama o motor de simulação
-            result = self.simulation_engine.run_simulation_cycle(data_ticker, timeframe_str)
+            result = self.simulation_engine.run_simulation_cycle(data_ticker, timeframe_str, simulation_datetime_utc)
 
             # Formata e loga o resultado detalhado
+            log_msg = f"Resultado {result.get('ticker','N/A')} ({result.get('timeframe','N/A')}) @ {result.get('timestamp','N/A')}:\n"
             if result.get("error"):
-                log_msg = f"ERRO {data_ticker}: {result['error']}"
+                log_msg += f"  ERRO: {result['error']}"
             else:
-                indicators_str = " | ".join([f"{k}={v}" for k, v in result["indicators"].items()])
-                log_msg = (
-                    f"SINAL {result['ticker']} ({result['timeframe']}): {result['signal']}\n"
-                    f"  Preço Sugerido: {result['suggested_price']:.2f} (Fonte: {result['price_source']})\n"
-                    f"  Stop Sugerido: {result['stop_price']:.2f}\n"
-                    f"  Ref. Candle: {result['timestamp']}\n"
-                    f"  Setup Válido: {'Sim' if result['setup_valid'] else 'Não'}\n"
-                    f"  Indicadores: {indicators_str}\n"
-                    f"  Ticker Ordem: {result['order_ticker']}"
-                )
-            # Usa self.after para garantir que a atualização da GUI ocorra na thread principal
-            self.after(0, self.log_message, log_msg)
+                indicators_list = [f"{k}={v}" for k, v in result.get("indicators", {}).items() if v != "N/A"]
+                indicators_str = " | ".join(indicators_list) if indicators_list else "Nenhum"
+                price_str = f"{result['suggested_price']:.2f}" if result.get('suggested_price') is not None else "N/A"
+                stop_str = f"{result['stop_price']:.2f}" if result.get('stop_price') is not None else "N/A"
+                setup_valid_str = 'Sim' if result.get('setup_valid') else ('Não' if result.get('setup_valid') is False else 'N/A')
 
-        self.after(0, self.log_message, "--- Simulação Concluída ---")
+                log_msg += (
+                    f"  SINAL FINAL: {result.get('signal','N/A')} (Setup Válido: {setup_valid_str})\n"
+                    f"  Preço Sugerido: {price_str} (Fonte: {result.get('price_source','N/A')})\n"
+                    f"  Stop Sugerido: {stop_str}\n"
+                    # f"  Ref. Candle: {result.get('timestamp','N/A')}\n" # Já está no cabeçalho
+                    f"  Indicadores: {indicators_str}\n"
+                    f"  Ticker Ordem: {result.get('order_ticker','N/A')}"
+                )
+            self.log_message(log_msg)
+
+        self.log_message("--- Simulação Concluída ---")
+
+    def _set_datetime_now(self):
+         """Preenche os campos de data/hora com o horário UTC atual."""
+         now_utc = datetime.now(pytz.utc)
+         self.sim_date_entry.delete(0, tk.END)
+         self.sim_date_entry.insert(0, now_utc.strftime("%Y-%m-%d"))
+         self.sim_time_entry.delete(0, tk.END)
+         self.sim_time_entry.insert(0, now_utc.strftime("%H:%M"))
+
+    def _clear_datetime(self):
+         """Limpa os campos de data/hora, voltando aos placeholders."""
+         self.sim_date_entry.delete(0, tk.END)
+         self.sim_date_entry.insert(0, "YYYY-MM-DD")
+         self.sim_time_entry.delete(0, tk.END)
+         self.sim_time_entry.insert(0, "HH:MM")
 
     # --- Função de Fechamento ---
     def _on_closing(self):
-        """Handler para fechar a janela."""
-        logging.info("Fechando dashboard...")
-        self.market_data_running = False
+        """Handler para fechar a janela, garantindo o shutdown das conexões."""
+        log.info("Fechando dashboard...")
+        self.market_data_running = False # Para a thread de monitoramento
         if hasattr(self, 'market_data_thread') and self.market_data_thread.is_alive():
-             self.market_data_thread.join(timeout=1.0)
-        self._disconnect_mt5_monitor() # Desconecta o monitor
+             try: self.market_data_thread.join(timeout=0.5) # Tenta esperar um pouco
+             except RuntimeError: pass
+        self._disconnect_mt5_monitor() # Tenta desligar a conexão do monitor
         if hasattr(self, 'simulation_engine'):
-             self.simulation_engine.shutdown() # Desconecta o motor de simulação
+             self.simulation_engine.shutdown() # Desliga a conexão do engine
+        log.info("Desligamento concluído.")
         self.destroy()
 
+# --- Bloco Principal ---
 if __name__ == "__main__":
     app = TradingDashboard()
     app.mainloop()
