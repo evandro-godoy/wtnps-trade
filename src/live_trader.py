@@ -276,8 +276,8 @@ class LiveTrader:
                           else: indicators_dict[key.upper()] = "N/A"
                 indicators_str = " | ".join([f"{k}={v}" for k, v in indicators_dict.items()]) if indicators_dict else "Nenhum"
 
-                if indicators_str is not None:
-                    result["indicators"]= indicators_str
+                if indicators_dict:
+                    result["indicators"] = indicators_dict 
 
                 # Calcula Stop
                 stop_loss_pct = asset_config['trading_rules']['stop_loss_pct']
