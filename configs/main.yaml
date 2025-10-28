@@ -19,7 +19,7 @@ global_settings:
 
 assets:
   - ticker: "WDO$"
-    enabled: true  # Habilita ou desabilita este ativo para treino e live trading.
+    enabled: false  # Habilita ou desabilita este ativo para treino e live trading.
     provider: "MetaTrader5"
     strategy_module: "lstm"
     strategy_name: "LSTMStrategy"
@@ -53,20 +53,20 @@ assets:
         period: 20        # Período da MA
 
   - ticker: "WIN$"
-    enabled: false
+    enabled: true
     provider: "MetaTrader5"
     strategy_module: "lstm"
     strategy_name: "LSTMStrategy"
     
     data:
       start_date: "2023-01-01"
-      end_date: "2025-09-26"
-      timeframe_model: "H1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
+      end_date: "2025-10-01"
+      timeframe_model: "D1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
 
     trading_rules:
       initial_capital: 5000
       stop_loss_ticks: 20 # Stop loss em ticks
-      stop_loss_pct: 0.02
+      stop_loss_pct: 0.01
       take_profit_pct: 0.05
     
     live_trading:
@@ -74,3 +74,14 @@ assets:
       timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
       execution_mode: "suggest" # "suggest" ou "execute"
       trade_volume: 1.0       # quantidade de contratos
+
+    setup:
+      - condition: 'buy'  # Esta regra só se aplica se o sinal da IA for de COMPRA
+        type: 'price_above_ma' # Critério: O preço deve estar acima da Média Móvel Simples
+        ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
+        period: 20              # Período da MA
+
+      - condition: 'sell' # Esta regra só se aplica se o sinal da IA for de VENDA
+        type: 'price_below_ma' # Critério: O preço deve estar abaixo da Média Móvel Simples
+        ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
+        period: 20        # Período da MA      
