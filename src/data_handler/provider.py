@@ -11,19 +11,18 @@ from pathlib import Path
 import os # Para criar diretório
 
 # Configuração do logging
-logging.basicConfig(level=logging.INFO, format='%(asctimes)s - %(levelname)s - %(message)s')
+# CORREÇÃO APLICADA AQUI: 'asctimes' -> 'asctime'
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Cache directory (adjust path as needed)
-# Usa Path para criar o caminho relativo à raiz do projeto
 CACHE_DIR = Path(__file__).parent.parent.parent / '.cache_data'
 
 # Garante que o diretório de cache exista
 os.makedirs(CACHE_DIR, exist_ok=True)
-logger.info(f"Diretório de cache de dados (MT5) inicializado em: {CACHE_DIR.resolve()}")
+logger.info(f"Diretório de cache de dados inicializado em: {CACHE_DIR.resolve()}")
 
 # Define o timezone desejado (ex: Brazil/East para B3)
-# Ajuste conforme o mercado que está operando
 desired_timezone = pytz.timezone('America/Sao_Paulo')
 
 
@@ -34,7 +33,10 @@ def _get_mt5_timeframe(tf_str: str):
         "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
         "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1, "MN1": mt5.TIMEFRAME_MN1
     }
-    return tf_map.get(tf_str.upper())
+    tf_constant = tf_map.get(tf_str.upper(), None)
+    if tf_constant is None:
+         logger.warning(f"Timeframe '{tf_str}' não mapeado no MT5.")
+    return tf_constant
 
 
 class BaseDataProvider(ABC):
@@ -42,26 +44,21 @@ class BaseDataProvider(ABC):
 
     @abstractmethod
     def get_data(self, ticker: str, start_date: str, end_date: str, timeframe) -> pd.DataFrame:
-        """
-        Método abstrato para buscar dados históricos.
-        Deve retornar um DataFrame pandas com colunas OHLCV e índice DatetimeIndex.
-        """
+        """Busca dados históricos."""
         pass
 
     @abstractmethod
     def get_latest_candles(self, ticker: str, timeframe, count: int) -> pd.DataFrame:
-        """
-        Método abstrato para buscar os 'count' candles mais recentes.
-        """
+        """Busca os 'count' candles mais recentes."""
         pass
 
     def close_connection(self):
-        """Método opcional para fechar conexões, se aplicável."""
+        """Fecha conexões, se aplicável."""
         pass
 
     def is_connected(self) -> bool:
-        """Método opcional para verificar o status da conexão."""
-        return True # Default para providers que não mantêm conexão ativa
+        """Verifica o status da conexão."""
+        return True
 
 
 class MetaTraderProvider(BaseDataProvider):
@@ -70,274 +67,382 @@ class MetaTraderProvider(BaseDataProvider):
     def __init__(self):
         self.connection_active = self._initialize_mt5()
         if not self.connection_active:
-             # Opcional: Levantar exceção se a conexão inicial falhar?
-             # raise ConnectionError("Não foi possível conectar ao MetaTrader 5.")
              logger.critical("Falha ao inicializar a conexão com o MetaTrader 5.")
-
 
     def _initialize_mt5(self) -> bool:
         """Inicializa a conexão com o MetaTrader 5."""
+        if mt5.terminal_info() is not None:
+             logger.info("Conexão MT5 já ativa.")
+             return True
         if not mt5.initialize():
             logger.error(f"Falha na inicialização do MT5, erro code = {mt5.last_error()}")
             return False
-        logger.info(f"MetaTrader 5 Conectado: {mt5.terminal_info().name}")
-        return True
+        terminal_info = mt5.terminal_info()
+        if terminal_info:
+             logger.info(f"MetaTrader 5 Conectado: {terminal_info.name}")
+             return True
+        else:
+             logger.error("mt5.initialize() retornou True, mas terminal_info() é None.")
+             return False
 
     def is_connected(self) -> bool:
         """Verifica se a conexão com o MT5 está ativa."""
-        # Considera ativo se a inicialização foi bem sucedida
-        # Pode adicionar verificações adicionais se necessário (ex: terminal_state())
         return self.connection_active and mt5.terminal_info() is not None
-
 
     def get_data(self, ticker: str, start_date: str, end_date: str, timeframe: int) -> pd.DataFrame:
         """Busca dados históricos do MT5 com cache e tratamento de timezone."""
         if not self.is_connected():
-             logger.error("MetaTrader 5 não está conectado. Tentando reconectar...")
+             logger.warning("MT5 não conectado. Tentando reconectar...")
              if not self._initialize_mt5():
                   logger.error("Falha ao reconectar ao MT5.")
-                  return pd.DataFrame() # Retorna vazio se não conseguir reconectar
+                  return pd.DataFrame()
 
-        # Converte strings de data para objetos datetime com timezone
         try:
-             # Assume que as strings de entrada NÃO têm timezone e as localiza para UTC
              start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d'))
              end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d'))
         except ValueError:
-             # Tenta formato com hora
              try:
                  start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S'))
                  end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S'))
              except ValueError:
-                  logger.error(f"Formato de data inválido: {start_date} ou {end_date}. Use YYYY-MM-DD ou YYYY-MM-DD HH:MM:SS.")
+                  logger.error(f"Formato de data inválido: {start_date} ou {end_date}.")
                   return pd.DataFrame()
 
-        # Cria nome do arquivo de cache
-        timeframe_str = [k for k, v in mt5.__dict__.items() if v == timeframe][0].replace('TIMEFRAME_', '') # Ex: 'H1'
-        cache_filename = f"MT5_{ticker.replace('$','')}_{timeframe_str}_{start_dt_utc.strftime('%Y-%m-%d')}_{end_dt_utc.strftime('%Y-%m-%d')}.parquet"
+        # Encontra a string do timeframe para o nome do cache
+        tf_map_rev = {v: k for k, v in mt5.__dict__.items() if k.startswith('TIMEFRAME_')}
+        timeframe_str = tf_map_rev.get(timeframe, f'UNKNOWN_{timeframe}').replace('TIMEFRAME_', '')
+
+        cache_filename = f"MT5_{ticker.replace('$','')}_{timeframe_str}_{start_dt_utc.strftime('%Y%m%d')}_{end_dt_utc.strftime('%Y%m%d')}.parquet"
         cache_filepath = CACHE_DIR / cache_filename
 
-        # Verifica se o arquivo de cache existe e é válido
         if cache_filepath.exists():
             try:
                 logger.info(f"Carregando dados de {ticker} do cache: {cache_filepath}")
                 data = pd.read_parquet(cache_filepath)
-                # Verifica se o DataFrame lido tem índice de data/hora
                 if isinstance(data.index, pd.DatetimeIndex):
-                     # Converte para o timezone desejado APÓS ler do cache
-                     if data.index.tz is None: # Se não tiver tz, assume UTC (como salvamos)
-                          data = data.tz_localize('UTC').tz_convert(desired_timezone)
-                     else: # Se já tiver, apenas converte
-                          data = data.tz_convert(desired_timezone)
-                     logger.info(f"Dados carregados do cache e convertidos para {desired_timezone}.")
+                     if data.index.tz is None: data = data.tz_localize('UTC')
+                     data = data.tz_convert(desired_timezone)
+                     logger.info(f"Dados carregados do cache ({len(data)} registros).")
                      return data
-                else:
-                     logger.warning("Arquivo de cache corrompido ou sem DatetimeIndex. Buscando novamente.")
+                else: logger.warning("Cache corrompido.")
             except Exception as e:
-                logger.warning(f"Erro ao ler cache {cache_filepath}: {e}. Buscando dados novamente.")
+                logger.warning(f"Erro ao ler cache {cache_filepath}: {e}. Buscando novamente.")
 
-        # Busca dados do MT5 se não houver cache válido
-        logger.info(f"Buscando dados de {ticker} do MetaTrader 5 ({start_date} a {end_date} @ {timeframe_str})...")
+        logger.info(f"Buscando dados de {ticker} do MT5 ({start_date} a {end_date} @ {timeframe_str})...")
         try:
             rates = mt5.copy_rates_range(ticker, timeframe, start_dt_utc, end_dt_utc)
         except Exception as e:
              logger.error(f"Erro ao chamar mt5.copy_rates_range para {ticker}: {e}")
-             return pd.DataFrame() # Retorna vazio em caso de erro na API
+             return pd.DataFrame()
 
         if rates is None or len(rates) == 0:
             logger.warning(f"Nenhum dado retornado do MT5 para {ticker} no período.")
+            # Cria cache vazio para evitar buscar novamente
+            pd.DataFrame().to_parquet(cache_filepath, index=False)
             return pd.DataFrame()
 
-        # Converte para DataFrame
         data = pd.DataFrame(rates)
-        # Converte a coluna 'time' para datetime (segundos UNIX) e define como índice
-        data['time'] = pd.to_datetime(data['time'], unit='s', utc=True) # MT5 retorna em UTC
+        data['time'] = pd.to_datetime(data['time'], unit='s', utc=True)
         data.set_index('time', inplace=True)
+        data.rename(columns={'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close', 'tick_volume': 'volume'}, inplace=True)
+        # Garante que 'real_volume' não esteja presente ou o renomeia se necessário
+        if 'real_volume' in data.columns and 'volume' not in data.columns:
+            data.rename(columns={'real_volume': 'volume'}, inplace=True)
+        elif 'real_volume' in data.columns and 'volume' in data.columns:
+             data = data.drop(columns=['real_volume']) # Remove real_volume se tick_volume já foi renomeado
 
-        # Renomeia colunas para o padrão OHLCV (minúsculo)
-        data.rename(columns={
-            'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close',
-            'tick_volume': 'volume' # Ou 'real_volume' se disponível e preferido
-        }, inplace=True)
+        # Mantém apenas colunas essenciais
+        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        data = data[[col for col in required_cols if col in data.columns]]
+        # Adiciona coluna 'volume' se não existir (ex: índices)
+        if 'volume' not in data.columns: data['volume'] = 0
 
-        # Seleciona apenas as colunas desejadas
-        data = data[['open', 'high', 'low', 'close', 'volume']]
-
-        # Salva em cache (formato parquet é eficiente)
         try:
-             logger.info(f"Salvando dados de {ticker} em cache: {cache_filepath}")
-             # Salva com índice e compressão
+             logger.info(f"Salvando dados de {ticker} ({len(data)} registros) em cache: {cache_filepath}")
              data.to_parquet(cache_filepath, index=True, compression='snappy')
         except Exception as e:
             logger.error(f"Erro ao salvar dados no cache {cache_filepath}: {e}")
 
-        # Converte para o timezone desejado ANTES de retornar
         data = data.tz_convert(desired_timezone)
         logger.info(f"Dados buscados do MT5 e convertidos para {desired_timezone}.")
-
         return data
 
     def get_latest_candles(self, ticker: str, timeframe: int, count: int) -> pd.DataFrame:
         """Busca os 'count' candles mais recentes do MT5."""
         if not self.is_connected():
-             logger.error("MetaTrader 5 não está conectado.")
-             # Tentar reconectar?
+             logger.warning("MT5 não conectado ao buscar candles recentes.")
              if not self._initialize_mt5(): return pd.DataFrame()
 
         try:
+            # Posição 0 é o candle mais recente *fechado*
             rates = mt5.copy_rates_from_pos(ticker, timeframe, 0, count)
         except Exception as e:
              logger.error(f"Erro ao chamar mt5.copy_rates_from_pos para {ticker}: {e}")
              return pd.DataFrame()
 
         if rates is None or len(rates) == 0:
-            #logger.warning(f"Nenhum candle recente retornado do MT5 para {ticker}.")
             return pd.DataFrame()
 
         data = pd.DataFrame(rates)
-        data['time'] = pd.to_datetime(data['time'], unit='s', utc=True) # Mantém UTC aqui
+        data['time'] = pd.to_datetime(data['time'], unit='s', utc=True)
         data.set_index('time', inplace=True)
-        data.rename(columns={
-            'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close',
-            'tick_volume': 'volume'
-        }, inplace=True)
-        data = data[['open', 'high', 'low', 'close', 'volume']]
-        
-        # Converte para o timezone desejado
+        data.rename(columns={'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close', 'tick_volume': 'volume'}, inplace=True)
+        if 'real_volume' in data.columns and 'volume' not in data.columns: data.rename(columns={'real_volume': 'volume'}, inplace=True)
+        elif 'real_volume' in data.columns and 'volume' in data.columns: data = data.drop(columns=['real_volume'])
+
+        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        data = data[[col for col in required_cols if col in data.columns]]
+        if 'volume' not in data.columns: data['volume'] = 0
+
         data = data.tz_convert(desired_timezone)
-
         return data
-
 
     def close_connection(self):
         """Fecha a conexão com o MT5."""
-        if self.connection_active:
+        if self.connection_active and mt5.terminal_info() is not None:
             logger.info("Desligando conexão com MetaTrader 5...")
             mt5.shutdown()
             self.connection_active = False
+
+    # --- Métodos específicos do MT5 Provider ---
+    def open_position(self, symbol: str, order_type: str, volume: float, sl_price: float = None, tp_price: float = None, deviation: int = 20, magic: int = 12345):
+        """Abre uma posição a mercado."""
+        if not self.is_connected():
+             logger.error("MT5 não conectado. Impossível abrir posição.")
+             return None
+
+        order_type_mt5 = mt5.ORDER_TYPE_BUY if order_type.lower() == 'buy' else mt5.ORDER_TYPE_SELL
+
+        price = mt5.symbol_info_tick(symbol).ask if order_type_mt5 == mt5.ORDER_TYPE_BUY else mt5.symbol_info_tick(symbol).bid
+        point = mt5.symbol_info(symbol).point
+
+        request = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": volume,
+            "type": order_type_mt5,
+            "price": price,
+            "deviation": deviation,
+            "magic": magic,
+            "comment": "wtnps_trade_bot",
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": mt5.ORDER_FILLING_IOC, # Ou FOK, dependendo da corretora
+        }
+
+        # Adiciona SL e TP se fornecidos e válidos
+        if sl_price is not None and sl_price > 0:
+             request["sl"] = sl_price
+        if tp_price is not None and tp_price > 0:
+             request["tp"] = tp_price
+             
+        # Verifica se SL/TP estão muito próximos (opcional, mas recomendado)
+        min_stop_level = mt5.symbol_info(symbol).trade_stops_level * point
+        if order_type_mt5 == mt5.ORDER_TYPE_BUY:
+            if sl_price is not None and price - sl_price < min_stop_level:
+                logger.warning(f"Stop Loss para {symbol} muito próximo ({price - sl_price:.5f} < {min_stop_level:.5f}). SL será ignorado pela corretora.")
+                # request.pop("sl") # Remove ou deixa a corretora rejeitar? Deixar pode ser mais informativo.
+            if tp_price is not None and tp_price - price < min_stop_level:
+                logger.warning(f"Take Profit para {symbol} muito próximo ({tp_price - price:.5f} < {min_stop_level:.5f}). TP será ignorado pela corretora.")
+                # request.pop("tp")
+        else: # Sell
+             if sl_price is not None and sl_price - price < min_stop_level:
+                  logger.warning(f"Stop Loss para {symbol} muito próximo ({sl_price - price:.5f} < {min_stop_level:.5f}). SL será ignorado pela corretora.")
+                  # request.pop("sl")
+             if tp_price is not None and price - tp_price < min_stop_level:
+                  logger.warning(f"Take Profit para {symbol} muito próximo ({price - tp_price:.5f} < {min_stop_level:.5f}). TP será ignorado pela corretora.")
+                  # request.pop("tp")
+
+
+        try:
+            result = mt5.order_send(request)
+            if result is None:
+                 logger.error(f"Falha ao enviar ordem para {symbol}. mt5.order_send() retornou None. Erro MT5: {mt5.last_error()}")
+                 return None
+            if result.retcode != mt5.TRADE_RETCODE_DONE:
+                logger.error(f"Ordem para {symbol} não executada: {result.comment} (RetCode: {result.retcode})")
+                return result # Retorna o resultado mesmo com falha
+            else:
+                 logger.info(f"Ordem para {symbol} executada com sucesso. Ticket: {result.order}, Preço: {result.price}")
+                 return result
+        except Exception as e:
+             logger.error(f"Exceção ao enviar ordem para {symbol}: {e}", exc_info=True)
+             return None
+
+    def close_position(self, symbol: str, ticket: int) -> bool:
+        """Fecha uma posição específica pelo ticket."""
+        if not self.is_connected() or ticket is None:
+             logger.error("MT5 não conectado ou ticket inválido para fechar posição.")
+             return False
+
+        try:
+            # Busca a posição pelo ticket
+            position = mt5.positions_get(ticket=ticket)
+            if not position:
+                logger.warning(f"Posição com ticket {ticket} não encontrada para fechamento.")
+                # Considera como sucesso se a posição já não existe? Sim.
+                return True 
+            
+            position = position[0] # Pega o primeiro (e único) item da tupla
+            position_type = position.type
+            volume = position.volume
+            
+            # Determina o tipo de ordem de fechamento
+            close_order_type = mt5.ORDER_TYPE_SELL if position_type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+            
+            # Pega o preço atual para fechar a mercado
+            price = mt5.symbol_info_tick(symbol).ask if close_order_type == mt5.ORDER_TYPE_BUY else mt5.symbol_info_tick(symbol).bid
+
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "position": ticket, # ID da posição a ser fechada
+                "symbol": symbol,
+                "volume": volume,
+                "type": close_order_type,
+                "price": price,
+                "deviation": 20,
+                "magic": position.magic, # Usa o magic number original
+                "comment": "wtnps_trade_bot_close",
+                "type_time": mt5.ORDER_TIME_GTC,
+                "type_filling": mt5.ORDER_FILLING_IOC,
+            }
+
+            result = mt5.order_send(request)
+
+            if result is None:
+                 logger.error(f"Falha ao enviar ordem de fechamento para ticket {ticket}. mt5.order_send() retornou None. Erro MT5: {mt5.last_error()}")
+                 return False
+            if result.retcode != mt5.TRADE_RETCODE_DONE:
+                logger.error(f"Ordem de fechamento para ticket {ticket} não executada: {result.comment} (RetCode: {result.retcode})")
+                return False
+            else:
+                logger.info(f"Posição {ticket} fechada com sucesso.")
+                return True
+
+        except Exception as e:
+             logger.error(f"Exceção ao fechar posição ticket {ticket}: {e}", exc_info=True)
+             return False
 
 
 class YFinanceProvider(BaseDataProvider):
     """Provedor de dados utilizando a biblioteca yfinance."""
 
-    def get_data(self, ticker: str, start_date: str, end_date: str, timeframe: str) -> pd.DataFrame:
+    def get_data(self, ticker: str, start_date: str, end_date: str, timeframe: str = '1d') -> pd.DataFrame:
         """Busca dados históricos do Yahoo Finance."""
-        logger.info(f"Buscando dados de {ticker} do Yahoo Finance ({start_date} a {end_date} @ {timeframe})...")
+        # Mapeia timeframe string para intervalo yfinance
+        # yfinance usa: 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo
+        interval = timeframe.lower()
+        if interval == 'd1': interval = '1d'
+        elif interval == 'h1': interval = '1h'
+        # Adicione outros mapeamentos se necessário
+
+        logger.info(f"Buscando dados de {ticker} do Yahoo Finance ({start_date} a {end_date} @ {interval})...")
+        cache_filename = f"YF_{ticker}_{interval}_{start_date}_{end_date}.parquet"
+        cache_filepath = CACHE_DIR / cache_filename
+
+        if cache_filepath.exists():
+            try:
+                logger.info(f"Carregando dados de {ticker} do cache YF: {cache_filepath}")
+                data = pd.read_parquet(cache_filepath)
+                if isinstance(data.index, pd.DatetimeIndex):
+                    # Tenta converter para timezone desejado
+                    try:
+                         if data.index.tz is None: data = data.tz_localize('UTC') # Assume UTC se não tiver
+                         data = data.tz_convert(desired_timezone)
+                         logger.info(f"Dados YF carregados do cache ({len(data)} registros).")
+                         return data
+                    except Exception as e_tz:
+                         logger.warning(f"Erro ao converter timezone do cache YF: {e_tz}. Retornando como está.")
+                         return data
+                else: logger.warning("Cache YF corrompido.")
+            except Exception as e:
+                logger.warning(f"Erro ao ler cache YF {cache_filepath}: {e}. Buscando novamente.")
+
         try:
-            # yfinance geralmente lida bem com strings 'YYYY-MM-DD'
-            data = yf.download(ticker, start=start_date, end=end_date, interval=timeframe)
+            data = yf.download(ticker, start=start_date, end=end_date, interval=interval)
         except Exception as e:
             logger.error(f"Erro ao buscar dados do yfinance para {ticker}: {e}")
             return pd.DataFrame()
 
         if data.empty:
             logger.warning(f"Nenhum dado retornado do yfinance para {ticker} no período.")
+            pd.DataFrame().to_parquet(cache_filepath, index=False) # Cache vazio
             return pd.DataFrame()
 
-        # Renomeia colunas para o padrão OHLCV (minúsculo)
-        data.rename(columns={
-            'Open': 'open', 'High': 'high', 'Low': 'low', 'Close': 'close', 'Volume': 'volume'
-        }, inplace=True)
+        data.rename(columns={'Open': 'open', 'High': 'high', 'Low': 'low', 'Close': 'close', 'Volume': 'volume'}, inplace=True)
         
-        # Ajusta o nome da coluna de data/hora se necessário e define como índice
-        if 'Datetime' in data.columns: # Para alguns intervalos intraday
-             data.index = pd.to_datetime(data['Datetime'])
-             data = data.drop(columns=['Datetime'])
-        elif 'Date' in data.columns: # Para intervalos diários
-             data.index = pd.to_datetime(data['Date'])
-             data = data.drop(columns=['Date'])
-        # Se o índice já for DatetimeIndex, não faz nada
+        # yfinance pode retornar índice como DatetimeIndex ou não
+        if not isinstance(data.index, pd.DatetimeIndex):
+            if 'Datetime' in data.columns:
+                 data.index = pd.to_datetime(data['Datetime'])
+            elif 'Date' in data.columns:
+                 data.index = pd.to_datetime(data['Date'])
+            # Se não encontrar, pode falhar ou precisar de mais tratamento
 
-        # Garante que o índice tem timezone (yfinance pode retornar com ou sem)
+        # Timezone Handling (Pode variar com yfinance)
         if data.index.tz is None:
-             # Assume UTC ou timezone local? Depende da fonte do YFinance.
-             # Para B3, geralmente é America/Sao_Paulo. Para US, America/New_York.
-             # É mais seguro converter para o timezone desejado explicitamente.
-             try:
-                 # Tenta localizar como timezone de SP (para B3)
-                 data = data.tz_localize('America/Sao_Paulo', ambiguous='infer')
-             except pytz.exceptions.AmbiguousTimeError:
-                 logger.warning(f"Tempo ambíguo encontrado para {ticker} no yfinance. Usando 'infer'.")
-                 data = data.tz_localize('America/Sao_Paulo', ambiguous='infer')
-             except Exception: # Fallback mais genérico
-                  try:
-                     # Tenta localizar como UTC
-                     data = data.tz_localize('UTC', ambiguous='infer')
-                  except Exception as e_tz:
-                      logger.error(f"Falha ao localizar timezone para dados yfinance de {ticker}: {e_tz}")
-                      # Retorna sem timezone ou falha? Por ora, retorna sem.
+             try: data = data.tz_localize('America/Sao_Paulo', ambiguous='infer') # Tenta SP
+             except Exception:
+                  try: data = data.tz_localize('UTC', ambiguous='infer') # Tenta UTC
+                  except Exception as e_tz: logger.warning(f"Não foi possível localizar timezone YF para {ticker}: {e_tz}")
         
-        # Converte para o timezone desejado, se já tiver um timezone
+        # Converte para o timezone desejado se tiver timezone
         if data.index.tz is not None:
-             data = data.tz_convert(desired_timezone)
+             try: data = data.tz_convert(desired_timezone)
+             except Exception as e_tz_conv: logger.warning(f"Erro ao converter timezone YF para {ticker}: {e_tz_conv}")
 
-
-        # Seleciona apenas as colunas desejadas (remove 'Adj Close')
         data = data[['open', 'high', 'low', 'close', 'volume']]
+
+        try:
+             logger.info(f"Salvando dados YF de {ticker} ({len(data)} registros) em cache: {cache_filepath}")
+             data.to_parquet(cache_filepath, index=True, compression='snappy')
+        except Exception as e:
+            logger.error(f"Erro ao salvar dados YF no cache {cache_filepath}: {e}")
 
         return data
 
     def get_latest_candles(self, ticker: str, timeframe: str, count: int) -> pd.DataFrame:
-        """
-        Busca os candles mais recentes do Yahoo Finance.
-        Nota: yfinance pode ter limitações para buscar por 'count'. Usamos período.
-        """
-        # Estima um período para buscar baseado no timeframe e count
-        # Ex: Se timeframe='1h' e count=10, busca '1d' ou '2d' de dados
-        # A lógica exata pode precisar de ajuste
-        period_map = {'m': '7d', 'h': '60d', 'd': '1y', 'wk': '5y', 'mo': 'max'}
-        tf_unit = timeframe[-1].lower() if timeframe else 'd'
-        period = period_map.get(tf_unit, '1mo') # Default 1 mês
+        """Busca candles recentes do Yahoo Finance."""
+        interval = timeframe.lower()
+        if interval == 'd1': interval = '1d'
+        elif interval == 'h1': interval = '1h'
 
-        logger.info(f"Buscando dados recentes de {ticker} do Yahoo Finance (período {period} @ {timeframe})...")
+        # Determina período baseado no intervalo para buscar dados suficientes
+        period = '7d' if 'm' in interval else '60d' if 'h' in interval else '1y'
+
+        logger.info(f"Buscando dados recentes YF de {ticker} (período {period} @ {interval})...")
         try:
-             # Busca um período e pega os últimos 'count'
-             data = yf.download(ticker, period=period, interval=timeframe)
+             data = yf.download(ticker, period=period, interval=interval)
              if data.empty: return pd.DataFrame()
-
-             # Pega os últimos 'count' registros
-             data = data.tail(count)
-
+             data = data.tail(count) # Pega os últimos 'count'
         except Exception as e:
-            logger.error(f"Erro ao buscar dados recentes do yfinance para {ticker}: {e}")
+            logger.error(f"Erro ao buscar dados recentes YF para {ticker}: {e}")
             return pd.DataFrame()
 
-        # Renomeia e ajusta índice/timezone como em get_data
+        # Renomeia, ajusta índice e timezone
         data.rename(columns={'Open': 'open', 'High': 'high', 'Low': 'low', 'Close': 'close', 'Volume': 'volume'}, inplace=True)
-        if 'Datetime' in data.columns: data.index = pd.to_datetime(data['Datetime']); data = data.drop(columns=['Datetime'])
-        elif 'Date' in data.columns: data.index = pd.to_datetime(data['Date']); data = data.drop(columns=['Date'])
+        if not isinstance(data.index, pd.DatetimeIndex):
+            if 'Datetime' in data.columns: data.index = pd.to_datetime(data['Datetime'])
+            elif 'Date' in data.columns: data.index = pd.to_datetime(data['Date'])
         
         if data.index.tz is None:
              try: data = data.tz_localize('America/Sao_Paulo', ambiguous='infer')
              except Exception:
                   try: data = data.tz_localize('UTC', ambiguous='infer')
-                  except Exception: logger.warning(f"Não foi possível localizar timezone para {ticker} (latest).")
+                  except Exception: logger.warning(f"Não localizou timezone YF recente para {ticker}.")
 
-        if data.index.tz is not None: data = data.tz_convert(desired_timezone)
+        if data.index.tz is not None:
+            try: data = data.tz_convert(desired_timezone)
+            except Exception: logger.warning(f"Não converteu timezone YF recente para {ticker}.")
             
         return data[['open', 'high', 'low', 'close', 'volume']]
 
-
-# --- Função Factory --- ADDED BACK ---
-
+# --- Função Factory ---
 def get_provider_instance(provider_name: str) -> BaseDataProvider:
-    """
-    Factory function para obter uma instância de um provedor de dados.
-
-    Args:
-        provider_name (str): O nome do provedor ('MetaTrader5' ou 'YFinance').
-
-    Returns:
-        BaseDataProvider: Uma instância do provedor de dados solicitado.
-
-    Raises:
-        ValueError: Se o nome do provedor for desconhecido.
-    """
+    """Factory para obter instância do provedor de dados."""
     if provider_name.lower() == 'metatrader5':
         return MetaTraderProvider()
     elif provider_name.lower() == 'yfinance':
         return YFinanceProvider()
     else:
-        # Loga o erro antes de levantar a exceção
-        logger.error(f"Tentativa de usar um provedor de dados desconhecido: {provider_name}")
+        logger.error(f"Provedor de dados desconhecido solicitado: {provider_name}")
         raise ValueError(f"Provedor de dados desconhecido: {provider_name}")
