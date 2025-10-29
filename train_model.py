@@ -98,7 +98,7 @@ def train_all_models(config_path: str = 'configs/main.yaml'):
 
             logger.info(f"Buscando dados para {ticker_data} de {train_cfg['start_date']} a {train_cfg['end_date']} @ {train_cfg['timeframe_model']}...")
 
-            tf_string = train_cfg['timeframe_model']
+            tf_string = train_cfg['timeframe']
             mt5_timeframe_obj = _get_mt5_timeframe_from_string(tf_string)
 
             if mt5_timeframe_obj is None and data_provider_name == 'MetaTrader5':
