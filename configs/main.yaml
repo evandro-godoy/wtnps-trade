@@ -19,7 +19,7 @@ global_settings:
 
 assets:
   - ticker: "WDO$"
-    enabled: false  # Habilita ou desabilita este ativo para treino e live trading.
+    enabled: true  # Habilita ou desabilita este ativo para treino e live trading.
     provider: "MetaTrader5"
     strategy_module: "lstm"
     strategy_name: "LSTMStrategy"

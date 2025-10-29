@@ -218,6 +218,19 @@ class MetaTraderProvider:
         }
         return tf_map_rev.get(timeframe, "D1") # Padrão D1 se não encontrado
 
+    def _get_mt5_timeframe_from_string(self, tf_str: str):
+        """Converte string de timeframe para constante MT5."""
+        tf_map = {
+            "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
+            "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+            "D1": mt5.TIMEFRAME_D1,
+        }
+        default_tf = mt5.TIMEFRAME_D1
+        tf_constant = tf_map.get(tf_str.upper(), default_tf)
+        if tf_constant == default_tf and tf_str.upper() != "D1":
+            logging.warning(f"Timeframe '{tf_str}' não mapeado, usando D1 como padrão.")
+        return tf_constant
+
     def shutdown(self):
          """Encerra a conexão com o MT5."""
          # Só desliga se estiver conectado

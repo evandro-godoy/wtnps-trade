@@ -5,7 +5,6 @@ from pathlib import Path
 import importlib
 
 from src.data_handler.provider import YFinanceProvider, MetaTraderProvider
-from src.data_handler.provider import get_mt5_timeframe
 from src.strategies.lstm import KerasLSTMWrapper
 
 
@@ -50,24 +49,25 @@ def train_all_models():
         # )
         
         # 2. Busca dados de treino
-        logging.info(f"Buscando dados para {ticker} de {asset_config['data']['start_date']} a {asset_config['data']['end_date']} @ {asset_config['data']['timeframe']}...")
+        train_cfg = asset_config["data"]
 
+        logging.info(f"Buscando dados para {ticker} de {train_cfg['start_date']} a {train_cfg['end_date']} @ {train_cfg['timeframe_model']}...")
 
         # 2.1. Obter a string do timeframe do config
-        tf_string = asset_config['data']['timeframe']
+        tf_string = train_cfg["timeframe_model"]
 
-        # 2.2 Converter a string (ex: "H1") para o objeto MT5 (ex: mt5.TIMEFRAME_H1)
-        mt5_timeframe = get_mt5_timeframe(tf_string)
+        # 2.2. Converter a string (ex: "H1") para o objeto MT5 (ex: mt5.TIMEFRAME_H1)
+        mt5_timeframe = data_provider._get_mt5_timeframe_from_string(tf_string)
         
         if mt5_timeframe is None:
             logging.error(f"Timeframe inválido '{tf_string}' no config.yaml para {ticker}. Pulando.")
             continue # Pula para o próximo ativo
 
-        # 3. Chamar a função com o nome e tipo corretos do parâmetro
+        # 2.3. Chamar a função do provedor de dados
         market_data_is = data_provider.get_data(
             ticker=ticker,
-            start_date_str=asset_config['data']['start_date'],
-            end_date_str=asset_config['data']['end_date'],
+            start_date=train_cfg["start_date"],
+            end_date=train_cfg["end_date"],
             timeframe=mt5_timeframe  # Usando o objeto timeframe convertido
         )
 

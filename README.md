@@ -14,28 +14,34 @@ O projeto evoluiu para um sistema híbrido que opera com base em quatro pilares 
 4.  **Motores Duplos (Simulação e Live):** O projeto possui dois motores de execução distintos:
       * `src/simulation/engine.py`: Usado para simulações, "market replay" e análises (como as vistas nos notebooks). Ele pode simular a lógica de decisão para qualquer ponto no tempo.
       * `src/live_trader.py`: O motor de operação em tempo real. Ele se conecta ao MT5, monitora novos candles e pode `sugerir` ou `executar` trades reais.
+5.  **Dashboards:** O projeto possui algumas interfaces, ainda em construção, para uso dos motores de forma mais amigável.
 
 ## Estrutura do Projeto
 
 ```
 wtnps-trade/
 ├── configs/
-│   └── main.yaml           # Arquivo mestre de configuração
-├── models/                 # (Gerado) Modelos de IA (.keras) e scalers (.joblib)
+│   └── main.yaml                     # Arquivo mestre de configuração
+├── models/                           # Modelos de IA (.keras) e scalers (.joblib)
 ├── src/
 │   ├── data_handler/
-│   │   └── provider.py     # Provedores de dados (MetaTraderProvider, YFinanceProvider)
+│   │   └── provider.py               # Provedores de dados (MetaTraderProvider, YFinanceProvider)
 │   ├── strategies/
-│   │   ├── base.py         # Classe base abstrata para estratégias
-│   │   └── lstm.py         # Implementação da estratégia com LSTM e KerasWrapper
+│   │   ├── base.py                   # Classe base abstrata para estratégias
+│   │   ├── lstm.py                   # Implementação da estratégia com LSTM e KerasWrapper
+│   │   └── random_forest.py          # Implementação da estratégia com LSTM e KerasWrapper
 │   ├── setups/
-│   │   └── analyzer.py     # Avaliador das regras de setup (ex: médias móveis)
+│   │   └── analyzer.py               # Avaliador das regras de setup (ex: médias móveis)
 │   ├── simulation/
-│   │   └── engine.py       # Motor para simulação e "market replay"
+│   │   └── engine.py                 # Motor para simulação e "market replay"
 │   ├── backtest_engine/
-│   │   └── runner.py       # Lógica de simulação de P/L (Stop Loss/Take Profit)
-│   ├── live_trader.py      # Motor principal para trading ao vivo com MT5
-│   └── ...                 # (Outros módulos de suporte)
+│   │   └── runner.py                 # Lógica de simulação de P/L (Stop Loss/Take Profit)
+│   ├── gui/
+│   │   ├── dashboard.py              # Interface para uso do motor engine.py
+│   │   └── live_trader_dashboard.py  # Interface para uso do simulador simulate_single_cicle do live_trader.py
+│   ├── reporting/
+│   │   └── plot.py                   # Mecanismo para geração de relatórios
+│   └── live_trader.py                # Motor principal para trading ao vivo com MT5
 ├── notebooks/
 │   └── simulation/         # Notebooks para testar o 'SimulationEngine'
 ├── tests/                  # Testes unitários e de integração
@@ -79,7 +85,7 @@ Tudo começa no arquivo `configs/main.yaml`. Antes de treinar ou executar, você
 Uma vez configurado, treine os modelos de IA para os ativos habilitados:
 
 ```bash
-python train_model.py
+poetry run python train_model.py
 ```
 
 Este script:
@@ -92,25 +98,14 @@ Este script:
 
 ### 3\. Execução
 
-O framework pode ser executado em dois modos distintos:
+O framework pode ser executado em três modos distintos:
 
-#### Modo 1: Simulação e Análise (Market Replay)
-
-Este modo é ideal para depuração, análise e para os *notebooks* de simulação. Ele utiliza o `src/simulation/engine.py`.
-
-O `SimulationEngine` carrega os modelos treinados e permite executar um único ciclo de simulação (`run_simulation_cycle`) para um ativo, timeframe e data/hora específicos. Ele retorna um dicionário detalhado com:
-
-  * O sinal da IA (Compra/Venda).
-  * A validade do setup (True/False).
-  * O sinal final (Compra/Venda/Hold).
-  * O preço sugerido, stop e os valores dos indicadores naquele momento.
-
-#### Modo 2: Trading ao Vivo
+#### Modo 1: Trading ao Vivo
 
 Este modo é para operação em tempo real e utiliza o `src/live_trader.py`.
 
 ```bash
-python src/live_trader.py
+poetry run python src/live_trader.py
 ```
 
 O `LiveTrader`:
@@ -121,6 +116,27 @@ O `LiveTrader`:
 4.  A cada novo candle, executa a lógica completa (features, sinal da IA, validação de setup).
 5.  Se o modo de execução for `suggest`, ele apenas imprimirá a sugestão de trade no log.
 6.  Se o modo de execução for `execute`, ele enviará a ordem de compra ou venda diretamente para o MT5 usando o `ticker_order` especificado.
+
+* O `LiveTrader` também possuí um método chamado `simulate_single_cycle` que permite a simular operações.
+
+#### Modo 2: Simulação e Análise (Market Replay)
+
+Este modo é ideal para depuração, análise e para os *notebooks* de simulação. Ele utiliza o `src/simulation/engine.py`.
+
+```bash
+poetry run python src/simulation/engine.py
+```
+
+O `SimulationEngine` carrega os modelos treinados e permite executar um único ciclo de simulação (`run_simulation_cycle`) para um ativo, timeframe e data/hora específicos. Ele retorna um dicionário detalhado com:
+
+  * O sinal da IA (Compra/Venda).
+  * A validade do setup (True/False).
+  * O sinal final (Compra/Venda/Hold).
+  * O preço sugerido, stop e os valores dos indicadores naquele momento.
+
+#### Modo 3: Dashboards
+
+Este modo permite visualizar dados dos ativos 
 
 ## Instalação
 
