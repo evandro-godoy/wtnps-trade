@@ -49,17 +49,18 @@ class LiveTrader:
         self.mt5_provider = None 
         self.asset_resources = {} 
         self.last_candle_time = {} 
-        # Estrutura do state: {asset: {"position": "COMPRADO"/"VENDIDO"/None, "entry_price": float, "trade_id": int, "sl_pct": float, "tp_pct": float}}
         self.current_state = {} 
         
         self.setup_analyzer = SetupAnalyzer() 
 
         self._run_thread = None
         self._stop_event = Event()
-        self._lock = Lock() # Lock para proteger acesso a dados compartilhados (current_state, last_candle_time)
+        self._lock = Lock() 
 
+        # Thread de inicialização (auto-iniciada)
         self._init_thread = Thread(target=self._initialize_resources, daemon=True)
         self._init_thread.start()
+
 
     def _load_config(self):
         """Carrega o arquivo de configuração YAML."""
@@ -80,7 +81,6 @@ class LiveTrader:
          try:
              provider = get_provider_instance("MetaTrader5")
              if isinstance(provider, MetaTraderProvider):
-                 # Verifica se a conexão foi bem sucedida dentro do provider
                  if provider.is_connected():
                       self.mt5_provider = provider 
                       logger.info("Conectado ao MetaTrader 5.")
@@ -96,16 +96,16 @@ class LiveTrader:
              self.mt5_provider = None
              return False
 
-    def _load_asset_resources(self, asset_symbol: str):
+    def _load_asset_resources(self, asset_symbol: str, asset_config: dict): # Recebe asset_config
         """Carrega os recursos (modelo, estratégia, config) para um ativo."""
-        # Prevenção de race condition - verificar e carregar dentro do lock pode ser mais seguro
-        # Mas como isso roda na thread de init, antes do loop principal, pode ser ok.
-        # Considerar mover o acesso a self.asset_resources para dentro de locks se houver problemas.
+        
+        # asset_symbol já vem do loop, asset_config também
+        
         if asset_symbol in self.asset_resources and 'error' not in self.asset_resources[asset_symbol]:
              logger.debug(f"Recursos para {asset_symbol} já carregados.")
              return self.asset_resources[asset_symbol]
-
-        asset_config = self.config['assets'].get(asset_symbol)
+        
+        # Configs já foram passados
         if not asset_config or not asset_config.get('live_trading', {}).get('enabled', False):
             logger.debug(f"Configuração ou live_trading não encontrado/habilitado para {asset_symbol}.")
             return None 
@@ -120,14 +120,14 @@ class LiveTrader:
         try:
             strategy_module = importlib.import_module(f"src.strategies.{strategy_module_name}")
             StrategyClass = getattr(strategy_module, strategy_class_name)
-            strategy_instance = StrategyClass() 
+            # Passa parâmetros da estratégia (ex: lookback) do config para a instância
+            strategy_instance: BaseStrategy = StrategyClass(**asset_config.get('strategy_params', {}))
 
             model_path_prefix = str(self.models_dir / f"{asset_symbol}_prod")
             logger.info(f"Carregando modelo para {asset_symbol} via {strategy_class_name}.load() com prefixo: {model_path_prefix}")
             
             model = StrategyClass.load(model_path_prefix)
 
-            # Guarda configs relevantes para acesso rápido
             live_config = asset_config.get('live_trading', {})
             trading_rules = asset_config.get('trading_rules', {})
 
@@ -135,24 +135,23 @@ class LiveTrader:
                 'strategy_instance': strategy_instance,
                 'strategy_class': StrategyClass,
                 'model': model,
-                'config': asset_config, # Config geral
-                'live_config': live_config, # Config de live trading
-                'trading_rules': trading_rules, # Regras de SL/TP etc.
-                'price_precision': asset_config.get('price_precision', 2) # Precisão de preço
+                'config': asset_config, 
+                'live_config': live_config, 
+                'trading_rules': trading_rules, 
+                'price_precision': asset_config.get('price_precision', 2) 
             }
-            # Atualiza o dicionário de recursos (thread-safe se necessário)
-            # Como é na init thread, acesso direto é provávelmente seguro
+            
             self.asset_resources[asset_symbol] = resources 
             logger.info(f"Recursos para {asset_symbol} carregados (Modelo OK).")
             return resources
 
         except FileNotFoundError as e:
              logger.error(f"Erro ao carregar {asset_symbol}: Arquivo de modelo não encontrado ({model_path_prefix}...). Verifique se o treino foi executado. Detalhes: {e}")
-             self.asset_resources[asset_symbol] = {'error': 'Modelo não encontrado'} # Marca como erro
+             self.asset_resources[asset_symbol] = {'error': 'Modelo não encontrado'} 
              return None 
         except (ImportError, AttributeError, TypeError, Exception) as e:
             logger.error(f"Erro crítico ao carregar recursos para {asset_symbol}: {e}", exc_info=True)
-            self.asset_resources[asset_symbol] = {'error': str(e)} # Marca como erro
+            self.asset_resources[asset_symbol] = {'error': str(e)} 
             return None
 
     def _initialize_resources(self):
@@ -161,26 +160,34 @@ class LiveTrader:
         if not self._initialize_mt5():
             logger.critical("Falha na inicialização do MT5. LiveTrader não pode continuar.")
             if self.callback:
-                 # Sinaliza erro global
                  self.callback({"type": "status", "asset": "GLOBAL", "message": "Erro MT5", "color": "red"})
-            return # Aborta thread
+            return 
 
         logger.info("Inicializando o LiveTrader Engine...")
         enabled_assets = []
-        for asset_symbol in self.config.get('assets', {}):
-            # Carrega apenas se habilitado para live
-            if self.config['assets'][asset_symbol].get('live_trading', {}).get('enabled', False):
+        
+        # --- CORREÇÃO AQUI ---
+        # Itera sobre a LISTA config.get('assets', [])
+        for asset_config in self.config.get('assets', []): 
+            
+            asset_symbol = asset_config.get('ticker')
+            if not asset_symbol:
+                 logger.warning("Configuração de ativo sem 'ticker' encontrada. Pulando.")
+                 continue
+
+            # Verifica se está habilitado para live trading
+            if asset_config.get('live_trading', {}).get('enabled', False):
                 logger.info(f"Carregando recursos para {asset_symbol}...")
-                if self._load_asset_resources(asset_symbol):
+                
+                # Passa o asset_config para a função de carregamento
+                if self._load_asset_resources(asset_symbol, asset_config): # Passa o config
                      enabled_assets.append(asset_symbol)
-                     # Inicializa estado e último candle (com lock para segurança)
                      with self._lock:
                           self.last_candle_time[asset_symbol] = None
                           self.current_state[asset_symbol] = {
                                "position": None, 
                                "entry_price": None, 
                                "trade_id": None,
-                               # Guarda SL/TP % aqui para acesso rápido no check_sl_tp
                                "sl_pct": self.asset_resources[asset_symbol]['trading_rules'].get('stop_loss_pct'),
                                "tp_pct": self.asset_resources[asset_symbol]['trading_rules'].get('take_profit_pct')
                           }
@@ -188,6 +195,7 @@ class LiveTrader:
                      logger.error(f"Falha ao carregar recursos para {asset_symbol}. Será ignorado.")
                      if self.callback:
                          self.callback({"type": "status", "asset": asset_symbol, "message": "Erro Carga", "color": "red"})
+        # --- FIM DA CORREÇÃO ---
 
         if enabled_assets:
             logger.info(f"LiveTrader pronto para operar: {', '.join(enabled_assets)}")
@@ -201,6 +209,7 @@ class LiveTrader:
                  self.callback({"type": "status", "asset": "GLOBAL", "message": "Vazio", "color": "orange"})
                  
         logger.info("Thread init LiveTrader concluída.")
+
 
     def _get_latest_candles(self, ticker: str, timeframe_obj: int, count: int) -> pd.DataFrame:
         """Busca os últimos 'count' candles do MT5."""
@@ -217,112 +226,100 @@ class LiveTrader:
             logger.error(f"Erro ao buscar candles para {ticker}: {e}", exc_info=False)
             return pd.DataFrame()
 
-    # --- NOVO MÉTODO: Verificação de Stop Loss e Take Profit ---
     def _check_sl_tp(self, asset_symbol: str):
         """Verifica se alguma posição aberta atingiu SL ou TP."""
-        # Acessa estado e recursos de forma segura
         with self._lock:
             state = self.current_state.get(asset_symbol)
             resources = self.asset_resources.get(asset_symbol)
 
-        # Se não há estado, recursos ou posição aberta, retorna
-        if not state or not resources or state["position"] is None:
+        if not state or not resources or 'error' in resources or state["position"] is None:
             return
 
         live_ticker = resources['live_config'].get('ticker_order', asset_symbol)
         trade_id = state["trade_id"]
         entry_price = state["entry_price"]
-        sl_pct = state.get("sl_pct") # Pega do state (carregado na init)
-        tp_pct = state.get("tp_pct") # Pega do state
-        position_type = state["position"] # "COMPRADO" ou "VENDIDO"
+        sl_pct = state.get("sl_pct")
+        tp_pct = state.get("tp_pct")
+        position_type = state["position"]
         price_precision = resources.get('price_precision', 2)
 
-        # Se não tem SL/TP definidos ou preço de entrada, não há o que checar
-        if (sl_pct is None and tp_pct is None) or entry_price is None:
-            return
+        if (sl_pct is None and tp_pct is None) or entry_price is None or entry_price == 0:
+            return # Não pode verificar sem pcts ou preço de entrada válido
 
-        # Busca o preço atual (tick)
         current_tick = None
         if self.mt5_provider and self.mt5_provider.is_connected():
             try:
                 current_tick = mt5.symbol_info_tick(live_ticker)
             except Exception as e:
                 logger.warning(f"Erro ao obter tick para {live_ticker} (verificação SL/TP): {e}")
-                return # Não pode verificar sem preço atual
+                return
         else:
              logger.warning("MT5 não conectado para verificar SL/TP.")
              return
 
-        if current_tick is None:
-            logger.warning(f"Tick não recebido para {live_ticker}. Impossível verificar SL/TP.")
+        if current_tick is None or current_tick.time == 0:
+            # logger.warning(f"Tick inválido ou não recebido para {live_ticker}. Impossível verificar SL/TP.")
             return
 
-        # Usa o preço mais relevante (bid para venda, ask para compra)
+        # Preço atual para fechar a posição
         current_price = current_tick.bid if position_type == "COMPRADO" else current_tick.ask
+        if current_price == 0:
+             # logger.warning(f"Preço atual (bid/ask) zerado para {live_ticker}. Pulando verificação SL/TP.")
+             return
 
-        # Calcula preços alvo de SL e TP
         sl_price, tp_price = None, None
         if sl_pct is not None:
              sl_price = round(entry_price * (1 - sl_pct / 100) if position_type == "COMPRADO" else entry_price * (1 + sl_pct / 100), price_precision)
         if tp_pct is not None:
              tp_price = round(entry_price * (1 + tp_pct / 100) if position_type == "COMPRADO" else entry_price * (1 - tp_pct / 100), price_precision)
              
-        #logger.debug(f"Check SL/TP {asset_symbol}: Pos={position_type}, Entry={entry_price}, Curr={current_price}, SL={sl_price}, TP={tp_price}")
-
         close_reason = None
         # Verifica Stop Loss
-        if sl_price is not None:
+        if sl_price is not None and sl_price != 0:
             if position_type == "COMPRADO" and current_price <= sl_price:
                 close_reason = f"STOP LOSS Atingido ({current_price:.{price_precision}f} <= {sl_price:.{price_precision}f})"
             elif position_type == "VENDIDO" and current_price >= sl_price:
                 close_reason = f"STOP LOSS Atingido ({current_price:.{price_precision}f} >= {sl_price:.{price_precision}f})"
 
-        # Verifica Take Profit (só se não atingiu SL)
-        if close_reason is None and tp_price is not None:
+        # Verifica Take Profit
+        if close_reason is None and tp_price is not None and tp_price != 0:
             if position_type == "COMPRADO" and current_price >= tp_price:
                 close_reason = f"TAKE PROFIT Atingido ({current_price:.{price_precision}f} >= {tp_price:.{price_precision}f})"
             elif position_type == "VENDIDO" and current_price <= tp_price:
                 close_reason = f"TAKE PROFIT Atingido ({current_price:.{price_precision}f} <= {tp_price:.{price_precision}f})"
 
-        # Se SL ou TP foi atingido, fecha a posição
         if close_reason:
             logger.info(f"[RISCO] {close_reason} para {asset_symbol} (Trade ID: {trade_id}). Fechando posição...")
             if self.callback:
                  self.callback({"type":"status", "asset": asset_symbol, "message": close_reason, "color": "orange"})
 
             close_success = False
-            if self.mt5_provider: # Verifica se ainda conectado
+            if self.mt5_provider:
                 try:
                     close_success = self.mt5_provider.close_position(live_ticker, trade_id)
                 except Exception as e_close:
-                     logger.error(f"Erro ao tentar fechar posição {trade_id} para {asset_symbol} (SL/TP): {e_close}", exc_info=True)
+                     logger.error(f"Exceção ao fechar posição {trade_id} (SL/TP): {e_close}", exc_info=True)
 
             if close_success:
-                logger.info(f"[RISCO] Posição {trade_id} ({asset_symbol}) fechada com sucesso devido a {('SL' if 'STOP' in close_reason else 'TP')}.")
-                # Atualiza estado APÓS confirmação de fechamento (thread-safe)
+                logger.info(f"[RISCO] Posição {trade_id} ({asset_symbol}) fechada com sucesso ({close_reason}).")
                 with self._lock:
-                    self.current_state[asset_symbol] = {
+                    # Reseta o estado mantendo os pcts
+                    self.current_state[asset_symbol].update({
                          "position": None, 
                          "entry_price": None, 
-                         "trade_id": None,
-                         "sl_pct": sl_pct, # Mantém pcts para referência
-                         "tp_pct": tp_pct
-                    }
+                         "trade_id": None
+                    })
                 if self.callback:
                     self.callback({"type":"position", "asset": asset_symbol, "status": f"Fechado ({('SL' if 'STOP' in close_reason else 'TP')})"})
             else:
-                logger.error(f"[RISCO] Falha ao fechar posição {trade_id} para {asset_symbol} após atingir {('SL' if 'STOP' in close_reason else 'TP')}.")
+                logger.error(f"[RISCO] Falha ao fechar posição {trade_id} ({asset_symbol}) após atingir SL/TP.")
                 if self.callback:
                      self.callback({"type":"status", "asset": asset_symbol, "message": f"Erro Fechar {('SL' if 'STOP' in close_reason else 'TP')}", "color": "red"})
-    # --- Fim do novo método ---
 
     def _process_asset(self, asset_symbol: str):
         """Processa a lógica de decisão E execução para um único ativo."""
-        # Acessa recursos (leitura geralmente segura sem lock se init terminou)
         resources = self.asset_resources.get(asset_symbol)
-             
-        if not resources or 'error' in resources:
-            return 
+        if not resources or 'error' in resources: return 
 
         live_config = resources['live_config']
         model = resources['model']
@@ -338,20 +335,18 @@ class LiveTrader:
 
         timeframe_obj = _get_mt5_timeframe_from_string(timeframe_str)
         if timeframe_obj is None:
-            logger.error(f"Timeframe inválido '{timeframe_str}' para {asset_symbol}. Pulando processamento de candle.")
+            logger.error(f"Timeframe inválido '{timeframe_str}' para {asset_symbol}. Pulando.")
             return
 
-        # --- Busca de Candles ---
         num_candles_to_fetch = 500 
         candles = self._get_latest_candles(live_ticker, timeframe_obj, num_candles_to_fetch)
 
-        min_required_candles = getattr(model, 'lookback', 1) + 5 # +5 margem para indicadores
+        min_required_candles = getattr(model, 'lookback', 1) + 1 
         if candles.empty or len(candles) < min_required_candles: 
             return
 
         latest_candle_time = candles.index[-1].to_pydatetime() 
 
-        # --- Verifica se é um novo candle ---
         with self._lock:
             last_processed_time = self.last_candle_time.get(asset_symbol)
 
@@ -359,34 +354,34 @@ class LiveTrader:
             return 
 
         logger.info(f"Novo candle {asset_symbol} @ {timeframe_str}: {latest_candle_time}")
-        with self._lock: # Atualiza tempo do último processado
+        with self._lock: 
             self.last_candle_time[asset_symbol] = latest_candle_time
 
-        # --- Lógica de Decisão (Features, IA, Setup) ---
         try:
-            # 1. Features
             data_with_features = strategy_instance.define_features(candles)
-
-            # 2. Input Modelo
             feature_names = strategy_instance.get_feature_names()
             lookback = getattr(model, 'lookback', 1)
-            if len(data_with_features) < lookback: return # Checagem dupla
+            
+            if len(data_with_features) < lookback:
+                 logger.warning(f"Dados insuficientes ({len(data_with_features)}) pós-features para lookback ({lookback}) em {asset_symbol}.")
+                 return
+
             model_input_data = data_with_features.iloc[-lookback:] 
             X_predict = model_input_data[feature_names]
+
             if X_predict.isnull().values.any():
                  logger.warning(f"NaNs no input do modelo {asset_symbol} @ {latest_candle_time}. Pulando.")
                  return
 
-            # 3. Sinal IA
             raw_prediction = model.predict(X_predict)
             ai_signal_code = int(raw_prediction[-1]) if isinstance(raw_prediction, np.ndarray) and len(raw_prediction) > 0 else int(raw_prediction) if isinstance(raw_prediction, (int, np.integer)) else 0
             ai_signal = "COMPRA" if ai_signal_code == 1 else "VENDA" 
             logger.info(f"Sinal IA {asset_symbol}: {ai_signal} (Code: {ai_signal_code})")
 
-            # 4. Avaliar Setups
             setup_rules = asset_config.get('setup', [])
             current_candle_features = data_with_features.iloc[-1:] 
             setup_result = {"is_valid": True, "details": {}, "final_decision": ai_signal}
+            
             if setup_rules:
                  try:
                       setup_result = self.setup_analyzer.evaluate_setups(current_candle_features, setup_rules, ai_signal)
@@ -396,10 +391,8 @@ class LiveTrader:
                       setup_result = {"is_valid": False, "details": {"erro": str(e_setup)}, "final_decision": "HOLD"} 
             
             final_signal = setup_result["final_decision"] 
-            
             current_price = current_candle_features['close'].iloc[0]
 
-            # --- Atualiza GUI ---
             if self.callback:
                  with self._lock: current_pos_display = self.current_state.get(asset_symbol, {}).get("position", "---")
                  gui_data = {
@@ -411,36 +404,31 @@ class LiveTrader:
                  }
                  self.callback(gui_data)
 
-            # --- Lógica de Execução (baseada no final_signal) ---
-            with self._lock: # Pega estado atual seguro
+            with self._lock:
                  current_position = self.current_state.get(asset_symbol, {}).get("position")
                  current_trade_id = self.current_state.get(asset_symbol, {}).get("trade_id")
 
             order_result = None 
-            sl_pct = trading_rules.get('stop_loss_pct') # Pega pcts para a nova ordem
+            sl_pct = trading_rules.get('stop_loss_pct')
             tp_pct = trading_rules.get('take_profit_pct')
 
             if execution_mode == 'execute' and self.mt5_provider:
-                # Se sinal FINAL for COMPRA e não estiver comprado
                 if final_signal == "COMPRA" and current_position != "COMPRADO":
-                    # Fecha venda se existir
                     if current_position == "VENDIDO":
                         logger.info(f"[EXEC] Fechando VENDA {asset_symbol} (ID: {current_trade_id}) antes de comprar.")
                         close_result = self.mt5_provider.close_position(live_ticker, current_trade_id)
                         if close_result:
-                             with self._lock: # Atualiza estado global
+                             with self._lock:
                                   self.current_state[asset_symbol].update({"position": None, "entry_price": None, "trade_id": None})
-                                  current_position = None # Atualiza estado local
+                                  current_position = None
                              if self.callback: self.callback({"type":"position", "asset": asset_symbol, "status": "Fechado"})
                              logger.info(f"[EXEC] Venda {current_trade_id} fechada.")
                         else:
-                             logger.error(f"[EXEC] Falha ao fechar VENDA {current_trade_id} em {asset_symbol}. Compra cancelada.")
-                             final_signal = "HOLD" # Cancela
+                             logger.error(f"[EXEC] Falha ao fechar VENDA {current_trade_id}. Compra cancelada.")
+                             final_signal = "HOLD" 
 
-                    # Abre compra se posição estiver zerada
                     if current_position is None:
                         logger.info(f"[EXEC] Enviando COMPRA {asset_symbol} @ ~{current_price:.{price_precision}f}, Vol: {trade_volume}")
-                        # Calcula SL/TP para a nova ordem
                         sl_price = round(current_price * (1 - sl_pct / 100), price_precision) if sl_pct else None
                         tp_price = round(current_price * (1 + tp_pct / 100), price_precision) if tp_pct else None
                         
@@ -450,24 +438,19 @@ class LiveTrader:
                              filled_price = order_result.price 
                              trade_id = order_result.order 
                              logger.info(f"[EXEC] COMPRA EXECUTADA {asset_symbol}. Preço: {filled_price:.{price_precision}f}, Ticket: {trade_id}")
-                             with self._lock: # Atualiza estado global com dados REAIS da execução
+                             with self._lock: 
                                   self.current_state[asset_symbol].update({
-                                       "position": "COMPRADO", 
-                                       "entry_price": filled_price, 
-                                       "trade_id": trade_id,
-                                       "sl_pct": sl_pct, # Guarda pcts usados nesta ordem
-                                       "tp_pct": tp_pct
+                                       "position": "COMPRADO", "entry_price": filled_price, "trade_id": trade_id,
+                                       "sl_pct": sl_pct, "tp_pct": tp_pct # Armazena pcts usados
                                   })
                              if self.callback: self.callback({"type":"position", "asset": asset_symbol, "status": "Comprado", "price": filled_price, "trade_id": trade_id})
-                        else: # Falha na ordem
+                        else:
                              retcode = order_result.retcode if order_result else 'N/A'
                              comment = order_result.comment if order_result else 'N/A'
                              logger.error(f"[EXEC] FALHA COMPRA {asset_symbol}. RetCode: {retcode}, Comentário: {comment}")
                              if self.callback: self.callback({"type":"status", "asset": asset_symbol, "message": f"Erro Compra ({retcode})", "color": "red"})
 
-                # Se sinal FINAL for VENDA e não estiver vendido
                 elif final_signal == "VENDA" and current_position != "VENDIDO":
-                    # Fecha compra se existir
                     if current_position == "COMPRADO":
                         logger.info(f"[EXEC] Fechando COMPRA {asset_symbol} (ID: {current_trade_id}) antes de vender.")
                         close_result = self.mt5_provider.close_position(live_ticker, current_trade_id)
@@ -478,10 +461,9 @@ class LiveTrader:
                              if self.callback: self.callback({"type":"position", "asset": asset_symbol, "status": "Fechado"})
                              logger.info(f"[EXEC] Compra {current_trade_id} fechada.")
                         else:
-                             logger.error(f"[EXEC] Falha ao fechar COMPRA {current_trade_id} em {asset_symbol}. Venda cancelada.")
+                             logger.error(f"[EXEC] Falha ao fechar COMPRA {current_trade_id}. Venda cancelada.")
                              final_signal = "HOLD"
 
-                    # Abre venda se posição zerada
                     if current_position is None:
                         logger.info(f"[EXEC] Enviando VENDA {asset_symbol} @ ~{current_price:.{price_precision}f}, Vol: {trade_volume}")
                         sl_price = round(current_price * (1 + sl_pct / 100), price_precision) if sl_pct else None
@@ -495,22 +477,18 @@ class LiveTrader:
                              logger.info(f"[EXEC] VENDA EXECUTADA {asset_symbol}. Preço: {filled_price:.{price_precision}f}, Ticket: {trade_id}")
                              with self._lock:
                                  self.current_state[asset_symbol].update({
-                                      "position": "VENDIDO", 
-                                      "entry_price": filled_price, 
-                                      "trade_id": trade_id,
-                                      "sl_pct": sl_pct,
-                                      "tp_pct": tp_pct
+                                      "position": "VENDIDO", "entry_price": filled_price, "trade_id": trade_id,
+                                      "sl_pct": sl_pct, "tp_pct": tp_pct # Armazena pcts usados
                                  })
                              if self.callback: self.callback({"type":"position", "asset": asset_symbol, "status": "Vendido", "price": filled_price, "trade_id": trade_id})
-                        else: # Falha na ordem
+                        else:
                              retcode = order_result.retcode if order_result else 'N/A'
                              comment = order_result.comment if order_result else 'N/A'
                              logger.error(f"[EXEC] FALHA VENDA {asset_symbol}. RetCode: {retcode}, Comentário: {comment}")
                              if self.callback: self.callback({"type":"status", "asset": asset_symbol, "message": f"Erro Venda ({retcode})", "color": "red"})
 
-            # Modo Sugestão
             elif execution_mode == 'suggest' and final_signal != "HOLD":
-                 logger.info(f"SUGESTÃO ({execution_mode}): {final_signal} para {asset_symbol} @ {current_price:.{price_precision}f}")
+                 logger.info(f"SUGESTÃO ({execution_mode}): {final_signal} {asset_symbol} @ {current_price:.{price_precision}f}")
                  sl_price = round(current_price * (1 - sl_pct / 100) if final_signal == "COMPRA" else current_price * (1 + sl_pct / 100), price_precision) if sl_pct else None
                  tp_price = round(current_price * (1 + tp_pct / 100) if final_signal == "COMPRA" else current_price * (1 - tp_pct / 100), price_precision) if tp_pct else None
                  logger.info(f"--> Preços Sugeridos: SL={sl_price if sl_price else 'N/A'}, TP={tp_price if tp_price else 'N/A'}")
@@ -525,7 +503,7 @@ class LiveTrader:
         self._init_thread.join() 
         logger.info("Inicialização concluída. Monitorando...")
 
-        with self._lock: # Pega lista inicial de ativos
+        with self._lock: 
              active_assets = [k for k, v in self.asset_resources.items() if v and 'error' not in v]
 
         if not active_assets:
@@ -538,19 +516,19 @@ class LiveTrader:
                 for asset_symbol in active_assets:
                     if self._stop_event.is_set(): break 
                     
-                    # 1. Verifica SL/TP para posições abertas deste ativo
+                    # 1. Verifica SL/TP (executa a cada ciclo de sleep)
                     self._check_sl_tp(asset_symbol) 
                     
-                    # 2. Processa novo candle (se houver) para decisão
+                    # 2. Processa novo candle (só executa se houver novo candle)
                     self._process_asset(asset_symbol)
 
-                # Pausa antes da próxima verificação geral
-                sleep_time = 5 # Verifica a cada 5 segundos (ajuste conforme necessário)
+                # Pausa
+                sleep_time = 5 
                 self._stop_event.wait(sleep_time) 
 
             except Exception as e:
                  logger.critical(f"Erro CRÍTICO no loop monitor: {e}", exc_info=True)
-                 self._stop_event.wait(60) # Pausa longa em caso de erro grave
+                 self._stop_event.wait(60)
 
         logger.info("Thread monitor encerrada.")
         self._shutdown_mt5() 
@@ -571,20 +549,17 @@ class LiveTrader:
         logger.info("Recebido comando para parar LiveTrader...")
         self._stop_event.set() 
         
-        # Junta a thread de inicialização se ainda estiver rodando (improvável mas seguro)
         if self._init_thread and self._init_thread.is_alive():
              self._init_thread.join(timeout=5)
 
-        # Junta a thread principal de monitoramento
         if self._run_thread and self._run_thread.is_alive():
              logger.info("Aguardando thread monitor finalizar...")
-             self._run_thread.join(timeout=15) # Aumenta timeout ligeiramente
+             self._run_thread.join(timeout=15) 
              if self._run_thread.is_alive():
                   logger.warning("Thread monitor não finalizou no tempo esperado.")
              else:
                   logger.info("Thread monitor finalizada.")
         
-        # Desconexão MT5 é feita no final da _run_monitor_thread
         logger.info("LiveTrader parado.")
         if self.callback:
              self.callback({"type": "status", "asset": "GLOBAL", "message": "Parado", "color": "grey"})
@@ -594,10 +569,9 @@ class LiveTrader:
         if self.mt5_provider:
              logger.info("Encerrando conexão do LiveTrader com o MetaTrader 5...")
              try:
-                 # Chama o método de fechar do provider
                  if hasattr(self.mt5_provider, 'close_connection'):
                       self.mt5_provider.close_connection()
-                 else: # Fallback para shutdown direto do MT5
+                 else: 
                       mt5.shutdown()
                  logger.info("Desligamento da conexão MT5 concluído.")
              except Exception as e:
@@ -605,9 +579,7 @@ class LiveTrader:
              finally:
                   self.mt5_provider = None
 
-
 # --- Bloco de execução principal (para rodar standalone) ---
-
 if __name__ == "__main__":
     
     def simple_console_callback(data):
@@ -623,7 +595,7 @@ if __name__ == "__main__":
              trade_id = data.get('trade_id', 'N/A')
              print(f"[{ts}] {data['asset']}: Posição -> {status} @ {price} (ID: {trade_id})")
         elif data["type"] == "status":
-             color = data.get('color', 'white') # Ignora cor no console simples
+             color = data.get('color', 'white') 
              print(f"[{ts}] STATUS ({data['asset']}): {data['message']}")
         else:
              print(f"[{ts}] Callback: {data}")
@@ -632,23 +604,34 @@ if __name__ == "__main__":
     trader = LiveTrader(config_path='configs/main.yaml', callback=simple_console_callback) 
     
     try:
-        trader.start() 
-        # Mantém o script principal rodando indefinidamente
-        while True:
-            # Verifica a saúde da thread a cada poucos segundos
-            if trader._run_thread is None or not trader._run_thread.is_alive():
-                  logger.error("Thread monitor principal morreu inesperadamente. Encerrando.")
-                  # Tenta parar graciosamente mesmo assim
-                  trader.stop() 
-                  break
-            time.sleep(10) # Verifica a cada 10s
+        # No modo standalone, o 'start' é chamado aqui
+        # mas precisamos esperar a inicialização antes de deixar o loop principal rodar
+        
+        # Espera a thread de inicialização (auto-iniciada) terminar
+        if hasattr(trader, '_init_thread') and trader._init_thread.is_alive():
+            print("Aguardando inicialização do LiveTrader...")
+            trader._init_thread.join()
+            print("Inicialização concluída.")
+
+        # Só inicia o monitoramento se a inicialização foi bem-sucedida
+        if trader.mt5_provider and trader.mt5_provider.is_connected():
+            trader.start() # Inicia o _run_monitor_thread
+            
+            # Mantém o script principal rodando
+            while True:
+                if trader._run_thread is None or not trader._run_thread.is_alive():
+                      logger.error("Thread monitor principal morreu inesperadamente. Encerrando.")
+                      trader.stop() 
+                      break
+                time.sleep(10)
+        else:
+            logger.critical("Falha na inicialização do LiveTrader (MT5?). Encerrando.")
 
     except KeyboardInterrupt:
         print("\nInterrupção recebida (Ctrl+C). Parando Live Trader...")
     except Exception as main_e:
          logger.critical(f"Erro não tratado no loop principal: {main_e}", exc_info=True)
     finally:
-        # Garante que stop() seja chamado
         if 'trader' in locals() and trader:
             trader.stop() 
         print("Live Trader Standalone finalizado.")
