@@ -36,6 +36,7 @@ assets:
       take_profit_pct: 0.03
     
     live_trading:
+      enabled: true
       ticker_order: "WDOX25"
       timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
       execution_mode: "suggest" # "suggest" ou "execute"
@@ -70,6 +71,7 @@ assets:
       take_profit_pct: 0.03
     
     live_trading:
+      enabled: false
       ticker_order: "WINZ25"
       timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
       execution_mode: "suggest" # "suggest" ou "execute"
