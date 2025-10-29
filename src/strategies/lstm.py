@@ -273,8 +273,7 @@ class LSTMStrategy(BaseStrategy):
         # Nomes das features que serão usadas (importante!)
         self.feature_names = [
             'ema_9', 'sma_20', 'sma_50', 'sma_200',
-            'volume', 'volatility', 'rsi',
-            'ema_21', 'ema_50', 'ema_200', 'sma_9'
+            'volume', 'volatility', 'rsi'
         ]
 
     def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -285,13 +284,9 @@ class LSTMStrategy(BaseStrategy):
         
         # Médias Móveis
         df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
-        df['sma_9'] = df['close'].rolling(window=9).mean()
         df['sma_20'] = df['close'].rolling(window=20).mean()
-        df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
         df['sma_50'] = df['close'].rolling(window=50).mean()
-        df['ema_50'] = df['close'].ewm(span=50, adjust=False).mean()
         df['sma_200'] = df['close'].rolling(window=200).mean()
-        df['ema_200'] = df['close'].ewm(span=200, adjust=False).mean()
 
         # Volume (assume que 'volume' já existe nos dados do provider)
         if 'volume' not in df.columns:
