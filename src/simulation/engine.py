@@ -6,20 +6,19 @@ import importlib
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-# Removido: from tensorflow.keras.models import load_model # Não é mais necessário aqui
-# Removido: import joblib # Não é mais necessário aqui
 import MetaTrader5 as mt5 # Para conversão de timeframe
+import pytz # Para timezones
 
 # Importações internas do projeto
-from src.data_handler.provider import get_provider_instance, BaseDataProvider, MetaTraderProvider # Adicionado MetaTraderProvider para type hint
+from src.data_handler.provider import get_provider_instance, BaseDataProvider, MetaTraderProvider
 from src.strategies.base import BaseStrategy # Importa a classe base
 from src.setups.analyzer import SetupAnalyzer # Mantém para análise de setups
 
 # Configuração do logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(name)s] %(message)s') # Adicionado [%(name)s]
 logger = logging.getLogger(__name__)
 
-# --- Função auxiliar para conversão de timeframe (COPIADA) ---
+# --- Função auxiliar para conversão de timeframe ---
 def _get_mt5_timeframe_from_string(tf_str: str):
     """Converte string de timeframe para constante MT5."""
     tf_map = {
@@ -29,399 +28,389 @@ def _get_mt5_timeframe_from_string(tf_str: str):
     }
     tf_constant = tf_map.get(tf_str.upper(), None)
     if tf_constant is None:
-         logging.warning(f"Timeframe '{tf_str}' não mapeado ou inválido.")
+         # Log apenas uma vez por timeframe inválido para evitar spam
+         if not hasattr(_get_mt5_timeframe_from_string, 'logged_warnings'):
+              _get_mt5_timeframe_from_string.logged_warnings = set()
+         if tf_str not in _get_mt5_timeframe_from_string.logged_warnings:
+              logger.warning(f"Timeframe '{tf_str}' não mapeado ou inválido.")
+              _get_mt5_timeframe_from_string.logged_warnings.add(tf_str)
     return tf_constant
 
 class SimulationEngine:
     """
     Motor de Simulação para avaliar estratégias de trading ponto a ponto no tempo.
-    Projetado para ser usado em dashboards, notebooks e análises "market replay".
     """
     def __init__(self, config_path: str = 'configs/main.yaml'):
         self.config_path = config_path
         self.config = self._load_config()
-        self.assets_data = {} # Cache de dados históricos
-        self.asset_resources = {} # Cache de modelos, scalers, etc., por ativo
-        self.data_providers = {} # Cache de instâncias de provedores de dados
+        self.asset_resources = {} # Cache de recursos por ativo (ticker)
+        self.data_providers = {} # Cache de instâncias de provedores
         self.models_dir = Path(self.config.get('global_settings', {}).get('models_directory', 'models'))
-        self.setup_analyzer = SetupAnalyzer() # Instância do analisador de setups
+        self.setup_analyzer = SetupAnalyzer()
+        try:
+            self.local_tz_str = self.config.get('global_settings', {}).get('local_timezone', 'America/Sao_Paulo')
+            self.local_tz = pytz.timezone(self.local_tz_str)
+            logger.info(f"SimulationEngine usando timezone local: {self.local_tz_str}")
+        except pytz.UnknownTimeZoneError:
+            logger.warning(f"Timezone '{self.local_tz_str}' não encontrado, usando UTC como local.")
+            self.local_tz = pytz.utc
+            self.local_tz_str = 'UTC'
 
     def _load_config(self):
         """Carrega o arquivo de configuração YAML."""
+        logger.info(f"Carregando config: {self.config_path}")
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f)
         except FileNotFoundError:
-            logger.error(f"Arquivo de configuração não encontrado: {self.config_path}")
+            logger.critical(f"CRÍTICO: Config não encontrado: {self.config_path}")
             raise
         except yaml.YAMLError as e:
-            logger.error(f"Erro ao carregar configuração YAML: {e}")
+            logger.critical(f"CRÍTICO: Erro ao carregar YAML: {e}")
             raise
 
     def _get_provider(self, provider_name: str) -> BaseDataProvider:
         """Obtém ou cria uma instância do provedor de dados."""
+        # Lock não estritamente necessário aqui se a inicialização for single-threaded
         if provider_name not in self.data_providers:
             try:
                 self.data_providers[provider_name] = get_provider_instance(provider_name)
-                logger.info(f"Provedor de dados '{provider_name}' instanciado.")
+                logger.info(f"Provedor '{provider_name}' instanciado (SimulationEngine).")
             except ValueError as e:
-                 logger.error(f"Erro ao obter provedor de dados '{provider_name}': {e}")
+                 logger.error(f"Erro obter provedor '{provider_name}': {e}")
                  raise
         return self.data_providers[provider_name]
 
     def _load_asset_resources(self, asset_symbol: str):
         """
-        Carrega os recursos necessários (modelo, estratégia) para um ativo específico.
-        Utiliza a interface unificada BaseStrategy.load().
+        Carrega os recursos (modelo, estratégia, config) para um ativo.
+        Acessa a configuração 'assets' como uma LISTA.
         """
+        # Verifica cache primeiro
         if asset_symbol in self.asset_resources:
-            return self.asset_resources[asset_symbol]
+             # Retorna mesmo se for erro cacheado, para evitar recarregar
+             return self.asset_resources[asset_symbol]
 
-        asset_config = self.config['assets'].get(asset_symbol)
+        # --- CORREÇÃO AQUI: Itera na lista para encontrar o config ---
+        asset_config = None
+        assets_list = self.config.get('assets', [])
+        for cfg in assets_list:
+             # Compara ticker principal do ativo
+             if cfg.get('ticker') == asset_symbol:
+                  asset_config = cfg
+                  break # Encontrou
+        # --- FIM DA CORREÇÃO ---
+
         if not asset_config:
-            logger.error(f"Configuração não encontrada para o ativo: {asset_symbol}")
-            return None
+            error_msg = f"Configuração não encontrada para '{asset_symbol}' na lista 'assets'."
+            logger.error(error_msg)
+            self.asset_resources[asset_symbol] = {'error': error_msg} # Cacheia o erro
+            return None # Retorna None para indicar falha
 
+        # Verifica se o ativo está habilitado no config (geral, não só live)
+        if not asset_config.get('enabled', True):
+             error_msg = f"Ativo '{asset_symbol}' está desabilitado no config.yaml."
+             logger.warning(error_msg)
+             # Não é um erro crítico, mas não deve ser usado
+             self.asset_resources[asset_symbol] = {'error': error_msg, 'disabled': True}
+             return None # Indica que não deve ser usado
+
+        # Procede com o carregamento...
         strategy_module_name = asset_config.get('strategy_module')
         strategy_class_name = asset_config.get('strategy_name')
-        data_ticker = asset_config['data'].get('ticker', asset_symbol) # Ticker usado para treinar
 
         if not strategy_module_name or not strategy_class_name:
-            logger.error(f"Módulo ou nome da classe da estratégia não definidos para {asset_symbol}")
+            error_msg = f"Configuração de estratégia incompleta para {asset_symbol}."
+            logger.error(error_msg)
+            self.asset_resources[asset_symbol] = {'error': error_msg}
             return None
 
         try:
-            # Carrega a classe da Estratégia dinamicamente
             strategy_module = importlib.import_module(f"src.strategies.{strategy_module_name}")
             StrategyClass = getattr(strategy_module, strategy_class_name)
-            
-            # Cria uma instância da estratégia (para acessar métodos não-classe se necessário)
-            # Ex: strategy_instance = StrategyClass(**asset_config.get('strategy_params', {}))
-            strategy_instance: BaseStrategy = StrategyClass() 
+            strategy_instance: BaseStrategy = StrategyClass(**asset_config.get('strategy_params', {}))
 
-            # --- Carregamento Unificado do Modelo ---
-            # Define o prefixo do caminho do modelo
-            model_path_prefix = str(self.models_dir / f"{asset_symbol}_prod") 
-            
-            logger.info(f"Carregando modelo para {asset_symbol} usando {strategy_class_name}.load() com prefixo: {model_path_prefix}")
-            
-            # Chama o método de classe load da ESTRATÉGIA
-            model = StrategyClass.load(model_path_prefix) 
-            # ----------------------------------------
+            model_path_prefix = str(self.models_dir / f"{asset_symbol}_prod")
+            logger.info(f"Carregando modelo {asset_symbol} via {strategy_class_name}.load() (prefixo: {model_path_prefix})")
 
-            resources = {
-                'strategy_instance': strategy_instance,
-                'strategy_class': StrategyClass, # Guarda a classe também, se necessário
-                'model': model,
-                'config': asset_config # Guarda config específico do ativo
+            model = StrategyClass.load(model_path_prefix)
+            logger.info(f"Modelo {asset_symbol} carregado.")
+
+            resources = { # Guarda tudo que pode ser útil depois
+                'strategy_instance': strategy_instance, 'strategy_class': StrategyClass,
+                'model': model, 'config': asset_config,
+                'live_config': asset_config.get('live_trading', {}),
+                'trading_rules': asset_config.get('trading_rules', {}),
+                'price_precision': asset_config.get('price_precision', 2)
             }
-            self.asset_resources[asset_symbol] = resources
-            logger.info(f"Recursos (modelo e estratégia) carregados para {asset_symbol}.")
+            self.asset_resources[asset_symbol] = resources # Cacheia sucesso
+            logger.info(f"Recursos para {asset_symbol} carregados com sucesso.")
             return resources
 
-        except FileNotFoundError as e:
-             logger.error(f"Erro ao carregar recursos para {asset_symbol}: Arquivo de modelo/scaler não encontrado. Detalhes: {e}")
-             # Não adiciona ao cache se falhar
+        except FileNotFoundError:
+             error_msg = f"Modelo/Scaler não encontrado para {asset_symbol} (prefixo: {model_path_prefix}). Treino executado?"
+             logger.error(error_msg)
+             self.asset_resources[asset_symbol] = {'error': error_msg}
              return None
-        except (ImportError, AttributeError, TypeError, Exception) as e:
-            logger.error(f"Erro ao carregar recursos para {asset_symbol}: {e}", exc_info=True)
-            # Não adiciona ao cache se falhar
+        except (ImportError, AttributeError, TypeError) as e:
+             error_msg = f"Erro ao importar/instanciar estratégia/modelo para {asset_symbol}: {e}"
+             logger.error(error_msg, exc_info=True)
+             self.asset_resources[asset_symbol] = {'error': error_msg}
+             return None
+        except Exception as e: # Captura outras exceções de StrategyClass.load()
+            error_msg = f"Erro CRÍTICO ao carregar recursos {asset_symbol}: {e}"
+            logger.exception(error_msg) # Log com traceback
+            self.asset_resources[asset_symbol] = {'error': error_msg}
             return None
 
-    def _get_market_data(self, ticker: str, start_dt: datetime, end_dt: datetime, timeframe_str: str, provider_name: str) -> pd.DataFrame:
-        """Busca dados de mercado usando o provedor apropriado."""
-        provider = self._get_provider(provider_name)
-        
-        # Converte timeframe string para objeto MT5 se necessário
-        timeframe_obj = None
+
+    def _get_market_data(self, ticker: str, start_dt_utc: datetime, end_dt_utc: datetime, timeframe_str: str, provider_name: str) -> pd.DataFrame:
+        """Busca dados de mercado (espera e retorna dados em UTC)."""
+        try:
+            provider = self._get_provider(provider_name)
+        except ValueError:
+            return pd.DataFrame()
+
+        tf_param = timeframe_str # Default para YFinance
         if provider_name == 'MetaTrader5':
             timeframe_obj = _get_mt5_timeframe_from_string(timeframe_str)
             if timeframe_obj is None:
-                raise ValueError(f"Timeframe inválido '{timeframe_str}' para MetaTrader5.")
-        
-        try:
-             # Formata datas como string para a função get_data
-             start_date_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
-             end_date_str = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+                logger.error(f"Timeframe '{timeframe_str}' inválido para MT5.")
+                return pd.DataFrame()
+            tf_param = timeframe_obj
 
-             logger.debug(f"Buscando dados para {ticker} de {start_date_str} a {end_date_str} @ {timeframe_str} via {provider_name}")
+        try:
+             # Provider espera strings YYYY-MM-DD HH:MM:SS (sem timezone)
+             start_date_str = start_dt_utc.strftime('%Y-%m-%d %H:%M:%S')
+             end_date_str = end_dt_utc.strftime('%Y-%m-%d %H:%M:%S')
+
+             logger.debug(f"Buscando dados: {ticker} UTC[{start_date_str} a {end_date_str}] @ {timeframe_str} via {provider_name}")
 
              data = provider.get_data(
-                 ticker=ticker,
-                 start_date=start_date_str, # Passa como string
-                 end_date=end_date_str,   # Passa como string
-                 timeframe=timeframe_obj if provider_name == 'MetaTrader5' else timeframe_str # Passa obj ou str
+                 ticker=ticker, start_date=start_date_str, end_date=end_date_str,
+                 timeframe=tf_param
              )
+
              if data.empty:
-                  logger.warning(f"Nenhum dado retornado para {ticker} no período {start_date_str} - {end_date_str} @ {timeframe_str}")
-             else:
-                  logger.debug(f"Dados recebidos: {len(data)} candles.")
-                  # Garante que o índice seja DatetimeIndex e esteja ordenado
-                  if not isinstance(data.index, pd.DatetimeIndex):
-                       data.index = pd.to_datetime(data.index)
-                  data.sort_index(inplace=True)
+                  # logger.warning(f"Nenhum dado retornado: {ticker} ({start_date_str} - {end_date_str} @ {timeframe_str})")
+                  return pd.DataFrame() # Retorna vazio, não null
+
+             # logger.debug(f"Dados recebidos ({len(data)} candles) para {ticker}. Verificando índice e timezone...")
+
+             # Garante índice DatetimeIndex e timezone UTC
+             if not isinstance(data.index, pd.DatetimeIndex):
+                  data.index = pd.to_datetime(data.index)
+             if data.index.tz is None: # Se o provider retornou naive
+                  logger.warning(f"Provider {provider_name} retornou dados sem timezone para {ticker}. Assumindo UTC.")
+                  data = data.tz_localize(pytz.utc)
+             else: # Se retornou com timezone, converte para UTC
+                  data = data.tz_convert(pytz.utc)
+
+             data.sort_index(inplace=True)
+             #logger.debug(f"Dados para {ticker} processados. Índice UTC: {data.index.tz}")
              return data
-             
+
         except Exception as e:
-            logger.error(f"Erro ao buscar dados para {ticker}: {e}", exc_info=True)
-            return pd.DataFrame() # Retorna DataFrame vazio em caso de erro
+            logger.error(f"Erro ao buscar/processar dados para {ticker}: {e}", exc_info=False)
+            return pd.DataFrame()
 
-    def run_simulation_cycle(self, asset_symbol: str, timeframe_str: str, target_datetime: datetime) -> dict:
+    def run_simulation_cycle(self, asset_symbol: str, timeframe_str: str, target_datetime_local: datetime) -> dict:
         """
-        Executa um ciclo completo de simulação para um ativo e datetime específicos.
-        Retorna um dicionário com os resultados da simulação.
+        Executa um ciclo de simulação para um ativo e datetime LOCAL específico.
         """
-        logger.info(f"Iniciando ciclo de simulação para {asset_symbol} @ {timeframe_str} em {target_datetime}")
-
-        # 1. Carregar Recursos (Modelo, Estratégia, Config)
-        resources = self._load_asset_resources(asset_symbol)
-        if not resources:
-            return {"error": f"Falha ao carregar recursos para {asset_symbol}."}
-        
-        model = resources['model']
-        strategy_instance: BaseStrategy = resources['strategy_instance']
-        asset_config = resources['config']
-        
-        # 2. Obter Dados de Mercado Necessários
-        # Define quanto tempo para trás precisamos buscar (lookback + indicadores)
-        required_periods = 500 # Ajuste conforme necessário
-        
+        # Garante target_datetime_local aware no timezone correto
         try:
-             # Estima data de início
-             time_delta = pd.Timedelta(minutes=1) # Default
-             if 'M' in timeframe_str.upper():
-                  minutes = int(timeframe_str[1:]) if len(timeframe_str) > 1 else 1
-                  time_delta = pd.Timedelta(minutes=required_periods * minutes)
-             elif 'H' in timeframe_str.upper():
-                  hours = int(timeframe_str[1:]) if len(timeframe_str) > 1 else 1
-                  time_delta = pd.Timedelta(hours=required_periods * hours)
-             elif 'D' in timeframe_str.upper():
-                  time_delta = pd.Timedelta(days=required_periods)
-             elif 'W' in timeframe_str.upper():
-                  time_delta = pd.Timedelta(weeks=required_periods)
-             elif 'MN' in timeframe_str.upper():
-                   time_delta = pd.Timedelta(days=required_periods * 30) # Aproximação
+             if target_datetime_local.tzinfo is None:
+                  target_datetime_local = self.local_tz.localize(target_datetime_local)
+             else:
+                  target_datetime_local = target_datetime_local.astimezone(self.local_tz)
+        except (pytz.exceptions.NonExistentTimeError, pytz.exceptions.AmbiguousTimeError) as e_tz:
+             error_msg = f"Erro de fuso horário para {target_datetime_local}: {e}. Verifique horário de verão."
+             logger.error(error_msg)
+             return {"error": error_msg}
 
-             start_dt = target_datetime - time_delta * 1.5 # Busca um pouco mais
-             end_dt = target_datetime # Busca até o datetime alvo
-             
+        target_datetime_utc = target_datetime_local.astimezone(pytz.utc) # Converte para UTC
+
+        logger.info(f"Iniciando ciclo simulação: {asset_symbol} @ {timeframe_str} em {target_datetime_local.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC: {target_datetime_utc.strftime('%H:%M:%S %Z')})")
+
+        # 1. Carregar Recursos
+        resources = self._load_asset_resources(asset_symbol)
+        # Verifica se houve erro ou se está desabilitado
+        if not resources or 'error' in resources:
+            error_msg = resources.get('error', f'Falha ao carregar {asset_symbol}') if resources else f'Falha ao carregar {asset_symbol}'
+            logger.error(f"Simulação cancelada para {asset_symbol}: {error_msg}")
+            return {"error": error_msg}
+
+        # Desempacota recursos
+        model = resources['model']; strategy_instance: BaseStrategy = resources['strategy_instance']
+        asset_config = resources['config']; price_precision = resources.get('price_precision', 2)
+        trading_rules = resources.get('trading_rules', {})
+
+        # 2. Obter Dados de Mercado (em UTC)
+        required_periods = 500
+        try:
+             # Calcula período necessário para buscar dados
+             tf_num = 1; time_unit = 'minutes' # Default M1
+             try:
+                 tf_prefix = timeframe_str[0].upper()
+                 tf_num = int(timeframe_str[1:]) if len(timeframe_str) > 1 else 1
+                 if tf_prefix == 'M': time_unit = 'minutes'
+                 elif tf_prefix == 'H': time_unit = 'hours'
+                 elif tf_prefix == 'D': time_unit = 'days'; tf_num = 1 # days já é multiplicado por periods
+                 elif tf_prefix == 'W': time_unit = 'weeks'; tf_num = 1
+                 elif tf_prefix == 'MN': time_unit = 'days'; tf_num = 30 # Aproximação
+             except (IndexError, ValueError): pass # Usa default
+             delta_args = {time_unit: required_periods * tf_num}
+             time_delta = pd.Timedelta(**delta_args)
+
+             start_dt_utc = target_datetime_utc - time_delta * 1.5 # Busca ~50% a mais
+             end_dt_utc = target_datetime_utc # Busca até o alvo
+
              data_ticker = asset_config['data'].get('ticker', asset_symbol)
              provider_name = asset_config.get('provider', 'MetaTrader5')
 
-             market_data = self._get_market_data(data_ticker, start_dt, end_dt, timeframe_str, provider_name)
+             # Busca dados (retorna df com índice UTC)
+             market_data = self._get_market_data(data_ticker, start_dt_utc, end_dt_utc, timeframe_str, provider_name)
 
-             if market_data.empty:
-                  logger.warning(f"Dados não encontrados até {target_datetime} para {data_ticker}. Tentando buscar um pouco mais à frente.")
-                  # Tenta buscar um pouco mais para frente
-                  # **CORREÇÃO APLICADA AQUI**
-                  delta_args = {}
-                  if 'M' in timeframe_str.upper():
-                       delta_args['minutes'] = 5
-                  elif 'H' in timeframe_str.upper():
-                       delta_args['hours'] = 1
-                  else: # Default to days (covers D, W, MN)
-                       delta_args['days'] = 1
-                  end_dt_extended = target_datetime + pd.Timedelta(**delta_args)
-                  # **FIM DA CORREÇÃO**
+             target_ts_utc = pd.Timestamp(target_datetime_utc) # Timestamp UTC
 
-                  market_data = self._get_market_data(data_ticker, start_dt, end_dt_extended, timeframe_str, provider_name)
-                  # Filtra novamente para garantir que não pegamos dados futuros demais
-                  # Garante que target_datetime seja comparável com o índice (localize se necessário)
-                  target_ts = pd.Timestamp(target_datetime)
-                  if market_data.index.tz is not None and target_ts.tz is None:
-                        target_ts = target_ts.tz_localize(market_data.index.tz)
-                  elif market_data.index.tz is None and target_ts.tz is not None:
-                       target_ts = target_ts.tz_localize(None)
+             # Se vazio ou não encontrou exato, tenta buscar um pouco mais
+             if market_data.empty or target_ts_utc not in market_data.index:
+                  logger.warning(f"Timestamp {target_ts_utc} não encontrado. Buscando adiante...")
+                  fwd_delta_args = {time_unit: tf_num * 2} # Ex: busca 2 períodos a mais
+                  end_dt_extended_utc = target_datetime_utc + pd.Timedelta(**fwd_delta_args)
+                  market_data = self._get_market_data(data_ticker, start_dt_utc, end_dt_extended_utc, timeframe_str, provider_name)
+                  # Filtra novamente até o target
+                  market_data = market_data[market_data.index <= target_ts_utc]
 
-                  market_data = market_data[market_data.index <= target_ts] 
-
-             # Verifica se o último timestamp é EXATAMENTE o target_datetime
-             if market_data.empty or market_data.index[-1].to_pydatetime().replace(tzinfo=None) != target_datetime.replace(tzinfo=None):
-                   last_ts_str = market_data.index[-1].strftime('%Y-%m-%d %H:%M:%S') if not market_data.empty else "Nenhum dado"
-                   target_dt_str = target_datetime.strftime('%Y-%m-%d %H:%M:%S')
-                   logger.error(f"Dados de mercado para {data_ticker} @ {timeframe_str} não encontrados exatamente em {target_dt_str}. Último timestamp disponível: {last_ts_str}")
-                   return {"error": f"Dados não encontrados para {target_dt_str}."}
+             if market_data.empty or target_ts_utc not in market_data.index:
+                   last_ts_str = market_data.index[-1].strftime('%Y-%m-%d %H:%M:%S %Z') if not market_data.empty else "Nenhum"
+                   error_msg = f"Dados não encontrados p/ {data_ticker} @ {timeframe_str} em {target_datetime_local:%Y-%m-%d %H:%M %Z}. Último: {last_ts_str}"
+                   logger.error(error_msg)
+                   return {"error": error_msg}
 
         except Exception as e:
-            logger.error(f"Erro ao obter ou processar dados de mercado para {asset_symbol}: {e}", exc_info=True)
-            return {"error": "Erro ao buscar dados de mercado."}
-
+            logger.exception(f"Erro obter/processar dados mercado {asset_symbol}: {e}")
+            return {"error": "Erro busca/processamento dados."}
 
         # 3. Calcular Features
         try:
             data_with_features = strategy_instance.define_features(market_data)
-            
-            # Localiza o timestamp exato nos dados com features
-            # Garante que target_datetime seja comparável com o índice (timezone)
-            target_ts = pd.Timestamp(target_datetime)
-            if data_with_features.index.tz is not None and target_ts.tz is None:
-                 target_ts = target_ts.tz_localize(data_with_features.index.tz)
-            elif data_with_features.index.tz is None and target_ts.tz is not None:
-                 target_ts = target_ts.tz_localize(None)
+            target_ts_utc = pd.Timestamp(target_datetime_utc) # Reafirma UTC
 
-            if target_ts not in data_with_features.index:
-                 # Se não encontrar exatamente, talvez por ms, tenta o mais próximo? Ou falha?
-                 # Por segurança, vamos falhar.
-                 logger.error(f"Timestamp {target_ts} não encontrado EXATAMENTE no índice dos dados com features após cálculo. Índices disponíveis: {data_with_features.index}")
-                 return {"error": f"Timestamp {target_datetime.strftime('%Y-%m-%d %H:%M:%S')} não localizado nos dados pós-features."}
+            if target_ts_utc not in data_with_features.index:
+                 logger.error(f"Timestamp {target_ts_utc} perdido pós-features {asset_symbol}.")
+                 return {"error": f"Timestamp alvo {target_datetime_local:%H:%M} perdido pós-features."}
 
-            current_features_row = data_with_features.loc[[target_ts]] 
-            
-            # Pega os dados necessários para a previsão (lookback até o atual)
-            target_loc = data_with_features.index.get_loc(target_ts)
-            
-            lookback = getattr(model, 'lookback', 1) # Pega lookback do modelo se existir, default 1
-            start_loc = max(0, target_loc - lookback + 1) # Garante não ir abaixo de 0
-            
+            current_features_row = data_with_features.loc[[target_ts_utc]]
+            lookback = getattr(model, 'lookback', 1)
+            target_loc = data_with_features.index.get_loc(target_ts_utc)
+            start_loc = max(0, target_loc - lookback + 1)
+
             if target_loc - start_loc + 1 < lookback:
-                 logger.warning(f"Dados insuficientes ({target_loc - start_loc + 1} pontos) antes ou até {target_datetime} para o lookback ({lookback}).")
-                 return {"error": "Dados insuficientes para lookback."}
-                 
+                 logger.warning(f"Insuficiente pós-features ({target_loc - start_loc + 1}<{lookback}) p/ {asset_symbol} @ {target_datetime_local}.")
+                 return {"error": "Insuficiente pós-features para lookback."}
+
             model_input_data = data_with_features.iloc[start_loc : target_loc + 1]
-            
             feature_names = strategy_instance.get_feature_names()
             X_predict = model_input_data[feature_names]
 
             if X_predict.isnull().values.any():
-                logger.warning(f"Dados de input para o modelo em {target_datetime} contêm NaNs.")
-                return {"error": "NaNs encontrados nos dados de input do modelo."}
+                logger.warning(f"NaNs input modelo {asset_symbol} @ {target_datetime_local}.")
+                return {"error": "NaNs input modelo."}
 
         except KeyError as e:
-             logger.error(f"Erro ao acessar índice {target_ts} ou coluna de feature: {e}")
-             return {"error": f"Timestamp ou feature não encontrada nos dados."}
+             logger.error(f"Erro chave acesso índice {target_ts_utc} ou feature: {e}")
+             return {"error": f"Timestamp/feature não encontrada pós-features."}
         except Exception as e:
-            logger.error(f"Erro ao calcular features ou preparar dados para predição: {e}", exc_info=True)
-            return {"error": "Erro no cálculo de features."}
+            logger.exception(f"Erro cálculo features/preparação {asset_symbol}: {e}")
+            return {"error": "Erro cálculo features/preparação."}
 
         # 4. Obter Sinal da IA
         try:
             raw_prediction = model.predict(X_predict)
-            
-            if isinstance(raw_prediction, np.ndarray) and len(raw_prediction) > 0:
-                 # A predição relevante é a última da sequência
-                 ai_signal_code = int(raw_prediction[-1]) 
-            elif isinstance(raw_prediction, (int, np.integer)):
-                 ai_signal_code = int(raw_prediction)
-            else:
-                 logger.warning(f"Predição inesperada do modelo: {raw_prediction}. Assumindo HOLD (Código 0).")
-                 ai_signal_code = 0 # Usar 0 para HOLD/VENDA (depende do treino)
-
-            # Mapeia código (Ex: 1=COMPRA, 0=VENDA/HOLD)
-            ai_signal = "COMPRA" if ai_signal_code == 1 else "VENDA" # Ajuste se 0 for HOLD
-
-            logger.info(f"Sinal da IA para {asset_symbol} em {target_datetime}: {ai_signal} (Código: {ai_signal_code})")
-
+            # A predição relevante é a última (índice -1)
+            ai_signal_code = int(raw_prediction[-1]) if isinstance(raw_prediction, np.ndarray) and len(raw_prediction) > 0 else int(raw_prediction) if isinstance(raw_prediction, (int, np.integer)) else 0
+            # Mapeamento: 1=COMPRA, outro=VENDA (ajuste se necessário)
+            ai_signal = "COMPRA" if ai_signal_code == 1 else "VENDA"
+            logger.info(f"Sinal IA {asset_symbol}: {ai_signal} ({ai_signal_code})")
         except Exception as e:
-            logger.error(f"Erro ao obter predição do modelo para {asset_symbol}: {e}", exc_info=True)
-            ai_signal = "ERRO_IA"
-            ai_signal_code = -1 
+            logger.exception(f"Erro predição modelo {asset_symbol}: {e}")
+            ai_signal = "ERRO_IA"; ai_signal_code = -1
 
-        # 5. Avaliar Setups Técnicos
+        # 5. Avaliar Setups
         setup_rules = asset_config.get('setup', [])
         setup_result = {"is_valid": True, "details": {}, "final_decision": ai_signal}
-        
-        if setup_rules: 
+        if setup_rules:
             try:
+                # Passa a linha atual (já selecionada)
                 setup_result = self.setup_analyzer.evaluate_setups(current_features_row, setup_rules, ai_signal)
-                logger.info(f"Resultado Setup {asset_symbol}: Válido={setup_result['is_valid']}, Decisão={setup_result['final_decision']}")
+                logger.info(f"Setup {asset_symbol}: Valido={setup_result['is_valid']}, Decisao={setup_result['final_decision']}")
             except Exception as e:
-                logger.error(f"Erro ao avaliar setups para {asset_symbol}: {e}", exc_info=True)
-                setup_result = {"is_valid": False, "details": {"erro": str(e)}, "final_decision": "HOLD"} 
+                logger.exception(f"Erro avaliar setups {asset_symbol}: {e}")
+                setup_result = {"is_valid": False, "details": {"erro": str(e)}, "final_decision": "HOLD"}
 
-        # 6. Calcular Stops (se houver sinal de entrada)
-        stop_loss_price = None
-        take_profit_price = None
-        current_price = current_features_row['close'].iloc[0] 
-        final_signal = setup_result["final_decision"] # Decisão após análise de setup
+        # 6. Calcular Stops
+        stop_loss_price, take_profit_price = None, None
+        current_price = current_features_row['close'].iloc[0] # Preço de fechamento do candle atual
+        final_signal = setup_result["final_decision"]
 
         if final_signal in ["COMPRA", "VENDA"]:
-            trading_rules = asset_config.get('trading_rules', {})
             sl_pct = trading_rules.get('stop_loss_pct')
             tp_pct = trading_rules.get('take_profit_pct')
-            price_precision = asset_config.get('price_precision', 2) # Pega precisão do config ou default 2
+            if sl_pct is not None: sl_price = round(current_price * (1 - sl_pct / 100) if final_signal == "COMPRA" else current_price * (1 + sl_pct / 100), price_precision)
+            if tp_pct is not None: tp_price = round(current_price * (1 + tp_pct / 100) if final_signal == "COMPRA" else current_price * (1 - tp_pct / 100), price_precision)
+            # logger.info(f"Preços Calc: Entrada~={current_price:.{price_precision}f}, SL={sl_price}, TP={tp_price}")
 
-            if sl_pct is not None:
-                if final_signal == "COMPRA":
-                    stop_loss_price = round(current_price * (1 - sl_pct / 100), price_precision)
-                else: # VENDA
-                    stop_loss_price = round(current_price * (1 + sl_pct / 100), price_precision)
-            
-            if tp_pct is not None:
-                if final_signal == "COMPRA":
-                    take_profit_price = round(current_price * (1 + tp_pct / 100), price_precision)
-                else: # VENDA
-                    take_profit_price = round(current_price * (1 - tp_pct / 100), price_precision)
-                    
-            logger.info(f"Preços Calculados: Entrada={current_price}, SL={stop_loss_price}, TP={take_profit_price}")
-
-        # 7. Montar Resultado Final
+        # 7. Montar Resultado
         indicators_dict = {}
         try:
-             # Pega a Series da linha atual, arredonda e converte para dict
-             indicators_series = current_features_row.iloc[0].round(5) 
-             indicators_dict = {
-                 k: (v if pd.notna(v) and np.isfinite(v) else "N/A") 
-                 for k, v in indicators_series.items() 
-                 if k in strategy_instance.get_feature_names() or k in ['open','high','low','close','volume'] # Inclui OHLCV também
-             }
-        except Exception as e:
-             logger.warning(f"Erro ao extrair indicadores: {e}")
-             indicators_dict = {"erro": "Falha ao extrair"}
-
+             indicators_series = current_features_row.iloc[0].round(5)
+             indicators_dict = { k: (f"{v:.5f}" if isinstance(v, (float, np.floating)) and pd.notna(v) and np.isfinite(v) else str(v) if pd.notna(v) and np.isfinite(v) else "N/A")
+                                 for k, v in indicators_series.items()
+                                 if k in strategy_instance.get_feature_names() or k in ['open','high','low','close','volume'] }
+        except Exception as e: logger.warning(f"Erro extrair indicadores: {e}"); indicators_dict = {"erro": "Falha"}
 
         result = {
             "asset": asset_symbol,
-            "datetime": target_datetime.strftime('%Y-%m-%d %H:%M:%S'),
+            "datetime": target_datetime_local.strftime('%Y-%m-%d %H:%M:%S %Z'), # Hora local
             "timeframe": timeframe_str,
-            "current_price": round(current_price, asset_config.get('price_precision', 2)),
-            "ai_signal": ai_signal,
-            "ai_signal_code": ai_signal_code,
+            "current_price": round(current_price, price_precision),
+            "ai_signal": ai_signal, "ai_signal_code": ai_signal_code,
             "setup_is_valid": setup_result["is_valid"],
             "setup_details": setup_result.get("details", {}),
-            "final_signal": final_signal, 
+            "final_signal": final_signal,
             "stop_loss": stop_loss_price if stop_loss_price is not None else "N/A",
             "take_profit": take_profit_price if take_profit_price is not None else "N/A",
-            "indicators": indicators_dict # Dicionário de indicadores já tratado
+            "indicators": indicators_dict
         }
-
         return result
 
     def close(self):
-        """Fecha conexões com provedores de dados."""
-        logger.info("Encerrando conexões dos provedores de dados...")
-        for provider_name, provider_instance in self.data_providers.items():
-            if hasattr(provider_instance, 'close_connection'):
-                try:
-                    provider_instance.close_connection()
-                    logger.info(f"Conexão com {provider_name} fechada.")
-                except Exception as e:
-                    logger.warning(f"Erro ao fechar conexão com {provider_name}: {e}")
-        self.data_providers = {} # Limpa o cache de providers
+        """Fecha conexões dos provedores."""
+        logger.info("Encerrando conexões providers (SimulationEngine)...")
+        # Copia as chaves para evitar erro de iteração se dict mudar
+        provider_names = list(self.data_providers.keys())
+        for provider_name in provider_names:
+             provider_instance = self.data_providers.pop(provider_name, None) # Remove do dict
+             if provider_instance and hasattr(provider_instance, 'close_connection'):
+                 try:
+                     provider_instance.close_connection()
+                     logger.info(f"Conexão SimulationEngine {provider_name} fechada.")
+                 except Exception as e: logger.warning(f"Erro fechar {provider_name}: {e}")
+        self.data_providers = {} # Garante limpeza
 
-
-# Exemplo de uso (pode ser executado isoladamente para teste)
+# Exemplo de uso
 if __name__ == '__main__':
     engine = SimulationEngine(config_path='configs/main.yaml')
-    
-    # Simula para WDO$ no H1 em um datetime específico
     sim_asset = 'WDO$'
     sim_tf = 'H1'
-    # Use um datetime que você sabe que existe nos seus dados H1
-    sim_dt = datetime(2025, 9, 25, 10, 0, 0) # Exemplo: 25/09/2025 às 10:00:00
-    
-    # Exemplo para WIN$ no D1
-    # sim_asset = 'WIN$'
-    # sim_tf = 'D1'
-    # sim_dt = datetime(2025, 9, 29, 0, 0, 0) # Exemplo: 29/09/2025 (início do dia)
-
+    # Cria datetime LOCAL (naive)
+    sim_dt_local_naive = datetime(2025, 9, 25, 10, 0, 0)
     try:
-        result = engine.run_simulation_cycle(sim_asset, sim_tf, sim_dt)
-        
-        # Imprime o resultado formatado
+        # Passa o datetime local (naive ou aware)
+        result = engine.run_simulation_cycle(sim_asset, sim_tf, sim_dt_local_naive)
         import json
-        print(json.dumps(result, indent=4, default=str)) # Usa default=str para lidar com tipos não serializáveis
-
-    except Exception as e:
-         print(f"Ocorreu um erro na simulação: {e}")
-    finally:
-         engine.close() # Garante que as conexões sejam fechadas
+        print(json.dumps(result, indent=4, default=str))
+    except Exception as e: print(f"Erro simulação: {e}")
+    finally: engine.close()
