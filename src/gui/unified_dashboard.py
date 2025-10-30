@@ -1,5 +1,4 @@
 # src/gui/unified_dashboard.py
-
 import sys
 import yaml
 import logging
@@ -65,31 +64,31 @@ class UnifiedDashboard(tk.Tk):
         self.all_results_log = []
         self.queue = Queue()
 
-
         # --- Motores ---
         self.trader_engine: LiveTrader | None = None # Hinting
         self.simulation_engine: SimulationEngine | None = None
         self.is_trader_initialized = False
         self.is_simulation_engine_initialized = False
+        
         # Flag para saber se o monitoramento live está ativo
         self.is_live_monitoring_active = False
 
         self._setup_styles()
         self._create_widgets()
 
-        # --- Inicialização Motores ---
-        logger.info("Iniciando inicialização dos motores em background...")
-        Thread(target=self._initialize_trader_engine, daemon=True, name="InitTraderThread").start()
-        Thread(target=self._initialize_simulation_engine, daemon=True, name="InitSimThread").start()
+        # --- Inicialização dos Motores em Threads Separadas ---
+        logger.info("Iniciando thread de inicialização do LiveTrader...")
+        Thread(target=self._initialize_trader_engine, daemon=True).start()
+        logger.info("Iniciando thread de inicialização do SimulationEngine...")
+        Thread(target=self._initialize_simulation_engine, daemon=True).start()
 
         self.after(100, self._process_queue) # Inicia processador de fila da GUI
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
         # Inicia o auto-refresh do monitor de mercado se habilitado
-        if self.market_data_auto_refresh.get():
-             self._start_auto_refresh()
-        self._update_refresh_status_label()
-
+        # if self.market_data_auto_refresh.get():
+        #     self._start_auto_refresh()
+        # self._update_refresh_status_label()
 
     def _load_config(self):
         """Carrega configuração YAML."""
@@ -103,6 +102,8 @@ class UnifiedDashboard(tk.Tk):
         """Define estilos Ttk."""
         self.style = ttk.Style(self)
         self.style.theme_use('clam')
+
+        # Cores personalizadas
         self.bg_color="#2E2E2E"; self.fg_color="#E0E0E0"; self.frame_bg="#3C3C3C"; self.entry_bg="#555555"
         self.buy_color="lime green"; self.sell_color="red"; self.hold_color="orange"
         self.status_ok_color="deep sky blue"; self.status_err_color="red"; self.status_warn_color="gold"
