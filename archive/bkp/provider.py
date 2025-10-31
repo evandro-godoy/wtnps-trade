@@ -98,12 +98,12 @@ class MetaTraderProvider(BaseDataProvider):
                   return pd.DataFrame()
 
         try:
-             start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d').replace(hour=0, minute=0, second=0))
-             end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59))
+             start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d'))
+             end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d'))
         except ValueError:
              try:
-                 start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S').replace(hour=0, minute=0, second=0))
-                 end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S').replace(hour=23, minute=59, second=59))
+                 start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S'))
+                 end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S'))
              except ValueError:
                   logger.error(f"Formato de data inválido: {start_date} ou {end_date}.")
                   return pd.DataFrame()
@@ -142,31 +142,28 @@ class MetaTraderProvider(BaseDataProvider):
             return pd.DataFrame()
 
         data = pd.DataFrame(rates)
-        # Remove linhas onde todos os valores OHLC são zero ou nulos (dados inválidos)
-        data = data[(data[['open', 'high', 'low', 'close']] != 0).any(axis=1)]
-        data = data.dropna(subset=['open', 'high', 'low', 'close'], how='all')
-
-        if data.empty:
-            logger.warning(f"MT5: Dados históricos para '{ticker}' ({timeframe_str}) estavam vazios ou inválidos após limpeza.")
-            return pd.DataFrame()
-
         data['time'] = pd.to_datetime(data['time'], unit='s', utc=True)
         data.set_index('time', inplace=True)
-        data.rename(columns={'open': 'open', 'high': 'high', 'low': 'low',
-                                'close': 'close', 'tick_volume': 'volume'}, inplace=True)
-        # Garante colunas essenciais
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
-        for col in required_cols:
-                if col not in data.columns:
-                    data[col] = 0 # Preenche volume faltante com 0
+        data.rename(columns={'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close', 'tick_volume': 'volume'}, inplace=True)
+        # Garante que 'real_volume' não esteja presente ou o renomeia se necessário
+        if 'real_volume' in data.columns and 'volume' not in data.columns:
+            data.rename(columns={'real_volume': 'volume'}, inplace=True)
+        elif 'real_volume' in data.columns and 'volume' in data.columns:
+             data = data.drop(columns=['real_volume']) # Remove real_volume se tick_volume já foi renomeado
 
-        data = data[required_cols] # Seleciona e ordena
+        # Mantém apenas colunas essenciais
+        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        data = data[[col for col in required_cols if col in data.columns]]
+        # Adiciona coluna 'volume' se não existir (ex: índices)
+        if 'volume' not in data.columns: data['volume'] = 0
+
         try:
              logger.info(f"Salvando dados de {ticker} ({len(data)} registros) em cache: {cache_filepath}")
              data.to_parquet(cache_filepath, index=True, compression='snappy')
         except Exception as e:
             logger.error(f"Erro ao salvar dados no cache {cache_filepath}: {e}")
 
+        data = data.tz_convert(desired_timezone)
         logger.info(f"Dados buscados do MT5 e convertidos para {desired_timezone}.")
         return data
 

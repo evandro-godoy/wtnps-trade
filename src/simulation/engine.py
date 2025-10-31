@@ -229,9 +229,10 @@ class SimulationEngine:
              logger.error(error_msg)
              return {"error": error_msg}
 
-        target_datetime_utc = target_datetime_local.astimezone(pytz.utc) # Converte para UTC
+        # target_datetime_utc = target_datetime_local.astimezone(pytz.utc) # Converte para UTC
+        target_datetime_utc = target_datetime_local # Não converte para UTC
 
-        logger.info(f"Iniciando ciclo simulação: {asset_symbol} @ {timeframe_str} em {target_datetime_local.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC: {target_datetime_utc.strftime('%H:%M:%S %Z')})")
+        logger.info(f"Iniciando ciclo simulação: {asset_symbol} @ {timeframe_str} em {target_datetime_local.strftime('%Y-%m-%d %H:%M %Z')} (UTC: {target_datetime_utc.strftime('%H:%M %Z')})")
 
         # 1. Carregar Recursos
         resources = self._load_asset_resources(asset_symbol)
@@ -284,7 +285,7 @@ class SimulationEngine:
                   market_data = market_data[market_data.index <= target_ts_utc]
 
              if market_data.empty or target_ts_utc not in market_data.index:
-                   last_ts_str = market_data.index[-1].strftime('%Y-%m-%d %H:%M:%S %Z') if not market_data.empty else "Nenhum"
+                   last_ts_str = market_data.index[-1].strftime('%Y-%m-%d %H:%M') if not market_data.empty else "Nenhum"
                    error_msg = f"Dados não encontrados p/ {data_ticker} @ {timeframe_str} em {target_datetime_local:%Y-%m-%d %H:%M %Z}. Último: {last_ts_str}"
                    logger.error(error_msg)
                    return {"error": error_msg}
@@ -373,7 +374,7 @@ class SimulationEngine:
 
         result = {
             "asset": asset_symbol,
-            "datetime": target_datetime_local.strftime('%Y-%m-%d %H:%M:%S %Z'), # Hora local
+            "datetime": target_datetime_local.strftime('%Y-%m-%d %H:%M %Z'), # Hora local
             "timeframe": timeframe_str,
             "current_price": round(current_price, price_precision),
             "ai_signal": ai_signal, "ai_signal_code": ai_signal_code,

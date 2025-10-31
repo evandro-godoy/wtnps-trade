@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # --- Funções Auxiliares para Preparação de Dados ---
 
-def create_sequences(X_data, y_data, lookback):
+def create_sequences_dpc(X_data, y_data, lookback):
     """
     Transforma um array de features e um array de targets em sequências
     para alimentar a LSTM.
@@ -28,6 +28,17 @@ def create_sequences(X_data, y_data, lookback):
     if X_data is None or y_data is None or len(X_data) <= lookback or len(y_data) <= lookback:
         return np.array(X), np.array(y)
         
+    for i in range(len(X_data) - lookback):
+        X.append(X_data[i:(i + lookback), :])
+        y.append(y_data[i + lookback])
+    return np.array(X), np.array(y)
+
+def create_sequences(X_data, y_data, lookback):
+    """
+    Transforma um array de features e um array de targets em sequências
+    para alimentar a LSTM.
+    """
+    X, y = [], []
     for i in range(len(X_data) - lookback):
         X.append(X_data[i:(i + lookback), :])
         y.append(y_data[i + lookback])
@@ -48,8 +59,6 @@ class LSTMWrapper(BaseEstimator, ClassifierMixin): # RENOMEADO
         self.n_features = n_features # Guardar n_features
         self.model = self._build_model()
         self.scaler = MinMaxScaler(feature_range=(0, 1))
-        # Inicializa history como None ou um dicionário vazio
-        self.history = None
 
     def _build_model(self):
         """Define a arquitetura da rede LSTM."""
@@ -102,7 +111,18 @@ class LSTMWrapper(BaseEstimator, ClassifierMixin): # RENOMEADO
             return self
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+        self.model.fit(
+            X_seq, y_seq,
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            validation_split=0.1,
+            callbacks=[early_stopping],
+            verbose=0
+        )
+
         
+        """
         # Determina o tamanho da validação (mínimo 1, máximo 20% ou o que for possível)
         n_samples = len(X_seq)
         val_size = max(1, int(n_samples * 0.1)) if n_samples > 1 else 0
@@ -139,6 +159,7 @@ class LSTMWrapper(BaseEstimator, ClassifierMixin): # RENOMEADO
             )
         else:
             logging.warning("Nenhuma sequência gerada, impossível treinar.")
+        """
 
         return self
 
