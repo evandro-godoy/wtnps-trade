@@ -41,11 +41,24 @@ class SimulationEngine:
     Motor de Simulação para avaliar estratégias de trading ponto a ponto no tempo.
     """
     def __init__(self, config_path: str = 'configs/main.yaml'):
-        self.config_path = config_path
+        # Resolve caminhos relativos em relação à raiz do projeto (…/wtnps-trade)
+        project_root = Path(__file__).resolve().parents[2]
+        cfg_path = Path(config_path)
+        if not cfg_path.is_absolute():
+            cfg_path = (project_root / cfg_path).resolve()
+        self.config_path = str(cfg_path)
+
         self.config = self._load_config()
         self.asset_resources = {} # Cache de recursos por ativo (ticker)
         self.data_providers = {} # Cache de instâncias de provedores
-        self.models_dir = Path(self.config.get('global_settings', {}).get('models_directory', 'models'))
+
+        # models_directory pode vir relativo; garante caminho absoluto
+        configured_models_dir = self.config.get('global_settings', {}).get('models_directory', 'models')
+        models_dir_path = Path(configured_models_dir)
+        if not models_dir_path.is_absolute():
+            models_dir_path = (project_root / models_dir_path).resolve()
+        self.models_dir = models_dir_path
+        logger.info(f"Models dir resolvido para: {self.models_dir}")
         self.setup_analyzer = SetupAnalyzer()
         try:
             self.local_tz_str = self.config.get('global_settings', {}).get('local_timezone', 'America/Sao_Paulo')
@@ -187,7 +200,9 @@ class SimulationEngine:
              logger.debug(f"Buscando dados: {ticker} UTC[{start_date_str} a {end_date_str}] @ {timeframe_str} via {provider_name}")
 
              data = provider.get_data(
-                 ticker=ticker, start_date=start_date_str, end_date=end_date_str,
+                 ticker=ticker, 
+                 start_date=start_date_str, 
+                 end_date=end_date_str,
                  timeframe=tf_param
              )
 
@@ -248,7 +263,7 @@ class SimulationEngine:
         trading_rules = resources.get('trading_rules', {})
 
         # 2. Obter Dados de Mercado (em UTC)
-        required_periods = 500
+        required_periods = 300
         try:
              # Calcula período necessário para buscar dados
              tf_num = 1; time_unit = 'minutes' # Default M1
@@ -303,7 +318,7 @@ class SimulationEngine:
                  logger.error(f"Timestamp {target_ts_utc} perdido pós-features {asset_symbol}.")
                  return {"error": f"Timestamp alvo {target_datetime_local:%H:%M} perdido pós-features."}
 
-            current_features_row = data_with_features.loc[[target_ts_utc]]
+            current_features_row = data_with_features.iloc[-1]
             lookback = getattr(model, 'lookback', 1)
             target_loc = data_with_features.index.get_loc(target_ts_utc)
             start_loc = max(0, target_loc - lookback + 1)
@@ -312,8 +327,9 @@ class SimulationEngine:
                  logger.warning(f"Insuficiente pós-features ({target_loc - start_loc + 1}<{lookback}) p/ {asset_symbol} @ {target_datetime_local}.")
                  return {"error": "Insuficiente pós-features para lookback."}
 
-            model_input_data = data_with_features.iloc[start_loc : target_loc + 1]
+            model_input_data = data_with_features.iloc[-1]
             feature_names = strategy_instance.get_feature_names()
+            
             X_predict = model_input_data[feature_names]
 
             if X_predict.isnull().values.any():
