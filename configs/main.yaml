@@ -25,9 +25,9 @@ assets:
     strategy_name: "LSTMStrategy"
     
     data:
-      start_date: "2023-01-01"
-      end_date: "2025-10-01"
-      timeframe_model: "H1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
+      start_date: "2022-06-01"
+      end_date: "2025-10-31"
+      timeframe_model: "D1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
 
     trading_rules:
       initial_capital: 5000
@@ -43,12 +43,12 @@ assets:
       trade_volume: 1.0       # quantidade de contratos
 
     setup:
-      - condition: 'buy'  # Esta regra só se aplica se o sinal da IA for de COMPRA
+      - condition: 'COMPRA'  # Esta regra só se aplica se o sinal da IA for de COMPRA
         type: 'price_above_ma' # Critério: O preço deve estar acima da Média Móvel Simples
         ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
         period: 20              # Período da MA
 
-      - condition: 'sell' # Esta regra só se aplica se o sinal da IA for de VENDA
+      - condition: 'VENDA' # Esta regra só se aplica se o sinal da IA for de VENDA
         type: 'price_below_ma' # Critério: O preço deve estar abaixo da Média Móvel Simples
         ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
         period: 20        # Período da MA
@@ -60,8 +60,8 @@ assets:
     strategy_name: "LSTMStrategy"
     
     data:
-      start_date: "2023-01-01"
-      end_date: "2025-10-01"
+      start_date: "2022-01-01"
+      end_date: "2025-10-31"
       timeframe_model: "D1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
 
     trading_rules:
@@ -78,12 +78,12 @@ assets:
       trade_volume: 1.0       # quantidade de contratos
 
     setup:
-      - condition: 'buy'  # Esta regra só se aplica se o sinal da IA for de COMPRA
+      - condition: 'COMPRA'  # Esta regra só se aplica se o sinal da IA for de COMPRA
         type: 'price_above_ma' # Critério: O preço deve estar acima da Média Móvel Simples
         ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
         period: 20              # Período da MA
 
-      - condition: 'sell' # Esta regra só se aplica se o sinal da IA for de VENDA
+      - condition: 'VENDA' # Esta regra só se aplica se o sinal da IA for de VENDA
         type: 'price_below_ma' # Critério: O preço deve estar abaixo da Média Móvel Simples
         ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
         period: 20        # Período da MA      

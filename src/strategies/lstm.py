@@ -112,17 +112,6 @@ class LSTMWrapper(BaseEstimator, ClassifierMixin): # RENOMEADO
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
-        self.model.fit(
-            X_seq, y_seq,
-            epochs=self.epochs,
-            batch_size=self.batch_size,
-            validation_split=0.1,
-            callbacks=[early_stopping],
-            verbose=0
-        )
-
-        
-        """
         # Determina o tamanho da validação (mínimo 1, máximo 20% ou o que for possível)
         n_samples = len(X_seq)
         val_size = max(1, int(n_samples * 0.1)) if n_samples > 1 else 0
@@ -159,7 +148,7 @@ class LSTMWrapper(BaseEstimator, ClassifierMixin): # RENOMEADO
             )
         else:
             logging.warning("Nenhuma sequência gerada, impossível treinar.")
-        """
+        
 
         return self
 
@@ -318,6 +307,7 @@ class LSTMStrategy(BaseStrategy):
         df['returns'] = df['close'].pct_change()
         # Ajusta a janela de volatilidade se necessário
         volatility_window = min(21, len(df) - 1) if len(df) > 1 else 1
+        # df['volatility'] = df['returns'].rolling(window=21).std() * np.sqrt(252) # Volatilidade anualizada
         if volatility_window > 0:
              # Calcula std apenas se a janela for válida
              df['volatility'] = df['returns'].rolling(window=volatility_window).std()

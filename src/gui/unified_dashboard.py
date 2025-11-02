@@ -38,13 +38,9 @@ class UnifiedDashboard(tk.Tk):
         self.config = self._load_config()
         if self.config is None: self.destroy(); return
 
-        try:
-            tz_str = self.config.get('global_settings', {}).get('local_timezone', 'America/Sao_Paulo')
-            self.local_tz = pytz.timezone(tz_str)
-            logger.info(f"Dashboard usando timezone local: {tz_str}")
-        except pytz.UnknownTimeZoneError:
-            logger.warning(f"Timezone '{tz_str}' não encontrado, usando UTC.")
-            self.local_tz = pytz.utc
+        # Timezone único e padrão: UTC
+        self.local_tz = pytz.utc
+        logger.info("Dashboard usando timezone: UTC")
 
         self.assets_config_list = self.config.get('assets', [])
         self.all_asset_tickers = [cfg.get('ticker') for cfg in self.assets_config_list if cfg.get('ticker')]
@@ -221,7 +217,7 @@ class UnifiedDashboard(tk.Tk):
         ttk.Label(frame, text="Timeframe:").grid(row=1, column=0, sticky="w", padx=5, pady=3)
         timeframes = ["M1", "M5", "M15", "M30", "H1", "D1"]; self.sim_tf_var = tk.StringVar(value="M5"); self.sim_tf_combo = ttk.Combobox(frame, textvariable=self.sim_tf_var, values=timeframes, width=8, state="readonly")
         self.sim_tf_combo.grid(row=1, column=1, sticky="w", padx=5, pady=3)
-        ttk.Label(frame, text="Data/Hora (Local):").grid(row=2, column=0, sticky="w", padx=5, pady=3)
+        ttk.Label(frame, text="Data/Hora (UTC):").grid(row=2, column=0, sticky="w", padx=5, pady=3)
         now_local_str = datetime.now(self.local_tz).strftime("%Y-%m-%d %H:%M"); self.sim_datetime_var = tk.StringVar(value=now_local_str); self.sim_datetime_entry = ttk.Entry(frame, textvariable=self.sim_datetime_var, width=20)
         self.sim_datetime_entry.grid(row=2, column=1, sticky="w", padx=5, pady=3); ttk.Label(frame, text="YYYY-MM-DD HH:MM:SS", font=("Segoe UI", 7)).grid(row=3, column=1, sticky="w", padx=5)
         self.sim_button = ttk.Button(frame, text="Executar Simulação", command=self._run_simulation_click); self.sim_button.grid(row=4, column=0, columnspan=2, pady=(10, 5))
@@ -245,7 +241,7 @@ class UnifiedDashboard(tk.Tk):
         self.refresh_check = ttk.Checkbutton(controls_frame, text="Auto Refresh (1 min)", variable=self.market_data_auto_refresh, command=self._toggle_auto_refresh); self.refresh_check.pack(side=tk.LEFT, padx=5)
         self.refresh_button = ttk.Button(controls_frame, text="Atualizar Agora", command=self._manual_refresh_click); self.refresh_button.pack(side=tk.LEFT, padx=5)
         self.refresh_status_label = ttk.Label(controls_frame, text="...", anchor=tk.E); self.refresh_status_label.pack(side=tk.RIGHT, padx=5)
-        cols = ("Ticker", "Preço Atual", "Hora Local", "Bid", "Ask", "Volume"); self.market_tree = ttk.Treeview(frame, columns=cols, show='headings', selectmode="browse")
+        cols = ("Ticker", "Preço Atual", "Hora (UTC)", "Bid", "Ask", "Volume"); self.market_tree = ttk.Treeview(frame, columns=cols, show='headings', selectmode="browse")
         for col in cols: self.market_tree.heading(col, text=col); self.market_tree.column(col, anchor=tk.W if col=="Ticker" else tk.CENTER, width=110, stretch=tk.NO if col=="Ticker" else tk.YES) # Ajusta ancoragem e stretch
         self.market_tree.grid(row=1, column=0, sticky="nsew")
         tree_scroll = ttk.Scrollbar(frame, orient="vertical", command=self.market_tree.yview); self.market_tree.configure(yscrollcommand=tree_scroll.set); tree_scroll.grid(row=1, column=1, sticky="ns")
@@ -278,31 +274,31 @@ class UnifiedDashboard(tk.Tk):
             return
         
         try: 
-            dt_local = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+            dt_utc_naive = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
         except ValueError: 
             messagebox.showerror("Erro", f"Formato Data/Hora inválido: {dt_str}") 
             return
         
-        # Converte para aware no timezone local
+        # Converte para aware em UTC
         try: 
-            dt_local_aware = self.local_tz.localize(dt_local, is_dst=None) # is_dst=None ajuda com horários ambíguos
+            dt_utc_aware = pytz.utc.localize(dt_utc_naive)
         except (pytz.exceptions.NonExistentTimeError, pytz.exceptions.AmbiguousTimeError) as e:
             messagebox.showerror("Erro Fuso Horário", f"Data/Hora inválida ou ambígua: {e}")
             return
 
-        logger.info(f"Solicitando simulação: {asset} @ {tf} em {dt_local_aware}")
+        logger.info(f"Solicitando simulação: {asset} @ {tf} em {dt_utc_aware}")
         self.sim_status_label.config(text="Simulando...", foreground=self.hold_color)
         self.sim_button.config(state=tk.DISABLED)
         
-        Thread(target=self._execute_simulation_thread, args=(asset, tf, dt_local_aware), daemon=True).start()
+        Thread(target=self._execute_simulation_thread, args=(asset, tf, dt_utc_aware), daemon=True).start()
 
 
-    def _execute_simulation_thread(self, asset, tf, dt_local_aware):
+    def _execute_simulation_thread(self, asset, tf, dt_utc_aware):
         """(Thread) Executa simulação e envia resultado para fila."""
         # Garante que o engine existe antes de chamar
         if self.simulation_engine:
             try:
-                result = self.simulation_engine.run_simulation_cycle(asset, tf, dt_local_aware)
+                result = self.simulation_engine.run_simulation_cycle(asset, tf, dt_utc_aware)
                 self.queue.put({"type": "sim_result", "data": result})
             except Exception as e:
                 logger.error(f"Erro thread simulação {asset}: {e}", exc_info=True)
@@ -440,17 +436,16 @@ class UnifiedDashboard(tk.Tk):
                 tick = None # Garante que tick é None em caso de erro
 
             if tick and tick.time > 0: # Verifica se o tick é válido
-                # Converte timestamp do tick para datetime local
-                tick_time_utc = tick_time_utc.astimezone(self.local_tz)
-                tick_time_local = tick_time_utc.astimezone(self.local_tz)
-                time_str = tick_time_local.strftime("%H:%M:%S")
+                # Converte timestamp do tick para datetime UTC
+                tick_time_utc = datetime.fromtimestamp(tick.time, tz=pytz.utc)
+                time_str = tick_time_utc.strftime("%H:%M:%S")
 
                 # Determina preço atual (ex: último negociado ou média bid/ask)
                 current_price = tick.last if tick.last > 0 else (tick.bid + tick.ask) / 2
                 volume = tick.volume # Volume do último tick
 
                 # Formata os dados para a tabela
-                # ("Ticker", "Preço Atual", "Hora Local", "Bid", "Ask", "Volume")
+                # ("Ticker", "Preço Atual", "Hora (UTC)", "Bid", "Ask", "Volume")
                 row_data = (
                     asset_symbol, # Mostra o ticker principal (WDO$, WIN$)
                     f"{current_price:.2f}", # Ajuste a precisão se necessário

@@ -60,14 +60,11 @@ class SimulationEngine:
         self.models_dir = models_dir_path
         logger.info(f"Models dir resolvido para: {self.models_dir}")
         self.setup_analyzer = SetupAnalyzer()
-        try:
-            self.local_tz_str = self.config.get('global_settings', {}).get('local_timezone', 'America/Sao_Paulo')
-            self.local_tz = pytz.timezone(self.local_tz_str)
-            logger.info(f"SimulationEngine usando timezone local: {self.local_tz_str}")
-        except pytz.UnknownTimeZoneError:
-            logger.warning(f"Timezone '{self.local_tz_str}' não encontrado, usando UTC como local.")
-            self.local_tz = pytz.utc
-            self.local_tz_str = 'UTC'
+
+        # Timezone padrão: UTC (removido suporte a timezone local)
+        self.local_tz = pytz.utc
+        self.local_tz_str = 'UTC'
+        logger.info(f"Timezone padrão definido para {self.local_tz_str}.")
 
     def _load_config(self):
         """Carrega o arquivo de configuração YAML."""
@@ -231,23 +228,21 @@ class SimulationEngine:
 
     def run_simulation_cycle(self, asset_symbol: str, timeframe_str: str, target_datetime_local: datetime) -> dict:
         """
-        Executa um ciclo de simulação para um ativo e datetime LOCAL específico.
+        Executa um ciclo de simulação para um ativo em um datetime em UTC.
+        Observação: para compatibilidade, o parâmetro aceita datetime naive ou aware.
+        - Se for naive, será interpretado como UTC.
+        - Se for aware, será convertido para UTC.
         """
-        # Garante target_datetime_local aware no timezone correto
-        try:
-             if target_datetime_local.tzinfo is None:
-                  target_datetime_local = self.local_tz.localize(target_datetime_local)
-             else:
-                  target_datetime_local = target_datetime_local.astimezone(self.local_tz)
-        except (pytz.exceptions.NonExistentTimeError, pytz.exceptions.AmbiguousTimeError) as e_tz:
-             error_msg = f"Erro de fuso horário para {target_datetime_local}: {e}. Verifique horário de verão."
-             logger.error(error_msg)
-             return {"error": error_msg}
+        # Normaliza input para UTC
+        if isinstance(target_datetime_local, datetime):
+            if target_datetime_local.tzinfo is None:
+                target_datetime_utc = pytz.utc.localize(target_datetime_local)
+            else:
+                target_datetime_utc = target_datetime_local.astimezone(pytz.utc)
+        else:
+            raise TypeError("target_datetime_local deve ser um datetime")
 
-        # target_datetime_utc = target_datetime_local.astimezone(pytz.utc) # Converte para UTC
-        target_datetime_utc = target_datetime_local # Não converte para UTC
-
-        logger.info(f"Iniciando ciclo simulação: {asset_symbol} @ {timeframe_str} em {target_datetime_local.strftime('%Y-%m-%d %H:%M %Z')} (UTC: {target_datetime_utc.strftime('%H:%M %Z')})")
+        logger.info(f"Iniciando ciclo simulação: {asset_symbol} @ {timeframe_str} em {target_datetime_utc.strftime('%Y-%m-%d %H:%M %Z')}")
 
         # 1. Carregar Recursos
         resources = self._load_asset_resources(asset_symbol)
@@ -258,12 +253,14 @@ class SimulationEngine:
             return {"error": error_msg}
 
         # Desempacota recursos
-        model = resources['model']; strategy_instance: BaseStrategy = resources['strategy_instance']
-        asset_config = resources['config']; price_precision = resources.get('price_precision', 2)
+        model = resources['model'] 
+        strategy_instance: BaseStrategy = resources['strategy_instance']
+        asset_config = resources['config'] 
+        price_precision = resources.get('price_precision', 2)
         trading_rules = resources.get('trading_rules', {})
 
         # 2. Obter Dados de Mercado (em UTC)
-        required_periods = 300
+        required_periods = 600
         try:
              # Calcula período necessário para buscar dados
              tf_num = 1; time_unit = 'minutes' # Default M1
@@ -301,7 +298,7 @@ class SimulationEngine:
 
              if market_data.empty or target_ts_utc not in market_data.index:
                    last_ts_str = market_data.index[-1].strftime('%Y-%m-%d %H:%M') if not market_data.empty else "Nenhum"
-                   error_msg = f"Dados não encontrados p/ {data_ticker} @ {timeframe_str} em {target_datetime_local:%Y-%m-%d %H:%M %Z}. Último: {last_ts_str}"
+                   error_msg = f"Dados não encontrados p/ {data_ticker} @ {timeframe_str} em {target_datetime_utc:%Y-%m-%d %H:%M %Z}. Último: {last_ts_str}"
                    logger.error(error_msg)
                    return {"error": error_msg}
 
@@ -316,24 +313,23 @@ class SimulationEngine:
 
             if target_ts_utc not in data_with_features.index:
                  logger.error(f"Timestamp {target_ts_utc} perdido pós-features {asset_symbol}.")
-                 return {"error": f"Timestamp alvo {target_datetime_local:%H:%M} perdido pós-features."}
+                 return {"error": f"Timestamp alvo {target_datetime_utc:%H:%M} perdido pós-features."}
 
-            current_features_row = data_with_features.iloc[-1]
+            current_features_row = data_with_features.loc[[target_ts_utc]]
             lookback = getattr(model, 'lookback', 1)
             target_loc = data_with_features.index.get_loc(target_ts_utc)
             start_loc = max(0, target_loc - lookback + 1)
 
             if target_loc - start_loc + 1 < lookback:
-                 logger.warning(f"Insuficiente pós-features ({target_loc - start_loc + 1}<{lookback}) p/ {asset_symbol} @ {target_datetime_local}.")
+                 logger.warning(f"Insuficiente pós-features ({target_loc - start_loc + 1}<{lookback}) p/ {asset_symbol} @ {target_datetime_utc}.")
                  return {"error": "Insuficiente pós-features para lookback."}
 
-            model_input_data = data_with_features.iloc[-1]
+            model_input_data = data_with_features.iloc[start_loc : target_loc + 1]
             feature_names = strategy_instance.get_feature_names()
-            
             X_predict = model_input_data[feature_names]
 
             if X_predict.isnull().values.any():
-                logger.warning(f"NaNs input modelo {asset_symbol} @ {target_datetime_local}.")
+                logger.warning(f"NaNs input modelo {asset_symbol} @ {target_datetime_utc}.")
                 return {"error": "NaNs input modelo."}
 
         except KeyError as e:
@@ -375,8 +371,16 @@ class SimulationEngine:
         if final_signal in ["COMPRA", "VENDA"]:
             sl_pct = trading_rules.get('stop_loss_pct')
             tp_pct = trading_rules.get('take_profit_pct')
-            if sl_pct is not None: sl_price = round(current_price * (1 - sl_pct / 100) if final_signal == "COMPRA" else current_price * (1 + sl_pct / 100), price_precision)
-            if tp_pct is not None: tp_price = round(current_price * (1 + tp_pct / 100) if final_signal == "COMPRA" else current_price * (1 - tp_pct / 100), price_precision)
+            if sl_pct is not None:
+                stop_loss_price = round(
+                    current_price * (1 - sl_pct / 100) if final_signal == "COMPRA" else current_price * (1 + sl_pct / 100),
+                    price_precision,
+                )
+            if tp_pct is not None:
+                take_profit_price = round(
+                    current_price * (1 + tp_pct / 100) if final_signal == "COMPRA" else current_price * (1 - tp_pct / 100),
+                    price_precision,
+                )
             # logger.info(f"Preços Calc: Entrada~={current_price:.{price_precision}f}, SL={sl_price}, TP={tp_price}")
 
         # 7. Montar Resultado
@@ -390,7 +394,7 @@ class SimulationEngine:
 
         result = {
             "asset": asset_symbol,
-            "datetime": target_datetime_local.strftime('%Y-%m-%d %H:%M %Z'), # Hora local
+            "datetime": target_datetime_utc.strftime('%Y-%m-%d %H:%M %Z'), # UTC
             "timeframe": timeframe_str,
             "current_price": round(current_price, price_precision),
             "ai_signal": ai_signal, "ai_signal_code": ai_signal_code,
@@ -422,11 +426,11 @@ if __name__ == '__main__':
     engine = SimulationEngine(config_path='configs/main.yaml')
     sim_asset = 'WDO$'
     sim_tf = 'H1'
-    # Cria datetime LOCAL (naive)
-    sim_dt_local_naive = datetime(2025, 9, 25, 10, 0, 0)
+    # Cria datetime UTC
+    sim_dt_utc = pytz.utc.localize(datetime(2025, 9, 25, 10, 0, 0))
     try:
-        # Passa o datetime local (naive ou aware)
-        result = engine.run_simulation_cycle(sim_asset, sim_tf, sim_dt_local_naive)
+        # Passa o datetime em UTC
+        result = engine.run_simulation_cycle(sim_asset, sim_tf, sim_dt_utc)
         import json
         print(json.dumps(result, indent=4, default=str))
     except Exception as e: print(f"Erro simulação: {e}")
