@@ -20,68 +20,114 @@ global_settings:
 assets:
   - ticker: "WDO$"
     enabled: true  # Habilita ou desabilita este ativo para treino e live trading.
-    provider: "MetaTrader5"
-    strategy_module: "lstm"
-    strategy_name: "LSTMStrategy"
     
-    data:
-      start_date: "2023-01-01"
-      end_date: "2025-09-26"
-      timeframe_model: "H1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
+    strategies:
+      - name: "LSTMStrategy"
+        module: "lstm"
+        provider: "MetaTrader5"
+
+        data:
+          start_date: "2023-01-01"
+          end_date: "2025-10-31"
+          timeframe_model: "D1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
+
+        training_trading_rules:
+          initial_capital: 5000
+          stop_loss_ticks: 20 # Stop loss em ticks
+          stop_loss_pct: 0.01
+          take_profit_pct: 0.03
+
+      - name: "DRLStrategy"
+        module: "drl_strategy"
+        provider: "MetaTrader5"
+
+        data:
+          start_date: "2024-10-01"
+          end_date: "2025-10-31"
+          timeframe_model: "D1"  # Timeframe usado para treinar o ambiente DRL
+
+        training_trading_rules:
+          initial_capital: 5000
+          stop_loss_pct: 0.01  # Usado pelo ambiente para custos de transação
+          take_profit_pct: 0.03
 
     trading_rules:
       initial_capital: 5000
       stop_loss_ticks: 20 # Stop loss em ticks
-      stop_loss_pct: 0.02
-      take_profit_pct: 0.05
+      stop_loss_pct: 0.01
+      take_profit_pct: 0.03          
     
     live_trading:
+      enabled: true
       ticker_order: "WDOX25"
       timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
       execution_mode: "suggest" # "suggest" ou "execute"
       trade_volume: 1.0       # quantidade de contratos
 
     setup:
-      - condition: 'buy'  # Esta regra só se aplica se o sinal da IA for de COMPRA
+      - condition: 'COMPRA'  # Esta regra só se aplica se o sinal da IA for de COMPRA
         type: 'price_above_ma' # Critério: O preço deve estar acima da Média Móvel Simples
         ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
         period: 20              # Período da MA
 
-      - condition: 'sell' # Esta regra só se aplica se o sinal da IA for de VENDA
+      - condition: 'VENDA' # Esta regra só se aplica se o sinal da IA for de VENDA
         type: 'price_below_ma' # Critério: O preço deve estar abaixo da Média Móvel Simples
         ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
         period: 20        # Período da MA
 
   - ticker: "WIN$"
     enabled: true
-    provider: "MetaTrader5"
-    strategy_module: "lstm"
-    strategy_name: "LSTMStrategy"
     
-    data:
-      start_date: "2023-01-01"
-      end_date: "2025-10-01"
-      timeframe_model: "D1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
+    strategies:
+      - name: "LSTMStrategy"
+        module: "lstm"
+        provider: "MetaTrader5"
+
+        data:
+          start_date: "2023-01-01"
+          end_date: "2025-10-31"
+          timeframe_model: "D1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
+
+        training_trading_rules:
+          initial_capital: 5000
+          stop_loss_ticks: 20 # Stop loss em ticks
+          stop_loss_pct: 0.01
+          take_profit_pct: 0.03
+
+      - name: "DRLStrategy"
+        module: "drl_strategy"
+        provider: "MetaTrader5"
+
+        data:
+          start_date: "2023-01-01"
+          end_date: "2025-10-31"
+          timeframe_model: "D1"  # Timeframe usado para treinar o ambiente DRL
+
+        training_trading_rules:
+          initial_capital: 5000
+          stop_loss_pct: 0.01  # Usado pelo ambiente para custos de transação
+          take_profit_pct: 0.03
 
     trading_rules:
       initial_capital: 5000
       stop_loss_ticks: 20 # Stop loss em ticks
       stop_loss_pct: 0.01
-      take_profit_pct: 0.05
+      take_profit_pct: 0.03
     
     live_trading:
+      enabled: false
       ticker_order: "WINZ25"
       timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
       execution_mode: "suggest" # "suggest" ou "execute"
       trade_volume: 1.0       # quantidade de contratos
 
     setup:
-      - condition: 'buy'  # Esta regra só se aplica se o sinal da IA for de COMPRA
+      - condition: 'COMPRA'  # Esta regra só se aplica se o sinal da IA for de COMPRA
         type: 'price_above_ma' # Critério: O preço deve estar acima da Média Móvel Simples
         ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
         period: 20              # Período da MA
 
-      - condition: 'sell' # Esta regra só se aplica se o sinal da IA for de VENDA
+      - condition: 'VENDA' # Esta regra só se aplica se o sinal da IA for de VENDA
         type: 'price_below_ma' # Critério: O preço deve estar abaixo da Média Móvel Simples
         ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
         period: 20        # Período da MA      

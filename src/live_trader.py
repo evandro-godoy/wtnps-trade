@@ -1,481 +1,513 @@
-import sys # Adicionado para importar path
+# src/live_trader.py
+
 import yaml
 import logging
-import time
 from pathlib import Path
 import importlib
-import MetaTrader5 as mt5
+import time
+from datetime import datetime, timedelta
 import pandas as pd
-from datetime import datetime, timezone, timedelta # Adicionado timedelta
-import pytz # Adicionado pytz
-import numpy as np # Adicionado numpy
+import numpy as np
+import MetaTrader5 as mt5
+from threading import Thread, Lock, Event
 
-# Adiciona a raiz do projeto ao path
-project_root = Path(__file__).resolve().parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
-from src.data_handler.provider import MetaTraderProvider
-# Importa KerasLSTMWrapper dinamicamente onde necessário
-# from src.strategies.lstm import KerasLSTMWrapper
-from src.setups.analyzer import evaluate_setups # Importa analyzer para setups
+# Importações internas
+from src.data_handler.provider import get_provider_instance, BaseDataProvider, MetaTraderProvider
+from src.strategies.base import BaseStrategy
+from src.setups.analyzer import SetupAnalyzer
 
 # Configuração do logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] (%(name)s) %(message)s")
-log = logging.getLogger(__name__) # Logger específico
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(name)s] %(message)s',
+                    handlers=[logging.StreamHandler()])
+logger = logging.getLogger(__name__) # Logger específico para este módulo
 
+# --- Função Auxiliar Timeframe ---
+def _get_mt5_timeframe_from_string(tf_str: str):
+    tf_map = { "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
+               "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+               "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1, "MN1": mt5.TIMEFRAME_MN1 }
+    tf_constant = tf_map.get(tf_str.upper(), None)
+    if tf_constant is None:
+        # Loga apenas uma vez por TF inválido
+        if not hasattr(_get_mt5_timeframe_from_string, 'logged_tf_warnings'): _get_mt5_timeframe_from_string.logged_tf_warnings = set()
+        if tf_str not in _get_mt5_timeframe_from_string.logged_tf_warnings:
+            logger.warning(f"Timeframe '{tf_str}' inválido.")
+            _get_mt5_timeframe_from_string.logged_tf_warnings.add(tf_str)
+    return tf_constant
+
+# --- Classe LiveTrader ---
 class LiveTrader:
-    def __init__(self, config_path="configs/main.yaml"):
-        log.info(f"Inicializando LiveTrader com config: {config_path}")
-        self.config_path = project_root / config_path
+    """ Motor backend para execução de estratégias em tempo real via MT5. """
+    def __init__(self, config_path: str = 'configs/main.yaml', callback=None):
+        self.config_path = config_path
         self.config = self._load_config()
-        self.assets_config = [
-            asset for asset in self.config["assets"] if asset.get("enabled", False)
-        ]
-        self.models_dir = Path(self.config["global_settings"]["model_directory"])
-        self.asset_states = {}
+        self.models_dir = Path(self.config.get('global_settings', {}).get('models_directory', 'models'))
+        self.callback = callback # Função para enviar atualizações para a GUI
 
-        self.provider = MetaTraderProvider()
-        # A conexão MT5 será gerenciada nos métodos que a utilizam
+        self.mt5_provider = None
+        self.asset_resources = {} # Cache thread-safe via _lock
+        self.last_candle_time = {} # Cache thread-safe via _lock
+        self.current_state = {} # Cache thread-safe via _lock
+        self.setup_analyzer = SetupAnalyzer()
+
+        self._run_thread = None # Thread de monitoramento
+        self._init_thread = None # Thread de inicialização
+        self._stop_event = Event() # Sinalizador para parar threads
+        self._lock = Lock() # Protege dados compartilhados
+
+        self.is_trader_initialized = False # Indica se init concluiu (com ou sem sucesso)
+
+        self._start_initialization_thread() # Inicia a inicialização
+
+    def _start_initialization_thread(self):
+        """Inicia a thread de inicialização (conectar MT5, carregar modelos)."""
+        # Evita iniciar múltiplas threads de init
+        with self._lock:
+            if self._init_thread and self._init_thread.is_alive():
+                logger.warning("Thread de inicialização já está em execução.")
+                return
+            self._init_thread = Thread(target=self._initialize_resources, daemon=True, name="LiveTraderInitThread")
+            self._init_thread.start()
+            logger.info("Thread de inicialização do LiveTrader iniciada.")
 
     def _load_config(self):
-        """Carrega o arquivo de configuração YAML."""
-        log.info(f"Carregando configuração de: {self.config_path}")
+        """Carrega configuração YAML."""
+        logger.info(f"Carregando config: {self.config_path}")
         try:
-            with open(self.config_path, "r") as file:
-                return yaml.safe_load(file)
-        except Exception as e:
-            log.critical(f"Erro crítico ao carregar configuração: {e}", exc_info=True)
-            raise
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        except FileNotFoundError: logger.critical(f"CRÍTICO: Config não encontrado: {self.config_path}"); raise
+        except yaml.YAMLError as e: logger.critical(f"CRÍTICO: Erro ao carregar YAML: {e}"); raise
 
     def _initialize_mt5(self):
-        """Garante que a conexão com o MetaTrader 5 esteja ativa."""
-        if not mt5.terminal_info():
-            log.info("Tentando inicializar conexão com o MetaTrader 5...")
-            if not mt5.initialize():
-                log.error(f"Falha na inicialização do MT5: {mt5.last_error()}")
-                return False
-            else:
-                log.info("Conectado ao MetaTrader 5.")
-                return True
-        # log.debug("Conexão com MetaTrader 5 já ativa.")
-        return True
+         """Inicializa conexão com MT5 (thread-safe)."""
+         with self._lock: # Garante acesso exclusivo ao provider
+             if self.mt5_provider and self.mt5_provider.is_connected(): return True
+         logger.info("Tentando inicializar conexão MT5...")
+         try:
+             provider = get_provider_instance("MetaTrader5") # Pode levantar ValueError
+             if isinstance(provider, MetaTraderProvider) and provider.is_connected():
+                  with self._lock: self.mt5_provider = provider
+                  logger.info("Conectado ao MetaTrader 5.")
+                  return True
+             else: logger.error("Falha ao conectar instância MetaTraderProvider."); return False
+         except Exception as e:
+             logger.error(f"Exceção ao inicializar MT5: {e}", exc_info=False)
+             with self._lock: self.mt5_provider = None # Garante que está None
+             return False
 
-    def _get_mt5_timeframe_from_string(self, tf_str: str):
-        """Converte string de timeframe para constante MT5."""
-        tf_map = {
-            "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
-            "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
-            "D1": mt5.TIMEFRAME_D1,
-        }
-        default_tf = mt5.TIMEFRAME_D1
-        tf_constant = tf_map.get(tf_str.upper(), default_tf)
-        if tf_constant == default_tf and tf_str.upper() != "D1":
-             log.warning(f"Timeframe '{tf_str}' não mapeado, usando D1 como padrão.")
-        return tf_constant
+    def _load_asset_resources(self, asset_symbol: str, asset_config: dict):
+        """
+        Carrega recursos para um ativo (chamado pela thread de init).
+        Usa a PRIMEIRA estratégia da lista strategies[] para live trading.
+        """
+        # Verifica cache (leitura inicial sem lock é aceitável, escrita requer lock)
+        with self._lock:
+             if asset_symbol in self.asset_resources and 'error' not in self.asset_resources[asset_symbol]:
+                  return self.asset_resources[asset_symbol]
 
-    def _load_asset_resources(self, data_ticker):
-        """Carrega modelo e estratégia para um ativo sob demanda."""
-        if data_ticker in self.asset_states:
-            # Verifica se o modelo/estratégia já foi carregado
-            if self.asset_states[data_ticker].get('strategy') and self.asset_states[data_ticker].get('model'):
-                 return self.asset_states[data_ticker]
-            # Se não, força recarregamento (caso tenha falhado antes)
-
-        asset_config = next((asset for asset in self.assets_config if asset['ticker'] == data_ticker), None)
-        if not asset_config:
-            log.error(f"Configuração não encontrada para {data_ticker}")
+        if not asset_config or not asset_config.get('live_trading', {}).get('enabled', False): 
             return None
 
-        log.info(f"Carregando recursos para {data_ticker}...")
-        try:
-            # Carregar estratégia
-            module_path = f"src.strategies.{asset_config['strategy_module']}"
-            strategy_module = importlib.import_module(module_path)
-            StrategyClass = getattr(strategy_module, asset_config["strategy_name"])
-            strategy_instance = StrategyClass()
-
-            # Carregar modelo (se aplicável)
-            model = None
-            model_loaded = False
-            needs_model = "lstm" in asset_config['strategy_module'].lower()
-
-            if needs_model:
-                try:
-                    model_path = self.models_dir / f"{data_ticker}_prod_model.keras"
-                    scaler_path = self.models_dir / f"{data_ticker}_prod_scaler.joblib"
-                    if model_path.exists() and scaler_path.exists():
-                        from src.strategies.lstm import KerasLSTMWrapper
-                        model = KerasLSTMWrapper.load_model(str(model_path), str(scaler_path))
-                        model_loaded = True
-                        log.info(f"Modelo Keras carregado para {data_ticker}.")
-                    else:
-                        log.error(f"Arquivos Keras não encontrados para {data_ticker} em {self.models_dir}.")
-                except ImportError as ie:
-                    log.warning(f"KerasLSTMWrapper não importado. Modelo {data_ticker} não carregado. Erro: {ie}")
-                except Exception as load_err:
-                     log.error(f"Erro ao carregar modelo Keras para {data_ticker}: {load_err}")
-
-            if not model_loaded and needs_model:
-                 log.warning(f"Não foi possível carregar modelo IA para {data_ticker}.")
-
-            # Atualiza ou cria o estado
-            self.asset_states[data_ticker] = {
-                "config": asset_config,
-                "strategy": strategy_instance,
-                "model": model,
-                "position": self.asset_states.get(data_ticker, {}).get("position"), # Mantem posição se já existir
-                "last_processed_time": self.asset_states.get(data_ticker, {}).get("last_processed_time"),
-            }
-            log.info(f"Recursos para {data_ticker} carregados (Modelo {'OK' if model else 'N/A'}).")
-            return self.asset_states[data_ticker]
-
-        except Exception as e:
-            log.critical(f"Falha crítica ao carregar recursos para {data_ticker}: {e}", exc_info=True)
+        # Busca lista de estratégias
+        strategies_list = asset_config.get('strategies', [])
+        
+        if not strategies_list:
+            error_msg = f"Nenhuma estratégia configurada para {asset_symbol}."
+            logger.error(error_msg)
+            with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}
+            return None
+        
+        # Usa a PRIMEIRA estratégia para live trading
+        strategy_config = strategies_list[0]
+        strategy_module_name = strategy_config.get('module')
+        strategy_class_name = strategy_config.get('name')
+        
+        logger.info(f"Live trading {asset_symbol}: Usando estratégia '{strategy_class_name}'")
+        
+        if not strategy_module_name or not strategy_class_name:
+            error_msg = f"Config estratégia incompleta {asset_symbol}/{strategy_class_name}."
+            logger.error(error_msg)
+            with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}
             return None
 
-    def initialize(self):
-        """Conecta ao MT5 e carrega os modelos para cada ativo habilitado."""
-        log.info("Inicializando o LiveTrader Engine...")
-        if not self._initialize_mt5(): return False # Tenta conectar
-
-        # Pré-carrega recursos para todos os ativos habilitados
-        loaded_tickers = []
-        for asset_config in self.assets_config:
-            if self._load_asset_resources(asset_config['ticker']):
-                loaded_tickers.append(asset_config['ticker'])
-
-        if not loaded_tickers:
-            log.error("Nenhum ativo foi carregado com sucesso.")
-            return False
-
-        log.info("LiveTrader Engine inicializado para: " + ", ".join(loaded_tickers))
-        return True
-
-    # --- NOVO MÉTODO PARA SIMULAÇÃO DE CICLO ÚNICO ---
-    def simulate_single_cycle(self, data_ticker: str, selected_timeframe_str: str, simulation_datetime_local: datetime) -> dict:
-        """
-        Executa um ciclo único de busca de dados, geração de sinal e avaliação
-        para um ativo específico, retornando um dicionário com os resultados detalhados.
-        Similar à lógica do run_single_tick do notebook.
-        """
-        log.info(f"Simulando ciclo único para {data_ticker} @ {selected_timeframe_str}")
-
-        state = self._load_asset_resources(data_ticker)
-        if not state:
-            return {"error": f"Não foi possível carregar recursos para {data_ticker}."}
-
-        asset_config = state['config']
-        strategy = state['strategy']
-        model = state.get('model')
-        live_config = asset_config['live_trading']
-        order_ticker = live_config.get('ticker_order', data_ticker)
-        mt5_timeframe = self._get_mt5_timeframe_from_string(selected_timeframe_str)
-
-        result = {
-            "ticker": data_ticker, "order_ticker": order_ticker, "timeframe": selected_timeframe_str, 
-            "timestamp": simulation_datetime_local, "signal": "HOLD", "signal_raw": -1, "ai_signal_text": "N/A",
-            "suggested_price": None, "price_source": "N/A", "stop_price": None,
-            "indicators": {}, "setup_valid": None, "error": None
-        }
-
         try:
-            # 1. Buscar Dados Recentes (300 barras)
-            if not self._initialize_mt5(): # Garante conexão
-                 result["error"] = "Falha ao conectar ao MT5."; return result
-
-            # Usa o provider interno da classe LiveTrader
-            latest_data = self.provider.get_latest_rates(data_ticker, 300, mt5_timeframe, simulation_datetime_local)
-            if latest_data.empty:
-                result["error"] = "Não foi possível obter dados suficientes." 
-                return result
-
-            last_candle_time = latest_data.index[-1]
-            result["timestamp"] = last_candle_time.strftime('%Y-%m-%d %H:%M:%S %Z')
-
-            # 2. Gerar Features
-            log.debug(f"Gerando features para {data_ticker} com {len(latest_data)} barras.")
-
-            # 2. Gerar features (usando a estratégia carregada pelo LiveTrader)
-            featured_data = strategy.define_features(latest_data)
-            X_live = featured_data[strategy.get_feature_names()].dropna()
-            if X_live.empty:
-                result["error"]= (f"Dados insuficientes para features em {data_ticker}.")
-                return result
-
-            # 3. Gerar sinal (usando o modelo carregado pelo LiveTrader)
-            if not model:
-                    self.log_message(f"Modelo não carregado para {data_ticker}, pulando predição.")
-                    ai_signal_raw = -1 # Sinal de Hold/Erro
-                    ai_signal_text = "N/A (sem modelo)"
-            else:
-                # Verifica lookback antes de prever
-                min_lookback = getattr(model, 'lookback', 1)
-                if len(X_live) < min_lookback:
-                    self.log_message(f"Dados insuficientes ({len(X_live)}<{min_lookback}) para predição IA em {data_ticker}.")
-                    ai_signal_raw = -1
-                    ai_signal_text = "N/A (dados insuficientes)"
-                else:
-                    predictions = model.predict(X_live)
-                    if predictions is not None and len(predictions) > 0:
-                        ai_signal_raw = int(predictions[-1])
-                        ai_signal_text = 'COMPRA' if ai_signal_raw == 1 else 'VENDA'
-                    else:
-                        self.log_message(f"Modelo {data_ticker} não retornou predições.")
-                        ai_signal_raw = -1
-                        ai_signal_text = "N/A (erro predição)"
-            result["ai_signal_text"] = ai_signal_text # Guarda texto do sinal IA
-
-            # 4. Avaliar Setups
-            setup_rules = asset_config.get('setup', [])
-            log.debug(f"Avaliando {len(setup_rules)} regras setup para {data_ticker}...")
-            is_setup_valid = evaluate_setups(ai_signal_raw if ai_signal_raw != -1 else None, setup_rules, featured_data)
-            result["setup_valid"] = is_setup_valid
-            log.info(f"Setup {data_ticker}: {'Válido' if is_setup_valid else 'Inválido'}")
-
-            # 5. Determinar Sinal Final e Preços
-            final_signal = "HOLD"; final_signal_raw = -1
-            if is_setup_valid and ai_signal_raw in [0, 1]: # Setup OK E IA deu sinal claro
-                 final_signal = ai_signal_text
-                 final_signal_raw = ai_signal_raw
-
-            result["signal"] = final_signal; result["signal_raw"] = final_signal_raw
-            log.info(f"Sinal Final {data_ticker}: {final_signal}")
-
-            if final_signal != "HOLD":
-                suggested_price_val = None
-                symbol_info = mt5.symbol_info_tick(order_ticker)
-                if symbol_info and symbol_info.time_msc > 0:
-                    tick_time = datetime.fromtimestamp(symbol_info.time, tz=pytz.utc)
-                    if abs((last_candle_time - tick_time).total_seconds()) < self.provider._timeframe_to_minutes(mt5_timeframe) * 60 * 1.5:
-                        suggested_price_val = symbol_info.ask if final_signal == 'COMPRA' else symbol_info.bid
-                        result["price_source"] = "Tick MT5"
-                        log.debug(f"Preço Tick MT5 {order_ticker}: {suggested_price_val}")
-                    else: log.warning(f"Tick {order_ticker} defasado ({tick_time}), fallback.")
-                else: log.warning(f"Tick inválido {order_ticker}, fallback.")
-
-                if suggested_price_val is None: # Fallback
-                     suggested_price_val = featured_data['close'].iloc[-1]
-                     result["price_source"] = "Último Fechamento"
-                     log.debug(f"Preço Fechamento {data_ticker}: {suggested_price_val}")
-
-                result["suggested_price"] = suggested_price_val
-
-                # Coleta indicadores
-                last_indicators = featured_data.iloc[-1]
-                indicator_keys = strategy.get_feature_names() if hasattr(strategy, 'get_feature_names') else []
-                common_indicators = ['ema_9', 'sma_20', 'sma_50', 'sma_200', 'close', 'high', 'low']
-                keys_to_log = sorted(list(set(indicator_keys + common_indicators)))
-                indicators_dict = {}
-                for key in keys_to_log:
-                     if key in last_indicators:
-                          value = last_indicators.get(key)
-                          if isinstance(value, (float, np.floating)):
-                               indicators_dict[key.upper()] = f"{value:.5f}" if pd.notna(value) else "N/A"
-                          elif pd.notna(value): indicators_dict[key.upper()] = str(value)
-                          else: indicators_dict[key.upper()] = "N/A"
-                indicators_str = " | ".join([f"{k}={v}" for k, v in indicators_dict.items()]) if indicators_dict else "Nenhum"
-
-                if indicators_dict:
-                    result["indicators"] = indicators_dict 
-
-                # Calcula Stop
-                stop_loss_pct = asset_config['trading_rules']['stop_loss_pct']
-                entry = result["suggested_price"]
-                if entry is not None and entry > 0:
-                     result["stop_price"] = entry * (1 - stop_loss_pct) if final_signal == 'COMPRA' else entry * (1 + stop_loss_pct)
-                     log.debug(f"Stop Price {data_ticker}: {result['stop_price']:.5f}")
-                else: log.warning(f"Stop Price não calculado {data_ticker}.")
-
-        except Exception as e:
-            log_err = f"Erro inesperado ao simular {data_ticker}: {e}"
-            logging.critical(log_err, exc_info=True)
-            result["error"] = str(e)
-
-        return result
-
-
-    # --- Métodos do Loop de Trading Real (run, _execute_trade) ---
-    # Estes métodos permanecem os mesmos da versão anterior do live_trader.py
-    # Eles NÃO são usados pelo dashboard, apenas se você rodar `python src/live_trader.py`
-    def run(self):
-        """Inicia o loop principal do robô, iterando sobre os ativos."""
-        if not self.initialize(): return
-        log.info(f"Iniciando loop de trading...")
-
-        while True:
-            try:
-                for data_ticker, state in self.asset_states.items():
-                    asset_config = state["config"]
-                    live_config = asset_config["live_trading"]
-                    timeframe_str = live_config["timeframe_str"]
-                    mt5_timeframe = self._get_mt5_timeframe_from_string(timeframe_str)
-
-                    # Busca apenas o último candle para checar o tempo
-                    latest_candle = self.provider.get_latest_rates(data_ticker, 1, mt5_timeframe)
-                    if latest_candle.empty: continue
-                    latest_candle_time = latest_candle.index[0]
-
-                    # Verifica se é um novo candle
-                    if state.get("last_processed_time") == latest_candle_time: continue
-
-                    log.info(f"--- Novo Candle para {data_ticker} ({timeframe_str}) em {latest_candle_time} ---")
-
-                    # Executa a lógica de simulação para obter o sinal
-                    # (Poderia chamar self.simulate_single_cycle aqui, mas
-                    # duplicamos a lógica para manter o run() focado no trading real)
-
-                    # 1. Buscar dados (mais barras para análise)
-                    historical_data = self.provider.get_latest_rates(data_ticker, 300, mt5_timeframe)
-                    if historical_data.empty: continue
-
-                    # 2. Gerar features
-                    strategy = state["strategy"]
-                    featured_data = strategy.define_features(historical_data)
-                    X_live = featured_data[strategy.get_feature_names()].dropna()
-                    if X_live.empty:
-                         log.warning(f"Live: Dados insuficientes p/ features {data_ticker}"); continue
-
-                    # 3. Gerar sinal IA
-                    ai_signal_raw = -1
-                    model = state.get("model")
-                    if model:
-                         min_lookback = getattr(model, 'lookback', 1)
-                         if len(X_live) >= min_lookback:
-                              try:
-                                  X_predict = X_live.tail(len(X_live) - min_lookback + 1)
-                                  if len(X_predict) > 0:
-                                       predictions = model.predict(X_predict)
-                                       if predictions is not None and len(predictions) > 0:
-                                            ai_signal_raw = int(predictions[-1])
-                              except Exception as e: log.error(f"Live: Erro previsão IA {data_ticker}: {e}")
-                         else: log.warning(f"Live: Dados insuf. ({len(X_live)}<{min_lookback}) p/ IA {data_ticker}")
-
-                    # 4. Avaliar Setups
-                    setup_rules = asset_config.get('setup', [])
-                    is_setup_valid = evaluate_setups(ai_signal_raw if ai_signal_raw != -1 else None, setup_rules, featured_data)
-
-                    # 5. Determinar Sinal Final
-                    final_signal_raw = -1
-                    if is_setup_valid and ai_signal_raw in [0, 1]:
-                        final_signal_raw = ai_signal_raw
-
-                    log.info(f"Live Sinal Final {data_ticker}: {'COMPRA' if final_signal_raw == 1 else ('VENDA' if final_signal_raw == 0 else 'HOLD')}")
-
-                    # 6. Lógica de decisão (Execução Real)
-                    # Adicionar lógica para FECHAR posições existentes (SL/TP ou sinal contrário) aqui
-                    # ...
-
-                    # Abrir nova posição se não houver uma
-                    if state["position"] is None:
-                        if final_signal_raw == 1: self._execute_trade(data_ticker, "BUY")
-                        elif final_signal_raw == 0: self._execute_trade(data_ticker, "SELL")
-                    else:
-                        log.info(f"Live: Posição já aberta {data_ticker} ({state['position']}).")
-
-
-                    # Atualiza o tempo do último candle processado
-                    state["last_processed_time"] = latest_candle_time
-
-                # Calcula o tempo de espera até o próximo candle (simplificado)
-                # Idealmente, calcularia o tempo exato para o fechamento do próximo candle M1/M5
-                sleep_time = 30 # Verifica a cada 30 segundos por novos candles
-                log.debug(f"Ciclo completo. Aguardando {sleep_time} segundos...")
-                time.sleep(sleep_time)
-
-            except KeyboardInterrupt:
-                log.info("Desligando o robô...")
-                self.shutdown() # Chama o método de desligamento
-                break
-            except Exception as e:
-                log.critical(f"Erro CRÍTICO no loop principal: {e}", exc_info=True)
-                time.sleep(60) # Aguarda antes de tentar novamente
-
-
-    def _execute_trade(self, data_ticker, order_type):
-        """Envia a ordem para o MetaTrader 5 para um ativo específico."""
-        if data_ticker not in self.asset_states:
-            log.error(f"Tentativa de executar trade para ativo não carregado: {data_ticker}")
-            return
-
-        state = self.asset_states[data_ticker]
-        asset_config = state['config']
-        live_config = asset_config['live_trading']
-        order_ticker = live_config.get('ticker_order', data_ticker) # Usa ticker de ordem
-
-        log.info(f"Preparando ordem {order_type} para {order_ticker} (baseado em {data_ticker})...")
-
-        # Garante conexão MT5
-        if not self._initialize_mt5():
-             log.error(f"Não foi possível enviar ordem para {order_ticker}: Sem conexão MT5.")
-             return
-
-        trade_type = mt5.ORDER_TYPE_BUY if order_type == "BUY" else mt5.ORDER_TYPE_SELL
-
-        symbol_info = mt5.symbol_info(order_ticker)
-        if symbol_info is None:
-            log.error(f"Não foi possível obter informações para o ativo de ordem '{order_ticker}'")
-            return
+            strategy_module = importlib.import_module(f"src.strategies.{strategy_module_name}")
+            StrategyClass = getattr(strategy_module, strategy_class_name)
+            strategy_instance: BaseStrategy = StrategyClass(**strategy_config.get('strategy_params', {}))
             
-        # Verifica se o ativo está disponível para negociação
-        if not symbol_info.trade_mode == mt5.SYMBOL_TRADE_MODE_FULL:
-             log.warning(f"Ativo {order_ticker} não está disponível para negociação no momento (modo: {symbol_info.trade_mode}). Ordem não enviada.")
-             return
+            # NOVO FORMATO: ticker_StrategyName_prod
+            model_path_prefix = str(self.models_dir / f"{asset_symbol}_{strategy_class_name}_prod")
+            logger.info(f"Carregando modelo {asset_symbol}/{strategy_class_name}...")
+            model = StrategyClass.load(model_path_prefix)
+            logger.info(f"Modelo {asset_symbol}/{strategy_class_name} OK.")
+
+            resources = {
+                'strategy_instance': strategy_instance,
+                'strategy_class': StrategyClass,
+                'strategy_name': strategy_class_name,
+                'model': model,
+                'config': asset_config,  # Config completo do ativo
+                'strategy_config': strategy_config,  # Config da estratégia
+                'live_config': asset_config.get('live_trading', {}),
+                'trading_rules': asset_config.get('trading_rules', {}),
+                'price_precision': asset_config.get('price_precision', 2)
+            }
+            with self._lock: self.asset_resources[asset_symbol] = resources # Atualiza cache
+            return resources
+        except FileNotFoundError:
+             error_msg = f"Modelo {asset_symbol}/{strategy_class_name} não encontrado ({model_path_prefix}...). Treino ok?"
+             logger.error(error_msg)
+             with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}
+             return None
+        except Exception as e:
+            error_msg = f"Erro CRÍTICO carga {asset_symbol}/{strategy_class_name}: {e}"
+            logger.exception(error_msg) # Log com traceback
+            with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}
+            return None
+
+    def _initialize_resources(self):
+        """(Thread) Conecta MT5 e carrega recursos."""
+        logger.info("Thread init LiveTrader: Iniciando...")
+        init_success = False
+        self.is_trader_initialized = False # Reseta flag no início
+        try:
+            if not self._initialize_mt5():
+                logger.critical("Falha MT5. LiveTrader inoperante.")
+                if self.callback: self.callback({"type": "status", "asset": "GLOBAL", "message": "Erro MT5", "color": "red"})
+                return # Aborta
+
+            logger.info("Thread init LiveTrader: Carregando modelos...")
+            enabled_assets = []
+            assets_list = self.config.get('assets', [])
+            for asset_config in assets_list:
+                if self._stop_event.is_set(): logger.warning("Inicialização interrompida."); break
+                asset_symbol = asset_config.get('ticker')
+                if not asset_symbol: continue
+                if asset_config.get('live_trading', {}).get('enabled', False):
+                    #logger.debug(f"Carregando {asset_symbol}...")
+                    loaded_res = self._load_asset_resources(asset_symbol, asset_config)
+                    if loaded_res and 'error' not in loaded_res:
+                         enabled_assets.append(asset_symbol)
+                         with self._lock:
+                              sl_pct = asset_config.get('trading_rules', {}).get('stop_loss_pct')
+                              tp_pct = asset_config.get('trading_rules', {}).get('take_profit_pct')
+                              self.last_candle_time[asset_symbol] = None
+                              self.current_state[asset_symbol] = {"position": None, "entry_price": None, "trade_id": None, "sl_pct": sl_pct, "tp_pct": tp_pct}
+                    else:
+                         # Erro já logado por _load_asset_resources
+                         if self.callback: self.callback({"type": "status", "asset": asset_symbol, "message": "Erro Carga", "color": "red"})
+
+            if enabled_assets:
+                logger.info(f"LiveTrader pronto: {', '.join(enabled_assets)}")
+                if self.callback:
+                     self.callback({"type": "status", "asset": "GLOBAL", "message": "Iniciado", "color": "green"})
+                     for asset in enabled_assets: self.callback({"type": "status", "asset": asset, "message": "Pronto", "color": "blue"})
+                init_success = True
+            elif not self._stop_event.is_set():
+                logger.warning("Nenhum ativo habilitado/carregado para live.")
+                if self.callback: self.callback({"type": "status", "asset": "GLOBAL", "message": "Vazio", "color": "orange"})
+                init_success = True # Init ok, mas vazio
+
+        except Exception as e:
+             logger.critical(f"Erro CRÍTICO na inicialização: {e}", exc_info=True)
+             if self.callback: self.callback({"type": "status", "asset": "GLOBAL", "message": "Erro Crítico Init", "color": "red"})
+        finally:
+            self.is_trader_initialized = True # Marca que terminou (mesmo c/ falha)
+            logger.info(f"Thread init LiveTrader: Concluída (Sucesso={init_success}).")
 
 
-        # Obtém preço atual para a ordem
-        tick = mt5.symbol_info_tick(order_ticker)
-        if not tick or tick.time == 0:
-             log.error(f"Não foi possível obter tick atual para {order_ticker}. Ordem não enviada.")
-             return
-        price = tick.ask if order_type == "BUY" else tick.bid
+    def _get_latest_candles(self, ticker: str, timeframe_obj: int, count: int) -> pd.DataFrame:
+        """Busca candles recentes do MT5 (thread-safe)."""
+        with self._lock: provider = self.mt5_provider
+        if not provider or not provider.is_connected():
+            # logger.debug("MT5 não conectado, tentando reconectar para buscar candles...")
+            if not self._initialize_mt5(): return pd.DataFrame() # Falha ao reconectar
+            with self._lock: provider = self.mt5_provider # Pega nova instância
+            if not provider: return pd.DataFrame()
+        try: return provider.get_latest_candles(ticker, timeframe_obj, count)
+        except Exception: return pd.DataFrame() # Silencia erros frequentes de busca
 
-        # Monta a requisição
-        request = {
-            "action": mt5.TRADE_ACTION_DEAL,
-            "symbol": order_ticker,
-            "volume": float(live_config["trade_volume"]),
-            "type": trade_type,
-            "price": price,
-            "deviation": 20, # Slippage permitido (ajustar conforme necessário)
-            "magic": asset_config.get('magic_number', 123456), # Usa número mágico da config ou padrão
-            "comment": f"WtnpsTrade Bot {data_ticker} {order_type}",
-            "type_time": mt5.ORDER_TIME_GTC, # Good Till Cancelled
-            "type_filling": mt5.ORDER_FILLING_IOC, # Immediate Or Cancel
-        }
+    def _check_sl_tp(self, asset_symbol: str):
+        """Verifica SL/TP para posições abertas (thread-safe)."""
+        with self._lock: # Leitura segura do estado/recursos
+            state = self.current_state.get(asset_symbol); resources = self.asset_resources.get(asset_symbol)
+        if not state or not resources or 'error' in resources or state["position"] is None: return
+        live_ticker = resources['live_config'].get('ticker_order', asset_symbol)
+        trade_id = state["trade_id"]; entry_price = state["entry_price"]
+        sl_pct = state.get("sl_pct"); tp_pct = state.get("tp_pct")
+        position_type = state["position"]; price_precision = resources.get('price_precision', 2)
+        if (sl_pct is None and tp_pct is None) or not entry_price or entry_price <= 0: return
 
-        # Verifica modo de execução
-        execution_mode = live_config.get("execution_mode", "suggest")
-        if execution_mode == "suggest":
-            log.info(
-                f"[SUGESTÃO] Ordem de {order_type} para {live_config['trade_volume']} lotes de {order_ticker} a ~${price:.5f}"
-            )
-        elif execution_mode == "execute":
-            log.info(f"[EXECUÇÃO] Enviando ordem de {order_type} para {order_ticker}...")
-            result = mt5.order_send(request)
-            if result is None:
-                 log.error(f"Falha ao enviar ordem para {order_ticker}. mt5.order_send() retornou None. Erro: {mt5.last_error()}")
-            elif result.retcode != mt5.TRADE_RETCODE_DONE:
-                log.error(f"Falha ao enviar ordem para {order_ticker}: {result.comment} (RetCode: {result.retcode})")
+        with self._lock: provider = self.mt5_provider # Pega provider seguro
+        if not provider or not provider.is_connected(): return
+
+        current_tick = None
+        try: current_tick = mt5.symbol_info_tick(live_ticker)
+        except Exception: return # Ignora falha ao pegar tick
+        if not current_tick or current_tick.time == 0: return
+
+        current_price = current_tick.bid if position_type == "COMPRADO" else current_tick.ask
+        if current_price <= 0: return
+
+        sl_price = round(entry_price*(1-sl_pct/100) if position_type=="COMPRADO" else entry_price*(1+sl_pct/100), price_precision) if sl_pct is not None else None
+        tp_price = round(entry_price*(1+tp_pct/100) if position_type=="COMPRADO" else entry_price*(1-tp_pct/100), price_precision) if tp_pct is not None else None
+
+        close_reason = None
+        if sl_price and sl_price != 0 and ((position_type == "COMPRADO" and current_price <= sl_price) or (position_type == "VENDIDO" and current_price >= sl_price)):
+            close_reason = f"STOP LOSS ({current_price:.{price_precision}f} {'<=' if position_type=='COMPRADO' else '>='} {sl_price:.{price_precision}f})"
+        if not close_reason and tp_price and tp_price != 0 and ((position_type == "COMPRADO" and current_price >= tp_price) or (position_type == "VENDIDO" and current_price <= tp_price)):
+            close_reason = f"TAKE PROFIT ({current_price:.{price_precision}f} {'>=' if position_type=='COMPRADO' else '<='} {tp_price:.{price_precision}f})"
+
+        if close_reason:
+            logger.info(f"[RISCO] {close_reason} {asset_symbol} (ID:{trade_id}). Fechando...")
+            if self.callback: self.callback({"type":"status", "asset": asset_symbol, "message": close_reason, "color": "orange"})
+            close_success = False
+            try: close_success = provider.close_position(live_ticker, trade_id) # Usa provider pego com lock
+            except Exception as e_close: logger.error(f"Exceção fechar {trade_id} (SL/TP): {e_close}", exc_info=True)
+
+            if close_success:
+                logger.info(f"[RISCO] Posição {trade_id} ({asset_symbol}) fechada: {close_reason}.")
+                with self._lock: self.current_state[asset_symbol].update({"position": None, "entry_price": None, "trade_id": None})
+                if self.callback: self.callback({"type":"position", "asset": asset_symbol, "status": f"Fechado ({('SL' if 'STOP' in close_reason else 'TP')})"})
             else:
-                log.info(f"Ordem para {order_ticker} enviada com sucesso! Ticket: {result.order}")
-                # Atualiza o estado da posição APENAS se a ordem foi executada
-                state["position"] = "LONG" if order_type == "BUY" else "SHORT"
-                # Adicionar lógica futura para SL/TP aqui se necessário via ordens pendentes ou monitoramento
-        else:
-            log.warning(f"Modo de execução '{execution_mode}' não reconhecido para {data_ticker}.")
+                logger.error(f"[RISCO] Falha fechar {trade_id} ({asset_symbol}) após: {close_reason}.")
+                if self.callback: self.callback({"type":"status", "asset": asset_symbol, "message": f"Erro Fechar {('SL' if 'STOP' in close_reason else 'TP')}", "color": "red"})
+
+    def _process_asset(self, asset_symbol: str):
+        """Processa lógica de decisão/execução para um ativo."""
+        with self._lock: resources = self.asset_resources.get(asset_symbol)
+        if not resources or 'error' in resources: return # Já logado se erro
+
+        live_config=resources['live_config']; model=resources['model']; strategy_instance=resources['strategy_instance']
+        asset_config=resources['config']; trading_rules=resources['trading_rules']; price_precision=resources.get('price_precision', 2)
+        live_ticker=live_config.get('ticker_order', asset_symbol); timeframe_str=live_config.get('timeframe_str', 'M5')
+        execution_mode=live_config.get('execution_mode', 'suggest'); trade_volume=live_config.get('trade_volume', 0.1)
+        timeframe_obj = _get_mt5_timeframe_from_string(timeframe_str);
+        if timeframe_obj is None: return
+
+        candles = self._get_latest_candles(live_ticker, timeframe_obj, 500)
+        min_candles = getattr(model, 'lookback', 1) + 1
+        if candles.empty or len(candles) < min_candles: return
+
+        latest_candle_time = candles.index[-1].to_pydatetime()
+        with self._lock: last_processed = self.last_candle_time.get(asset_symbol)
+        if last_processed is not None and latest_candle_time <= last_processed: return
+
+        #logger.debug(f"Novo candle {asset_symbol} @ {timeframe_str}: {latest_candle_time}") # Log menos verboso
+        with self._lock: self.last_candle_time[asset_symbol] = latest_candle_time
+
+        try:
+            data_with_features = strategy_instance.define_features(candles)
+            lookback = getattr(model, 'lookback', 1)
+            if len(data_with_features) < lookback: return
+
+            X_predict = data_with_features.iloc[-lookback:][strategy_instance.get_feature_names()]
+            if X_predict.isnull().values.any(): logger.warning(f"NaNs input {asset_symbol} @ {latest_candle_time}."); return
+
+            raw_prediction = model.predict(X_predict)
+            ai_signal_code = int(raw_prediction[-1]) if isinstance(raw_prediction, np.ndarray) and len(raw_prediction) > 0 else int(raw_prediction) if isinstance(raw_prediction, (int, np.integer)) else 0
+            ai_signal = "COMPRA" if ai_signal_code == 1 else "VENDA"
+            #logger.debug(f"IA {asset_symbol}: {ai_signal} ({ai_signal_code})")
+
+            setup_rules = asset_config.get('setup', [])
+            current_candle = data_with_features.iloc[-1:]
+            setup_result = {"is_valid": True, "details": {}, "final_decision": ai_signal}
+            if setup_rules:
+                 try: setup_result = self.setup_analyzer.evaluate_setups(current_candle, setup_rules, ai_signal)
+                 except Exception as e: logger.error(f"Erro setups {asset_symbol}: {e}", exc_info=True); setup_result = {"is_valid": False, "details": {"erro": str(e)}, "final_decision": "HOLD"}
+            final_signal = setup_result["final_decision"]; current_price = current_candle['close'].iloc[0]
+            # logger.info(f"{asset_symbol}: IA={ai_signal}, SetupOK={setup_result['is_valid']}, Final={final_signal}") # Log mais conciso
+
+            if self.callback:
+                 with self._lock: pos_display = self.current_state.get(asset_symbol, {}).get("position", "---")
+                 gui_data = { "type": "update", "asset": asset_symbol, "datetime": latest_candle_time.strftime('%Y-%m-%d %H:%M:%S'),
+                              "price": round(current_price, price_precision), "ai_signal": ai_signal,
+                              "setup_valid": setup_result["is_valid"], "final_signal": final_signal,
+                              "position": pos_display, "setup_details": setup_result.get("details", {}) }
+                 self.callback(gui_data)
+
+            with self._lock: current_position = self.current_state.get(asset_symbol, {}).get("position"); current_trade_id = self.current_state.get(asset_symbol, {}).get("trade_id"); provider = self.mt5_provider
+            sl_pct = trading_rules.get('stop_loss_pct'); tp_pct = trading_rules.get('take_profit_pct')
+
+            if execution_mode == 'execute' and provider:
+                if final_signal == "COMPRA" and current_position != "COMPRADO":
+                    if current_position == "VENDIDO":
+                        logger.info(f"[EXEC] Fechando VENDA {asset_symbol} ({current_trade_id})...")
+                        if provider.close_position(live_ticker, current_trade_id):
+                             with self._lock: self.current_state[asset_symbol].update({"position": None, "entry_price": None, "trade_id": None}); current_position = None
+                             if self.callback: self.callback({"type":"position", "asset": asset_symbol, "status": "Fechado"})
+                             logger.info(f"[EXEC] Venda {current_trade_id} fechada.")
+                        else: logger.error(f"[EXEC] Falha fechar VENDA {current_trade_id}. Compra cancelada."); final_signal = "HOLD"
+                    if current_position is None:
+                        logger.info(f"[EXEC] Enviando COMPRA {asset_symbol} @ ~{current_price:.{price_precision}f} Vol:{trade_volume}")
+                        sl = round(current_price*(1-sl_pct/100), price_precision) if sl_pct else None; tp = round(current_price*(1+tp_pct/100), price_precision) if tp_pct else None
+                        res = provider.open_position(live_ticker, 'buy', trade_volume, sl_price=sl, tp_price=tp)
+                        if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+                             fp, tid = res.price, res.order; logger.info(f"[EXEC] COMPRA OK {asset_symbol}: P={fp:.{price_precision}f}, T={tid}")
+                             with self._lock: self.current_state[asset_symbol].update({"position": "COMPRADO", "entry_price": fp, "trade_id": tid, "sl_pct": sl_pct, "tp_pct": tp_pct})
+                             if self.callback: self.callback({"type":"position", "asset": asset_symbol, "status": "Comprado", "price": fp, "trade_id": tid})
+                        else: rc = res.retcode if res else 'N/A'; cm = res.comment if res else 'N/A'; logger.error(f"[EXEC] FALHA COMPRA {asset_symbol}: Ret={rc}, Com={cm}");
+                        if self.callback: self.callback({"type":"status", "asset": asset_symbol, "message": f"Erro Compra ({rc})", "color": "red"})
+
+                elif final_signal == "VENDA" and current_position != "VENDIDO":
+                    if current_position == "COMPRADO":
+                        logger.info(f"[EXEC] Fechando COMPRA {asset_symbol} ({current_trade_id})...")
+                        if provider.close_position(live_ticker, current_trade_id):
+                             with self._lock: self.current_state[asset_symbol].update({"position": None, "entry_price": None, "trade_id": None}); current_position = None
+                             if self.callback: self.callback({"type":"position", "asset": asset_symbol, "status": "Fechado"})
+                             logger.info(f"[EXEC] Compra {current_trade_id} fechada.")
+                        else: logger.error(f"[EXEC] Falha fechar COMPRA {current_trade_id}. Venda cancelada."); final_signal = "HOLD"
+                    if current_position is None:
+                        logger.info(f"[EXEC] Enviando VENDA {asset_symbol} @ ~{current_price:.{price_precision}f} Vol:{trade_volume}")
+                        sl = round(current_price*(1+sl_pct/100), price_precision) if sl_pct else None; tp = round(current_price*(1-tp_pct/100), price_precision) if tp_pct else None
+                        res = provider.open_position(live_ticker, 'sell', trade_volume, sl_price=sl, tp_price=tp)
+                        if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+                             fp, tid = res.price, res.order; logger.info(f"[EXEC] VENDA OK {asset_symbol}: P={fp:.{price_precision}f}, T={tid}")
+                             with self._lock: self.current_state[asset_symbol].update({"position": "VENDIDO", "entry_price": fp, "trade_id": tid, "sl_pct": sl_pct, "tp_pct": tp_pct})
+                             if self.callback: self.callback({"type":"position", "asset": asset_symbol, "status": "Vendido", "price": fp, "trade_id": tid})
+                        else: rc = res.retcode if res else 'N/A'; cm = res.comment if res else 'N/A'; logger.error(f"[EXEC] FALHA VENDA {asset_symbol}: Ret={rc}, Com={cm}");
+                        if self.callback: self.callback({"type":"status", "asset": asset_symbol, "message": f"Erro Venda ({rc})", "color": "red"})
+
+            elif execution_mode == 'suggest' and final_signal != "HOLD":
+                 sl = round(current_price*(1-sl_pct/100) if final_signal=="COMPRA" else current_price*(1+sl_pct/100), price_precision) if sl_pct else None
+                 tp = round(current_price*(1+tp_pct/100) if final_signal=="COMPRA" else current_price*(1-tp_pct/100), price_precision) if tp_pct else None
+                 logger.info(f"SUGESTÃO: {final_signal} {asset_symbol} @ {current_price:.{price_precision}f} (SL:{sl if sl else 'N/A'}, TP:{tp if tp else 'N/A'})")
+
+        except Exception as e: logger.exception(f"Erro ciclo {asset_symbol}: {e}");
+        if self.callback: self.callback({"type": "status", "asset": asset_symbol, "message": "Erro Ciclo", "color": "red"})
+
+    def _run_monitor_thread(self):
+        """(Thread) Loop principal: verifica SL/TP e processa candles."""
+        logger.info("Thread monitor: Iniciando loop...")
+        # Espera init terminar (importante)
+        if self._init_thread and self._init_thread.is_alive():
+             logger.info("Thread monitor: Aguardando inicialização...")
+             self._init_thread.join()
+             logger.info("Thread monitor: Inicialização concluída.")
+
+        with self._lock: active = [k for k, v in self.asset_resources.items() if v and 'error' not in v]
+        if not active:
+             logger.warning("Nenhum ativo carregado. Thread monitor encerrando.")
+             if self.callback: self.callback({"type": "status", "asset": "GLOBAL", "message": "Parado (Vazio)", "color": "grey"})
+             self._shutdown_mt5(); return
+
+        logger.info(f"Thread monitor: Monitorando {len(active)} ativo(s)...")
+        while not self._stop_event.is_set():
+            try:
+                assets_to_check = list(active) # Usa cópia
+                for asset_symbol in assets_to_check:
+                    if self._stop_event.is_set(): break
+                    self._check_sl_tp(asset_symbol)
+                    # Verifica se ainda está posicionado antes de processar candle
+                    with self._lock: still_open = self.current_state.get(asset_symbol,{}).get("position") is not None
+                    # Processa candle se não estiver posicionado ou se acabou de abrir (para pegar próximo sinal)
+                    # Esta lógica pode precisar de ajuste fino dependendo da estratégia exata
+                    # Processar sempre é mais simples, mas pode gerar sinais redundantes se já posicionado.
+                    # Vamos processar sempre por enquanto.
+                    self._process_asset(asset_symbol)
+
+                if self._stop_event.wait(5): break # Pausa controlada
+
+            except Exception as e: logger.critical(f"Erro CRÍTICO loop monitor: {e}", exc_info=True);
+            if self._stop_event.wait(60): break # Pausa longa
+
+        logger.info("Thread monitor: Loop principal encerrado.")
+        self._shutdown_mt5()
+
+    def start(self):
+        """Inicia a thread de monitoramento, esperando a inicialização."""
+        # Espera init terminar
+        if self._init_thread and self._init_thread.is_alive():
+            logger.info("Aguardando inicialização antes de iniciar monitoramento...")
+            self._init_thread.join()
+
+        # Verifica estado após init
+        with self._lock: is_connected = self.mt5_provider is not None and self.mt5_provider.is_connected()
+        if not self.is_trader_initialized or not is_connected:
+             logger.error("LiveTrader não inicializado ou MT5 desconectado. Não é possível iniciar.")
+             if self.callback: self.callback({"type": "status", "asset": "GLOBAL", "message": "Falha Init/MT5", "color": "red"})
+             return
+
+        # Verifica se já está rodando
+        if self._run_thread and self._run_thread.is_alive(): logger.warning("Monitoramento já ativo."); return
+
+        with self._lock: active = [k for k,v in self.asset_resources.items() if v and 'error' not in v]
+        if not active:
+             logger.warning("Nenhum ativo carregado. Monitoramento não iniciado.")
+             if self.callback: self.callback({"type": "status", "asset": "GLOBAL", "message": "Vazio", "color": "orange"})
+             return
+
+        logger.info("Iniciando monitoramento de trades...")
+        self._stop_event.clear()
+        self._run_thread = Thread(target=self._run_monitor_thread, daemon=True, name="LiveTraderMonitorThread")
+        self._run_thread.start()
+        # REMOVIDO controle de botão daqui
+        if self.callback: self.callback({"type": "status", "asset": "GLOBAL", "message": "Monitorando...", "color": "green"})
 
 
-    def shutdown(self):
-        """Encerra a conexão com o MT5."""
-        log.info("Encerrando conexão do LiveTrader com o MetaTrader 5...")
-        mt5.shutdown()
+    def stop(self):
+        """Sinaliza para as threads pararem."""
+        if self._stop_event.is_set(): return # Já está parando
+        logger.info("Comando PARAR recebido. Sinalizando threads...")
+        self._stop_event.set()
 
-    def __del__(self):
-        """Garante o shutdown ao destruir o objeto."""
-        self.shutdown()
+        threads = [self._init_thread, self._run_thread]
+        for t in threads:
+             if t and t.is_alive():
+                  logger.info(f"Aguardando thread {t.name} finalizar...")
+                  t.join(timeout=10)
+                  if t.is_alive(): logger.warning(f"Thread {t.name} não finalizou.")
+                  else: logger.info(f"Thread {t.name} finalizada.")
+
+        self._shutdown_mt5() # Garante desconexão
+        logger.info("LiveTrader parado.")
+        if self.callback: self.callback({"type": "status", "asset": "GLOBAL", "message": "Parado", "color": "grey"})
+        # REMOVIDO controle de botão daqui
 
 
+    def _shutdown_mt5(self):
+        """Desconecta do MT5 (thread-safe)."""
+        with self._lock:
+             provider = self.mt5_provider
+             if provider:
+                  logger.info("Encerrando conexão MT5...")
+                  try:
+                      if hasattr(provider, 'close_connection'): provider.close_connection()
+                      else: mt5.shutdown() # Fallback
+                      logger.info("Desligamento MT5 concluído.")
+                  except Exception as e: logger.warning(f"Erro ao desconectar MT5: {e}")
+                  finally: self.mt5_provider = None # Limpa referência
+
+# --- Bloco Standalone ---
 if __name__ == "__main__":
-    trader = LiveTrader()
-    trader.run()
+    def simple_console_callback(data):
+        ts = datetime.now().strftime('%H:%M:%S')
+        if data["type"] == "update": print(f"[{ts}] {data['asset']}: P={data['price']}, IA={data['ai_signal']}, SOK={data['setup_valid']}, Fin={data['final_signal']}, Pos={data.get('position','---')}")
+        elif data["type"] == "position": print(f"[{ts}] {data['asset']}: POS -> {data.get('status','?')} @{data.get('price','?')} (ID:{data.get('trade_id','?')})")
+        elif data["type"] == "status": print(f"[{ts}] STATUS ({data.get('asset','?')}) : {data.get('message','?')}")
+        else: print(f"[{ts}] Callback: {data}")
+
+    print("Iniciando Live Trader Standalone...")
+    trader = LiveTrader(config_path='configs/main.yaml', callback=simple_console_callback)
+    try:
+        # Espera a inicialização terminar
+        if trader._init_thread and trader._init_thread.is_alive():
+            print("Aguardando inicialização...")
+            trader._init_thread.join()
+            print("Inicialização concluída.")
+
+        # Inicia o monitoramento se init OK
+        if trader.is_trader_initialized:
+             with trader._lock: active = [k for k,v in trader.asset_resources.items() if v and 'error' not in v]
+             if active:
+                  trader.start()
+                  while trader._run_thread and trader._run_thread.is_alive(): time.sleep(1) # Mantém vivo
+             else: logger.warning("Nenhum ativo carregado.")
+        else: logger.critical("Falha na inicialização.")
+
+    except KeyboardInterrupt: print("\nCtrl+C. Parando...")
+    except Exception as main_e: logger.critical(f"Erro não tratado: {main_e}", exc_info=True)
+    finally:
+        if 'trader' in locals() and trader: trader.stop()
+        print("Live Trader Standalone finalizado.")

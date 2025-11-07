@@ -1,122 +1,205 @@
-from sklearn import logger
+# train_model.py
 import yaml
 import logging
 from pathlib import Path
 import importlib
+import pandas as pd
+import numpy as np
+import MetaTrader5 as mt5
+from sklearn.model_selection import train_test_split
 
-from src.data_handler.provider import YFinanceProvider, MetaTraderProvider
-from src.strategies.lstm import KerasLSTMWrapper
+# Importa o MÓDULO provider
+from src.data_handler import provider as data_provider_module
+# Importa a classe base da estratégia para type hinting
+from src.strategies.base import BaseStrategy
 
+# Configuração básica do logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s') # CORRIGIDO AQUI
+logger = logging.getLogger(__name__)
 
-def train_all_models():
+# --- Função auxiliar para conversão de timeframe ---
+def _get_mt5_timeframe_from_string(tf_str: str):
+    """Converte string de timeframe para constante MT5."""
+    tf_map = {
+        "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
+        "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+        "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1, "MN1": mt5.TIMEFRAME_MN1
+    }
+    tf_constant = tf_map.get(tf_str.upper(), None)
+    if tf_constant is None:
+         logging.warning(f"Timeframe '{tf_str}' não mapeado ou inválido. Verifique o config.yaml.")
+    return tf_constant
+
+# --- Função principal de treino ---
+
+def train_all_models(config_path: str = 'configs/main.yaml'):
     """
-    Itera sobre todos os ativos habilitados no main.yaml,
-    treina um modelo para cada um e o salva em um arquivo específico.
+    Carrega configs, busca dados, treina e salva modelos
+    para ativos configurados.
     """
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+    except FileNotFoundError:
+        logger.error(f"Config não encontrado: {config_path}")
+        return
+    except yaml.YAMLError as e:
+        logger.error(f"Erro ao ler YAML: {e}")
+        return
 
-    with open("configs/main.yaml", "r") as file:
-        config = yaml.safe_load(file)
+    global_settings = config.get('global_settings', {})
+    models_dir = Path(global_settings.get('models_directory', 'models'))
+    models_dir.mkdir(parents=True, exist_ok=True)
 
-    models_dir = Path(config["global_settings"]["model_directory"])
-    models_dir.mkdir(exist_ok=True)
+    for asset_config in config.get('assets', []):
+        asset_symbol = asset_config.get('ticker') # Usa o ticker como ID principal
+        if not asset_symbol:
+             logger.warning("Config de ativo sem 'ticker'. Pulando.")
+             continue
 
-    # Itera sobre cada ativo configurado
-    for asset_config in config["assets"]:
-        if not asset_config.get("enabled", False):
+        if not asset_config.get('enabled', True):
+            logger.info(f"--- Ativo {asset_symbol} desabilitado. Pulando. ---")
             continue
 
-        ticker = asset_config["ticker"]
-        logging.info(f"--- Iniciando treino para o ativo: {ticker} ---")
-
-        # 1. Seleciona o provedor de dados
-        provider_name = asset_config.get("provider", "YFinance")
-        if provider_name == "MetaTrader5":
-            data_provider = MetaTraderProvider()
-        else:
-            data_provider = YFinanceProvider()
-
-
-        # 2. Busca dados de treino
-        # train_cfg = asset_config["data"]
-        # market_data_is = data_provider.get_data(
-        #     ticker=ticker,
-        #     start_date=train_cfg["start_date"],
-        #     end_date=train_cfg["end_date"],
-        #     timeframe_str=train_cfg.get("timeframe_model", "H1")
-        # )
+        # --- Itera pelas estratégias do ativo ---
+        strategies_list = asset_config.get('strategies', [])
         
-        # 2. Busca dados de treino
-        train_cfg = asset_config["data"]
-
-        logging.info(f"Buscando dados para {ticker} de {train_cfg['start_date']} a {train_cfg['end_date']} @ {train_cfg['timeframe_model']}...")
-
-        # 2.1. Obter a string do timeframe do config
-        tf_string = train_cfg["timeframe_model"]
-
-        # 2.2. Converter a string (ex: "H1") para o objeto MT5 (ex: mt5.TIMEFRAME_H1)
-        mt5_timeframe = data_provider._get_mt5_timeframe_from_string(tf_string)
+        if not strategies_list:
+            logger.warning(f"Nenhuma estratégia configurada para {asset_symbol}. Pulando.")
+            continue
         
-        if mt5_timeframe is None:
-            logging.error(f"Timeframe inválido '{tf_string}' no config.yaml para {ticker}. Pulando.")
-            continue # Pula para o próximo ativo
+        for strategy_config in strategies_list:
+            strategy_name = strategy_config.get('name')
+            
+            # Pula estratégias DRL (usam train_drl_model.py)
+            if strategy_name == 'DRLStrategy':
+                logger.info(f"--- Pulando {asset_symbol}/DRLStrategy (use train_drl_model.py) ---")
+                continue
+            
+            logger.info(f"--- Iniciando treino para: {asset_symbol}/{strategy_name} ---")
 
-        # 2.3. Chamar a função do provedor de dados
-        market_data_is = data_provider.get_data(
-            ticker=ticker,
-            start_date=train_cfg["start_date"],
-            end_date=train_cfg["end_date"],
-            timeframe=mt5_timeframe  # Usando o objeto timeframe convertido
-        )
+            # --- Carregamento da Estratégia ---
+            strategy_module_name = strategy_config.get('module')
+            strategy_class_name = strategy_config.get('name')
+            if not strategy_module_name or not strategy_class_name:
+                logger.error(f"module/name não definido para {asset_symbol}/{strategy_name}. Pulando.")
+                continue
 
-        if market_data_is.empty:
-            logging.error(f"Não foi possível obter dados para {ticker}. Pulando treino.")
-            continue
+            try:
+                strategy_module = importlib.import_module(f"src.strategies.{strategy_module_name}")
+                StrategyClass = getattr(strategy_module, strategy_class_name)
+                # Passa parâmetros da estratégia do YAML, se existirem
+                strategy_params = strategy_config.get('strategy_params', {})
+                strategy_instance: BaseStrategy = StrategyClass(**strategy_params)
+            except (ImportError, AttributeError, TypeError) as e:
+                logger.error(f"Erro ao carregar estratégia {strategy_class_name}: {e}")
+                continue
 
-        # 3. Carrega a estratégia e prepara os dados
-        try:
-            module_path = f"src.strategies.{asset_config['strategy_module']}"
-            strategy_module = importlib.import_module(module_path)
-            StrategyClass = getattr(strategy_module, asset_config["strategy_name"])
-            strategy = StrategyClass()
-        except (ImportError, AttributeError) as e:
-            logging.error(
-                f"Não foi possível carregar a estratégia para {ticker}. Erro: {e}"
-            )
-            continue
+            # --- Obtenção de Dados ---
+            data_provider_name = strategy_config.get('provider', 'MetaTrader5')
+            train_cfg = strategy_config.get('data', {})
+            # Ticker para buscar dados pode ser diferente do symbol principal
+            ticker_data = train_cfg.get('ticker_data', asset_symbol) # Usa 'ticker_data' ou fallback para symbol
 
-        featured_data = strategy.define_features(market_data_is)
-        featured_data["target"] = (
-            featured_data["close"].shift(-1) > featured_data["close"]
-        ).astype(int)
-        featured_data = featured_data.dropna()
+            # Verifica se as chaves essenciais existem
+            required_data_keys = ['start_date', 'end_date', 'timeframe_model']
+            if not all(k in train_cfg for k in required_data_keys):
+                 logger.error(f"Config 'data' incompleta (faltando {', '.join(k for k in required_data_keys if k not in train_cfg)}) para {asset_symbol}/{strategy_name}. Pulando.")
+                 continue
 
-        X_train = featured_data[strategy.get_feature_names()]
-        y_train = featured_data["target"]
+            data_provider = None
+            try:
+                data_provider = data_provider_module.get_provider_instance(data_provider_name)
 
-        if X_train.empty:
-            logging.warning(f"Não há dados de treino suficientes para {ticker} após o pré-processamento.")
-            continue
+                # Usa a chave 'timeframe_model' consistentemente
+                tf_string = train_cfg['timeframe_model']
+                logger.info(f"Buscando dados para {ticker_data} de {train_cfg['start_date']} a {train_cfg['end_date']} @ {tf_string}...")
 
-        # 4. Treina o modelo
-        logging.info(
-            f"Treinando modelo de produção para {ticker} com {len(X_train)} amostras..."
-        )
-        production_model = strategy.define_model()
-        production_model.fit(X_train, y_train)
+                mt5_timeframe_obj = _get_mt5_timeframe_from_string(tf_string)
 
-        # 5. Salva o modelo com nome específico do ativo
-        model_path = str(models_dir / f"{ticker}_prod_model.keras")
-        scaler_path = str(models_dir / f"{ticker}_prod_scaler.joblib")
-        
-        # Garante que o modelo tenha o método save_model (caso seja um KerasLSTMWrapper)
-        if hasattr(production_model, 'save_model'):
-            production_model.save_model(model_path, scaler_path)
-            logging.info(f"Modelo para {ticker} salvo com sucesso.")
-        else:
-            logging.warning(f"A estratégia para {ticker} não suporta salvar o modelo (sem método save_model).")
+                if mt5_timeframe_obj is None and data_provider_name == 'MetaTrader5':
+                    logger.error(f"Timeframe '{tf_string}' inválido para MT5 no ativo {asset_symbol}/{strategy_name}. Pulando.")
+                    continue
+
+                market_data = data_provider.get_data(
+                    ticker=ticker_data,
+                    start_date=train_cfg["start_date"],
+                    end_date=train_cfg["end_date"],
+                    timeframe=mt5_timeframe_obj if data_provider_name == 'MetaTrader5' else tf_string
+                )
+
+                if market_data.empty:
+                    logger.warning(f"Nenhum dado retornado para {ticker_data}. Pulando.")
+                    continue
+                logger.info(f"Dados obtidos para {ticker_data}: {len(market_data)} registros.")
+
+            except KeyError as e_key: # Captura KeyError específico
+                logger.error(f"Erro ao acessar config de dados para {asset_symbol}/{strategy_name}: Chave '{e_key}' não encontrada.", exc_info=False)
+                continue # Pula para a próxima estratégia
+            except Exception as e:
+                logger.error(f"Erro ao obter dados para {ticker_data} via {data_provider_name}: {e}", exc_info=True)
+                continue
+            finally:
+                if data_provider and hasattr(data_provider, 'close_connection'):
+                     try: data_provider.close_connection()
+                     except Exception as e_close: logger.warning(f"Erro ao fechar conexão {data_provider_name}: {e_close}")
+
+            # --- Preparação dos Dados ---
+            try:
+                logger.info(f"Definindo features para {asset_symbol}/{strategy_name}...")
+                data_with_features = strategy_instance.define_features(market_data)
+
+                logger.info(f"Definindo target para {asset_symbol}/{strategy_name}...")
+                target = strategy_instance.define_target(data_with_features)
+
+                feature_names = strategy_instance.get_feature_names()
+                missing_features = [f for f in feature_names if f not in data_with_features.columns]
+                if missing_features:
+                     logger.error(f"Features ausentes para {asset_symbol}/{strategy_name}: {missing_features}. Verifique {strategy_class_name}.")
+                     continue
+
+                features = data_with_features[feature_names]
+                combined = pd.concat([features, target.rename('target')], axis=1)
+                combined.dropna(inplace=True)
+
+                if combined.empty:
+                    logger.warning(f"Sem dados restantes após NaNs para {ticker_data}. Pulando.")
+                    continue
+
+                X = combined[feature_names]
+                y = combined['target']
+                logger.info(f"Dados preparados para {asset_symbol}/{strategy_name}: {len(X)} amostras.")
+
+            except Exception as e:
+                logger.error(f"Erro ao preparar dados para {ticker_data}/{strategy_name}: {e}", exc_info=True)
+                continue
+
+            # --- Definição e Treino ---
+            try:
+                logger.info(f"Definindo modelo via {strategy_class_name}...")
+                production_model = strategy_instance.define_model()
+
+                logger.info(f"Iniciando treino do modelo para {asset_symbol}/{strategy_name}...")
+                production_model.fit(X, y)
+                logger.info(f"Treino para {asset_symbol}/{strategy_name} concluído.")
+
+            except Exception as e:
+                logger.error(f"Erro definição/treino para {asset_symbol}/{strategy_name}: {e}", exc_info=True)
+                continue
+
+            # --- Salvamento ---
+            try:
+                # NOVO FORMATO: ticker_StrategyName_prod
+                model_save_prefix = str(models_dir / f"{asset_symbol}_{strategy_class_name}_prod")
+                logger.info(f"Salvando modelo para {asset_symbol}/{strategy_name} -> {model_save_prefix}...")
+                strategy_instance.save(production_model, model_save_prefix)
+                logger.info(f"Modelo para {asset_symbol}/{strategy_name} salvo com sucesso.")
+
+            except Exception as e:
+                logger.error(f"Erro ao salvar modelo para {asset_symbol}/{strategy_name}: {e}", exc_info=True)
+                continue
+
+    logger.info("--- Treinamento de todos os modelos concluído. ---")
 
 
 if __name__ == "__main__":

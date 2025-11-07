@@ -25,6 +25,20 @@ logger.info(f"Diretório de cache de dados inicializado em: {CACHE_DIR.resolve()
 # Define o timezone desejado (ex: Brazil/East para B3)
 desired_timezone = pytz.timezone('America/Sao_Paulo')
 
+
+def _get_mt5_timeframe(tf_str: str):
+    """Converte string de timeframe para constante MT5."""
+    tf_map = {
+        "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
+        "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+        "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1, "MN1": mt5.TIMEFRAME_MN1
+    }
+    tf_constant = tf_map.get(tf_str.upper(), None)
+    if tf_constant is None:
+         logger.warning(f"Timeframe '{tf_str}' não mapeado no MT5.")
+    return tf_constant
+
+
 class BaseDataProvider(ABC):
     """Classe base abstrata para provedores de dados."""
 
@@ -75,19 +89,6 @@ class MetaTraderProvider(BaseDataProvider):
         """Verifica se a conexão com o MT5 está ativa."""
         return self.connection_active and mt5.terminal_info() is not None
 
-
-    def _get_mt5_timeframe(self, tf_str: str):
-        """Converte string de timeframe para constante MT5."""
-        tf_map = {
-            "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
-            "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
-            "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1, "MN1": mt5.TIMEFRAME_MN1
-        }
-        tf_constant = tf_map.get(tf_str.upper(), None)
-        if tf_constant is None:
-            logger.warning(f"Timeframe '{tf_str}' não mapeado no MT5.")
-        return tf_constant
-
     def get_data(self, ticker: str, start_date: str, end_date: str, timeframe: int) -> pd.DataFrame:
         """Busca dados históricos do MT5 com cache e tratamento de timezone."""
         if not self.is_connected():
@@ -101,8 +102,8 @@ class MetaTraderProvider(BaseDataProvider):
              end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d'))
         except ValueError:
              try:
-                 start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S').replace(hour=0, minute=0, second=0))
-                 end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S').replace(hour=23, minute=59, second=59))
+                 start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S'))
+                 end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S'))
              except ValueError:
                   logger.error(f"Formato de data inválido: {start_date} ou {end_date}.")
                   return pd.DataFrame()
@@ -141,31 +142,28 @@ class MetaTraderProvider(BaseDataProvider):
             return pd.DataFrame()
 
         data = pd.DataFrame(rates)
-        # Remove linhas onde todos os valores OHLC são zero ou nulos (dados inválidos)
-        data = data[(data[['open', 'high', 'low', 'close']] != 0).any(axis=1)]
-        data = data.dropna(subset=['open', 'high', 'low', 'close'], how='all')
-
-        if data.empty:
-            logger.warning(f"MT5: Dados históricos para '{ticker}' ({timeframe_str}) estavam vazios ou inválidos após limpeza.")
-            return pd.DataFrame()
-
         data['time'] = pd.to_datetime(data['time'], unit='s', utc=True)
         data.set_index('time', inplace=True)
-        data.rename(columns={'open': 'open', 'high': 'high', 'low': 'low',
-                                'close': 'close', 'tick_volume': 'volume'}, inplace=True)
-        # Garante colunas essenciais
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
-        for col in required_cols:
-                if col not in data.columns:
-                    data[col] = 0 # Preenche volume faltante com 0
+        data.rename(columns={'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close', 'tick_volume': 'volume'}, inplace=True)
+        # Garante que 'real_volume' não esteja presente ou o renomeia se necessário
+        if 'real_volume' in data.columns and 'volume' not in data.columns:
+            data.rename(columns={'real_volume': 'volume'}, inplace=True)
+        elif 'real_volume' in data.columns and 'volume' in data.columns:
+             data = data.drop(columns=['real_volume']) # Remove real_volume se tick_volume já foi renomeado
 
-        data = data[required_cols] # Seleciona e ordena
+        # Mantém apenas colunas essenciais
+        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        data = data[[col for col in required_cols if col in data.columns]]
+        # Adiciona coluna 'volume' se não existir (ex: índices)
+        if 'volume' not in data.columns: data['volume'] = 0
+
         try:
              logger.info(f"Salvando dados de {ticker} ({len(data)} registros) em cache: {cache_filepath}")
              data.to_parquet(cache_filepath, index=True, compression='snappy')
         except Exception as e:
             logger.error(f"Erro ao salvar dados no cache {cache_filepath}: {e}")
 
+        data = data.tz_convert(desired_timezone)
         logger.info(f"Dados buscados do MT5 e convertidos para {desired_timezone}.")
         return data
 
