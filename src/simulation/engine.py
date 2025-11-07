@@ -61,6 +61,9 @@ class SimulationEngine:
         logger.info(f"Models dir resolvido para: {self.models_dir}")
         self.setup_analyzer = SetupAnalyzer()
 
+        # Rastreamento de posições para estratégias DRL (stateful)
+        self.asset_positions = {}  # {asset_symbol: posição_atual} onde 0=Venda, 1=Hold, 2=Compra
+
         # Timezone padrão: UTC (removido suporte a timezone local)
         self.local_tz = pytz.utc
         self.local_tz_str = 'UTC'
@@ -91,86 +94,130 @@ class SimulationEngine:
                  raise
         return self.data_providers[provider_name]
 
-    def _load_asset_resources(self, asset_symbol: str):
+    def _load_asset_resources(self, asset_symbol: str, strategy_name: str = None):
         """
-        Carrega os recursos (modelo, estratégia, config) para um ativo.
-        Acessa a configuração 'assets' como uma LISTA.
+        Carrega os recursos (modelo, estratégia, config) para um ativo e estratégia específica.
+        
+        Args:
+            asset_symbol: Ticker do ativo (ex: 'WDO$')
+            strategy_name: Nome da estratégia (ex: 'LSTMStrategy', 'DRLStrategy').
+                          Se None, usa a primeira estratégia da lista.
+        
+        Returns:
+            Dict com recursos carregados ou None em caso de erro
         """
+        # Cria chave de cache combinando ticker e estratégia
+        cache_key = (asset_symbol, strategy_name) if strategy_name else asset_symbol
+        
         # Verifica cache primeiro
-        if asset_symbol in self.asset_resources:
+        if cache_key in self.asset_resources:
              # Retorna mesmo se for erro cacheado, para evitar recarregar
-             return self.asset_resources[asset_symbol]
+             return self.asset_resources[cache_key]
 
-        # --- CORREÇÃO AQUI: Itera na lista para encontrar o config ---
+        # Busca configuração do ativo
         asset_config = None
         assets_list = self.config.get('assets', [])
         for cfg in assets_list:
-             # Compara ticker principal do ativo
              if cfg.get('ticker') == asset_symbol:
                   asset_config = cfg
-                  break # Encontrou
-        # --- FIM DA CORREÇÃO ---
+                  break
 
         if not asset_config:
             error_msg = f"Configuração não encontrada para '{asset_symbol}' na lista 'assets'."
             logger.error(error_msg)
-            self.asset_resources[asset_symbol] = {'error': error_msg} # Cacheia o erro
-            return None # Retorna None para indicar falha
+            self.asset_resources[cache_key] = {'error': error_msg}
+            return None
 
-        # Verifica se o ativo está habilitado no config (geral, não só live)
+        # Verifica se o ativo está habilitado
         if not asset_config.get('enabled', True):
              error_msg = f"Ativo '{asset_symbol}' está desabilitado no config.yaml."
              logger.warning(error_msg)
-             # Não é um erro crítico, mas não deve ser usado
-             self.asset_resources[asset_symbol] = {'error': error_msg, 'disabled': True}
-             return None # Indica que não deve ser usado
+             self.asset_resources[cache_key] = {'error': error_msg, 'disabled': True}
+             return None
 
-        # Procede com o carregamento...
-        strategy_module_name = asset_config.get('strategy_module')
-        strategy_class_name = asset_config.get('strategy_name')
+        # Busca lista de estratégias
+        strategies_list = asset_config.get('strategies', [])
+        
+        if not strategies_list:
+            error_msg = f"Nenhuma estratégia configurada para '{asset_symbol}'."
+            logger.error(error_msg)
+            self.asset_resources[cache_key] = {'error': error_msg}
+            return None
+
+        # Seleciona estratégia específica ou primeira da lista
+        strategy_config = None
+        if strategy_name:
+            # Busca estratégia pelo nome
+            for strat in strategies_list:
+                if strat.get('name') == strategy_name:
+                    strategy_config = strat
+                    break
+            if not strategy_config:
+                error_msg = f"Estratégia '{strategy_name}' não encontrada para '{asset_symbol}'. Disponíveis: {[s.get('name') for s in strategies_list]}"
+                logger.error(error_msg)
+                self.asset_resources[cache_key] = {'error': error_msg}
+                return None
+        else:
+            # Usa primeira estratégia
+            strategy_config = strategies_list[0]
+            strategy_name = strategy_config.get('name')
+            logger.info(f"Nenhuma estratégia especificada. Usando primeira: {strategy_name}")
+
+        # Extrai informações da estratégia
+        strategy_module_name = strategy_config.get('module')
+        strategy_class_name = strategy_config.get('name')
 
         if not strategy_module_name or not strategy_class_name:
-            error_msg = f"Configuração de estratégia incompleta para {asset_symbol}."
+            error_msg = f"Configuração de estratégia incompleta para {asset_symbol}/{strategy_name}."
             logger.error(error_msg)
-            self.asset_resources[asset_symbol] = {'error': error_msg}
+            self.asset_resources[cache_key] = {'error': error_msg}
             return None
 
         try:
+            # Importa e instancia a estratégia
             strategy_module = importlib.import_module(f"src.strategies.{strategy_module_name}")
             StrategyClass = getattr(strategy_module, strategy_class_name)
-            strategy_instance: BaseStrategy = StrategyClass(**asset_config.get('strategy_params', {}))
+            strategy_instance: BaseStrategy = StrategyClass(**strategy_config.get('strategy_params', {}))
 
-            model_path_prefix = str(self.models_dir / f"{asset_symbol}_prod")
-            logger.info(f"Carregando modelo {asset_symbol} via {strategy_class_name}.load() (prefixo: {model_path_prefix})")
+            # Define prefixo do modelo: ticker_strategy_prod
+            # Ex: WDO$_LSTMStrategy_prod ou WDO$_DRLStrategy_prod
+            model_path_prefix = str(self.models_dir / f"{asset_symbol}_{strategy_class_name}_prod")
+            logger.info(f"Carregando modelo {asset_symbol}/{strategy_class_name} (prefixo: {model_path_prefix})")
 
             model = StrategyClass.load(model_path_prefix)
-            logger.info(f"Modelo {asset_symbol} carregado.")
+            logger.info(f"Modelo {asset_symbol}/{strategy_class_name} carregado.")
 
-            resources = { # Guarda tudo que pode ser útil depois
-                'strategy_instance': strategy_instance, 'strategy_class': StrategyClass,
-                'model': model, 'config': asset_config,
+            # Monta dict de recursos
+            resources = {
+                'strategy_instance': strategy_instance,
+                'strategy_class': StrategyClass,
+                'strategy_name': strategy_class_name,
+                'model': model,
+                'asset_config': asset_config,  # Config completo do ativo
+                'strategy_config': strategy_config,  # Config específico da estratégia
                 'live_config': asset_config.get('live_trading', {}),
                 'trading_rules': asset_config.get('trading_rules', {}),
                 'price_precision': asset_config.get('price_precision', 2)
             }
-            self.asset_resources[asset_symbol] = resources # Cacheia sucesso
-            logger.info(f"Recursos para {asset_symbol} carregados com sucesso.")
+            
+            self.asset_resources[cache_key] = resources
+            logger.info(f"Recursos para {asset_symbol}/{strategy_class_name} carregados com sucesso.")
             return resources
 
         except FileNotFoundError:
-             error_msg = f"Modelo/Scaler não encontrado para {asset_symbol} (prefixo: {model_path_prefix}). Treino executado?"
+             error_msg = f"Modelo/Scaler não encontrado para {asset_symbol}/{strategy_name} (prefixo: {model_path_prefix}). Treino executado?"
              logger.error(error_msg)
-             self.asset_resources[asset_symbol] = {'error': error_msg}
+             self.asset_resources[cache_key] = {'error': error_msg}
              return None
         except (ImportError, AttributeError, TypeError) as e:
-             error_msg = f"Erro ao importar/instanciar estratégia/modelo para {asset_symbol}: {e}"
+             error_msg = f"Erro ao importar/instanciar estratégia/modelo para {asset_symbol}/{strategy_name}: {e}"
              logger.error(error_msg, exc_info=True)
-             self.asset_resources[asset_symbol] = {'error': error_msg}
+             self.asset_resources[cache_key] = {'error': error_msg}
              return None
-        except Exception as e: # Captura outras exceções de StrategyClass.load()
-            error_msg = f"Erro CRÍTICO ao carregar recursos {asset_symbol}: {e}"
-            logger.exception(error_msg) # Log com traceback
-            self.asset_resources[asset_symbol] = {'error': error_msg}
+        except Exception as e:
+            error_msg = f"Erro CRÍTICO ao carregar recursos {asset_symbol}/{strategy_name}: {e}"
+            logger.exception(error_msg)
+            self.asset_resources[cache_key] = {'error': error_msg}
             return None
 
 
@@ -226,9 +273,20 @@ class SimulationEngine:
             logger.error(f"Erro ao buscar/processar dados para {ticker}: {e}", exc_info=False)
             return pd.DataFrame()
 
-    def run_simulation_cycle(self, asset_symbol: str, timeframe_str: str, target_datetime_local: datetime) -> dict:
+    def run_simulation_cycle(self, asset_symbol: str, timeframe_str: str, target_datetime_local: datetime, strategy_name: str = None) -> dict:
         """
         Executa um ciclo de simulação para um ativo em um datetime em UTC.
+        
+        Args:
+            asset_symbol: Ticker do ativo (ex: 'WDO$')
+            timeframe_str: String do timeframe (ex: 'D1', 'M5')
+            target_datetime_local: Datetime para simulação (naive=UTC ou aware)
+            strategy_name: Nome da estratégia (ex: 'LSTMStrategy', 'DRLStrategy').
+                          Se None, usa a primeira estratégia configurada.
+        
+        Returns:
+            Dict com resultados da simulação ou {'error': msg} em caso de erro
+        
         Observação: para compatibilidade, o parâmetro aceita datetime naive ou aware.
         - Se for naive, será interpretado como UTC.
         - Se for aware, será convertido para UTC.
@@ -242,20 +300,22 @@ class SimulationEngine:
         else:
             raise TypeError("target_datetime_local deve ser um datetime")
 
-        logger.info(f"Iniciando ciclo simulação: {asset_symbol} @ {timeframe_str} em {target_datetime_utc.strftime('%Y-%m-%d %H:%M %Z')}")
+        strategy_label = f"/{strategy_name}" if strategy_name else ""
+        logger.info(f"Iniciando ciclo simulação: {asset_symbol}{strategy_label} @ {timeframe_str} em {target_datetime_utc.strftime('%Y-%m-%d %H:%M %Z')}")
 
         # 1. Carregar Recursos
-        resources = self._load_asset_resources(asset_symbol)
+        resources = self._load_asset_resources(asset_symbol, strategy_name)
         # Verifica se houve erro ou se está desabilitado
         if not resources or 'error' in resources:
-            error_msg = resources.get('error', f'Falha ao carregar {asset_symbol}') if resources else f'Falha ao carregar {asset_symbol}'
-            logger.error(f"Simulação cancelada para {asset_symbol}: {error_msg}")
+            error_msg = resources.get('error', f'Falha ao carregar {asset_symbol}{strategy_label}') if resources else f'Falha ao carregar {asset_symbol}{strategy_label}'
+            logger.error(f"Simulação cancelada para {asset_symbol}{strategy_label}: {error_msg}")
             return {"error": error_msg}
 
         # Desempacota recursos
         model = resources['model'] 
         strategy_instance: BaseStrategy = resources['strategy_instance']
-        asset_config = resources['config'] 
+        asset_config = resources['asset_config']  # Config completo do ativo
+        strategy_config = resources['strategy_config']  # Config da estratégia
         price_precision = resources.get('price_precision', 2)
         trading_rules = resources.get('trading_rules', {})
 
@@ -279,8 +339,9 @@ class SimulationEngine:
              start_dt_utc = target_datetime_utc - time_delta * 1.5 # Busca ~50% a mais
              end_dt_utc = target_datetime_utc # Busca até o alvo
 
-             data_ticker = asset_config['data'].get('ticker', asset_symbol)
-             provider_name = asset_config.get('provider', 'MetaTrader5')
+             # Extrai ticker e provider da config da estratégia
+             data_ticker = strategy_config.get('data', {}).get('ticker', asset_symbol)
+             provider_name = strategy_config.get('provider', 'MetaTrader5')
 
              # Busca dados (retorna df com índice UTC)
              market_data = self._get_market_data(data_ticker, start_dt_utc, end_dt_utc, timeframe_str, provider_name)
@@ -341,12 +402,59 @@ class SimulationEngine:
 
         # 4. Obter Sinal da IA
         try:
-            raw_prediction = model.predict(X_predict)
-            # A predição relevante é a última (índice -1)
-            ai_signal_code = int(raw_prediction[-1]) if isinstance(raw_prediction, np.ndarray) and len(raw_prediction) > 0 else int(raw_prediction) if isinstance(raw_prediction, (int, np.integer)) else 0
-            # Mapeamento: 1=COMPRA, outro=VENDA (ajuste se necessário)
-            ai_signal = "COMPRA" if ai_signal_code == 1 else "VENDA"
-            logger.info(f"Sinal IA {asset_symbol}: {ai_signal} ({ai_signal_code})")
+            # --- Inicializa posição para DRL se necessário ---
+            if asset_symbol not in self.asset_positions:
+                self.asset_positions[asset_symbol] = 1  # Inicia em HOLD (1)
+            
+            current_position = self.asset_positions[asset_symbol]
+            
+            # --- Verifica se é DRLStrategy (requer lógica especial) ---
+            strategy_class_name = strategy_instance.__class__.__name__
+            
+            if strategy_class_name == 'DRLStrategy':
+                # DRL: Constrói estado completo (market_features + position_feature)
+                logger.debug(f"DRL inference para {asset_symbol} @ posição={current_position}")
+                
+                # Market features: última linha de X_predict
+                market_features = X_predict.iloc[-1].values  # Shape: (num_market_features,)
+                
+                # Position feature: one-hot encoding [venda, hold, compra]
+                position_feature = np.zeros(3, dtype=np.float32)
+                position_feature[current_position] = 1.0
+                
+                # Estado completo
+                state_vector = np.concatenate([market_features, position_feature]).reshape(1, -1)
+                
+                # Predição: Q-values para cada ação
+                q_values = model.predict(state_vector)[0]  # Shape: (3,)
+                
+                # Escolhe ação com maior Q-value
+                action = int(np.argmax(q_values))  # 0, 1, ou 2
+                
+                # Atualiza posição rastreada
+                self.asset_positions[asset_symbol] = action
+                
+                # Mapeia ação para sinal
+                action_to_signal = {0: "VENDA", 1: "HOLD", 2: "COMPRA"}
+                ai_signal = action_to_signal[action]
+                ai_signal_code = action
+                
+                logger.info(f"DRL {asset_symbol}: Q={q_values}, Ação={action} ({ai_signal})")
+            
+            else:
+                # Estratégias tradicionais (LSTM, RF, etc.)
+                raw_prediction = model.predict(X_predict)
+                # A predição relevante é a última (índice -1)
+                ai_signal_code = int(raw_prediction[-1]) if isinstance(raw_prediction, np.ndarray) and len(raw_prediction) > 0 else int(raw_prediction) if isinstance(raw_prediction, (int, np.integer)) else 0
+                # Mapeamento: 1=COMPRA, outro=VENDA (ajuste se necessário)
+                ai_signal = "COMPRA" if ai_signal_code == 1 else "VENDA"
+                
+                # Atualiza posição rastreada para estratégias tradicionais também
+                # (para consistência, embora não seja stateful)
+                self.asset_positions[asset_symbol] = 2 if ai_signal == "COMPRA" else 0
+                
+                logger.info(f"Sinal IA {asset_symbol}: {ai_signal} ({ai_signal_code})")
+                
         except Exception as e:
             logger.exception(f"Erro predição modelo {asset_symbol}: {e}")
             ai_signal = "ERRO_IA"; ai_signal_code = -1

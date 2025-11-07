@@ -18,22 +18,24 @@ class BaseStrategy(ABC):
         """
         pass
 
-    @abstractmethod
     def define_target(self, data: pd.DataFrame) -> pd.Series:
         """
         Define a coluna target (o que o modelo deve prever).
         Deve retornar uma Series do Pandas.
         Exemplo: prever se o próximo fechamento será maior que o atual.
+        
+        Note: Estratégias de RL podem não precisar implementar este método.
         """
-        pass
+        raise NotImplementedError(f"Estratégia {self.__class__.__name__} não implementou 'define_target'.")
 
-    @abstractmethod
     def define_model(self) -> BaseEstimator:
         """
         Retorna uma instância não treinada do modelo de machine learning
         (compatível com a API Scikit-Learn: fit, predict).
+        
+        Note: Estratégias de RL podem não precisar implementar este método.
         """
-        pass
+        raise NotImplementedError(f"Estratégia {self.__class__.__name__} não implementou 'define_model'.")
     
     @abstractmethod
     def get_feature_names(self) -> list[str]:

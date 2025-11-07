@@ -97,45 +97,74 @@ class LiveTrader:
              return False
 
     def _load_asset_resources(self, asset_symbol: str, asset_config: dict):
-        """Carrega recursos para um ativo (chamado pela thread de init)."""
+        """
+        Carrega recursos para um ativo (chamado pela thread de init).
+        Usa a PRIMEIRA estratégia da lista strategies[] para live trading.
+        """
         # Verifica cache (leitura inicial sem lock é aceitável, escrita requer lock)
         with self._lock:
              if asset_symbol in self.asset_resources and 'error' not in self.asset_resources[asset_symbol]:
                   return self.asset_resources[asset_symbol]
 
-        if not asset_config or not asset_config.get('live_trading', {}).get('enabled', False): return None
+        if not asset_config or not asset_config.get('live_trading', {}).get('enabled', False): 
+            return None
 
-        strategy_module_name = asset_config.get('strategy_module')
-        strategy_class_name = asset_config.get('strategy_name')
-        if not strategy_module_name or not strategy_class_name:
-            error_msg = f"Config estratégia incompleta {asset_symbol}."
+        # Busca lista de estratégias
+        strategies_list = asset_config.get('strategies', [])
+        
+        if not strategies_list:
+            error_msg = f"Nenhuma estratégia configurada para {asset_symbol}."
             logger.error(error_msg)
-            with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}; return None
+            with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}
+            return None
+        
+        # Usa a PRIMEIRA estratégia para live trading
+        strategy_config = strategies_list[0]
+        strategy_module_name = strategy_config.get('module')
+        strategy_class_name = strategy_config.get('name')
+        
+        logger.info(f"Live trading {asset_symbol}: Usando estratégia '{strategy_class_name}'")
+        
+        if not strategy_module_name or not strategy_class_name:
+            error_msg = f"Config estratégia incompleta {asset_symbol}/{strategy_class_name}."
+            logger.error(error_msg)
+            with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}
+            return None
 
         try:
             strategy_module = importlib.import_module(f"src.strategies.{strategy_module_name}")
             StrategyClass = getattr(strategy_module, strategy_class_name)
-            strategy_instance: BaseStrategy = StrategyClass(**asset_config.get('strategy_params', {}))
-            model_path_prefix = str(self.models_dir / f"{asset_symbol}_prod")
-            logger.info(f"Carregando modelo {asset_symbol}...")
+            strategy_instance: BaseStrategy = StrategyClass(**strategy_config.get('strategy_params', {}))
+            
+            # NOVO FORMATO: ticker_StrategyName_prod
+            model_path_prefix = str(self.models_dir / f"{asset_symbol}_{strategy_class_name}_prod")
+            logger.info(f"Carregando modelo {asset_symbol}/{strategy_class_name}...")
             model = StrategyClass.load(model_path_prefix)
-            logger.info(f"Modelo {asset_symbol} OK.")
+            logger.info(f"Modelo {asset_symbol}/{strategy_class_name} OK.")
 
-            resources = { 'strategy_instance': strategy_instance, 'strategy_class': StrategyClass,
-                          'model': model, 'config': asset_config,
-                          'live_config': asset_config.get('live_trading', {}),
-                          'trading_rules': asset_config.get('trading_rules', {}),
-                          'price_precision': asset_config.get('price_precision', 2) }
+            resources = {
+                'strategy_instance': strategy_instance,
+                'strategy_class': StrategyClass,
+                'strategy_name': strategy_class_name,
+                'model': model,
+                'config': asset_config,  # Config completo do ativo
+                'strategy_config': strategy_config,  # Config da estratégia
+                'live_config': asset_config.get('live_trading', {}),
+                'trading_rules': asset_config.get('trading_rules', {}),
+                'price_precision': asset_config.get('price_precision', 2)
+            }
             with self._lock: self.asset_resources[asset_symbol] = resources # Atualiza cache
             return resources
         except FileNotFoundError:
-             error_msg = f"Modelo {asset_symbol} não encontrado ({model_path_prefix}...). Treino ok?"
+             error_msg = f"Modelo {asset_symbol}/{strategy_class_name} não encontrado ({model_path_prefix}...). Treino ok?"
              logger.error(error_msg)
-             with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}; return None
+             with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}
+             return None
         except Exception as e:
-            error_msg = f"Erro CRÍTICO carga {asset_symbol}: {e}"
+            error_msg = f"Erro CRÍTICO carga {asset_symbol}/{strategy_class_name}: {e}"
             logger.exception(error_msg) # Log com traceback
-            with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}; return None
+            with self._lock: self.asset_resources[asset_symbol] = {'error': error_msg}
+            return None
 
     def _initialize_resources(self):
         """(Thread) Conecta MT5 e carrega recursos."""

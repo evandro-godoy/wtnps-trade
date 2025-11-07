@@ -25,20 +25,6 @@ logger.info(f"Diretório de cache de dados inicializado em: {CACHE_DIR.resolve()
 # Define o timezone desejado (ex: Brazil/East para B3)
 desired_timezone = pytz.timezone('America/Sao_Paulo')
 
-
-def _get_mt5_timeframe(tf_str: str):
-    """Converte string de timeframe para constante MT5."""
-    tf_map = {
-        "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
-        "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
-        "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1, "MN1": mt5.TIMEFRAME_MN1
-    }
-    tf_constant = tf_map.get(tf_str.upper(), None)
-    if tf_constant is None:
-         logger.warning(f"Timeframe '{tf_str}' não mapeado no MT5.")
-    return tf_constant
-
-
 class BaseDataProvider(ABC):
     """Classe base abstrata para provedores de dados."""
 
@@ -89,6 +75,19 @@ class MetaTraderProvider(BaseDataProvider):
         """Verifica se a conexão com o MT5 está ativa."""
         return self.connection_active and mt5.terminal_info() is not None
 
+
+    def _get_mt5_timeframe(self, tf_str: str):
+        """Converte string de timeframe para constante MT5."""
+        tf_map = {
+            "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
+            "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+            "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1, "MN1": mt5.TIMEFRAME_MN1
+        }
+        tf_constant = tf_map.get(tf_str.upper(), None)
+        if tf_constant is None:
+            logger.warning(f"Timeframe '{tf_str}' não mapeado no MT5.")
+        return tf_constant
+
     def get_data(self, ticker: str, start_date: str, end_date: str, timeframe: int) -> pd.DataFrame:
         """Busca dados históricos do MT5 com cache e tratamento de timezone."""
         if not self.is_connected():
@@ -98,8 +97,8 @@ class MetaTraderProvider(BaseDataProvider):
                   return pd.DataFrame()
 
         try:
-             start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d').replace(hour=0, minute=0, second=0))
-             end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59))
+             start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d'))
+             end_dt_utc = pytz.utc.localize(datetime.strptime(end_date, '%Y-%m-%d'))
         except ValueError:
              try:
                  start_dt_utc = pytz.utc.localize(datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S').replace(hour=0, minute=0, second=0))
