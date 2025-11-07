@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class TradingEnv:
     """
-    Ambiente de trading customizado que NÃO herda de gym.Env.
+    Ambiente de trading customizado.
     
     Ações (Action Space):
         0: VENDA (Short)
