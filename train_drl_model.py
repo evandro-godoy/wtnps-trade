@@ -227,13 +227,13 @@ def main():
         'gamma': 0.99,                     # Fator de desconto
         'epsilon_start': 1.0,              # Epsilon inicial para exploração
         'epsilon_end': 0.01,               # Epsilon final
-        'epsilon_decay_steps': 250,        # Episódios para decay linear
+        'epsilon_decay_steps': 150,        # Episódios para decay linear
         'epsilon_exponential_decay': 0.99, # Decay exponencial após linear
         'replay_capacity': int(1e6),       # Capacidade do replay buffer
-        'architecture': (256, 256),        # Camadas ocultas da rede neural
+        'architecture': (128, 128),        # Camadas ocultas da rede neural
         'l2_reg': 1e-6,                    # Regularização L2
-        'tau': 100,                        # Frequência de atualização da target network
-        'batch_size': 4096                 # Tamanho do batch para treinamento
+        'tau': 50,                         # Frequência de atualização da target network
+        'batch_size': 256                 # Tamanho do batch para treinamento
     }
     
     logger.info("Hiperparâmetros do agente:")
@@ -287,7 +287,7 @@ def main():
             logger.info("Usuário optou por não usar checkpoint. Iniciando do zero.")
     
     # 10. Solicita número de episódios e timeout    
-    num_episodes = 50
+    num_episodes = 200
     episode_timeout = 300
     
     # Máximo de steps por episódio (proteção contra loops infinitos)
@@ -358,7 +358,7 @@ def main():
     # Configuração de checkpoint automático
     logger.info(f"Checkpoint automático a cada {checkpoint_interval} episódios")
 
-    for episode in range(start_episode, start_episode + num_episodes):
+    for episode in range(start_episode, num_episodes+1):
         # Reset do ambiente
         state = env.reset()
         episode_start_time = time()
