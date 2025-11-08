@@ -1,0 +1,181 @@
+================================================================================
+TREINAMENTO DE AGENTE DEEP REINFORCEMENT LEARNING (DDQN)
+================================================================================
+
+2025-11-08 14:38:38,904 - INFO - Carregando configuração: configs/main.yaml
+Ativos disponíveis no config:
+  1. WDO$            | Estratégias: LSTMStrategy, DRLStrategy      | ✓ Habilitado
+  2. WIN$            | Estratégias: LSTMStrategy, DRLStrategy      | ✓ Habilitado
+
+
+Estratégias disponíveis para WDO$:
+  1. LSTMStrategy (Provider: MetaTrader5)
+  2. DRLStrategy (Provider: MetaTrader5)
+
+2025-11-08 14:38:38,913 - INFO - Usando estratégia: DRLStrategy
+2025-11-08 14:38:38,913 - INFO -   Provider: MetaTrader5
+2025-11-08 14:38:38,913 - INFO -   Dados: 2023-06-01 a 2023-09-01
+2025-11-08 14:38:38,913 - INFO -   Timeframe: H1
+2025-11-08 14:38:38,913 - INFO - Conectando ao provider: MetaTrader5...
+2025-11-08 14:38:38,920 - INFO - MetaTrader 5 Conectado: Clear Investimentos MT5 Terminal
+2025-11-08 14:38:38,921 - INFO - Criando ambiente de trading...
+2025-11-08 14:38:38,921 - INFO - Carregando dados históricos para WDO$...
+2025-11-08 14:38:38,922 - INFO - Buscando dados de WDO$ do MT5 (2023-06-01 a 2023-09-01 @ H1)...
+2025-11-08 14:38:38,928 - INFO - Salvando dados de WDO$ (585 registros) em cache: C:\projects\wtnps-trade\.cache_data\MT5_WDO_H1_20230601_20230901.parquet
+2025-11-08 14:38:38,989 - INFO - Dados buscados do MT5 e convertidos para America/Sao_Paulo.
+2025-11-08 14:38:38,989 - INFO - Dados carregados: 585 candles de 2023-06-01 a 2023-09-01
+2025-11-08 14:38:38,989 - INFO - Calculando features de mercado para WDO$...
+2025-11-08 14:38:39,057 - INFO - Features calculadas: 565 steps, 9 features
+2025-11-08 14:38:39,057 - INFO - TradingEnv inicializado: WDO$, Steps=565, StateDim=12
+2025-11-08 14:38:39,057 - INFO - Ambiente criado: 565 steps, state_dim=12
+2025-11-08 14:38:39,057 - INFO - Hiperparâmetros do agente:
+2025-11-08 14:38:39,057 - INFO -   state_dim: 12
+2025-11-08 14:38:39,057 - INFO -   num_actions: 3
+2025-11-08 14:38:39,057 - INFO -   learning_rate: 0.0001
+2025-11-08 14:38:39,057 - INFO -   gamma: 0.99
+2025-11-08 14:38:39,057 - INFO -   epsilon_start: 1.0
+2025-11-08 14:38:39,057 - INFO -   epsilon_end: 0.01
+2025-11-08 14:38:39,057 - INFO -   epsilon_decay_steps: 250
+2025-11-08 14:38:39,057 - INFO -   epsilon_exponential_decay: 0.99
+2025-11-08 14:38:39,057 - INFO -   replay_capacity: 1000000
+2025-11-08 14:38:39,057 - INFO -   architecture: (128, 128)
+2025-11-08 14:38:39,060 - INFO -   l2_reg: 1e-06
+2025-11-08 14:38:39,061 - INFO -   tau: 50
+2025-11-08 14:38:39,061 - INFO -   batch_size: 128
+2025-11-08 14:38:39,061 - INFO - Criando agente DDQN...
+C:\Users\User\AppData\Local\pypoetry\Cache\virtualenvs\wtnps-trade-VyqtAXyS-py3.12\Lib\site-packages\keras\src\layers\core\dense.py:92: UserWarning: Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead.
+  super().__init__(activity_regularizer=activity_regularizer, **kwargs)
+2025-11-08 14:38:39.088601: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: SSE3 SSE4.1 SSE4.2 AVX AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2025-11-08 14:38:39,174 - INFO - DDQNAgent inicializado: StateDim=12, Actions=3, Architecture=(128, 128), LR=0.0001, Gamma=0.99, ReplayCapacity=1000000, BatchSize=128
+2025-11-08 14:38:39,174 - INFO - Treinamento iniciará com 50 episódios.
+2025-11-08 14:38:39,175 - INFO - Timeout por episódio: 300 segundos
+2025-11-08 14:38:39,175 - INFO - Max steps por episódio: 565
+
+================================================================================
+SUMÁRIO DA CONFIGURAÇÃO
+================================================================================
+Ambiente:
+  Ticker: WDO$
+  Provider: MetaTrader5
+  Período: 2023-06-01 a 2023-09-01
+  Timeframe: H1
+  Steps totais disponíveis: 565
+  State dimension: 12
+
+Agente DDQN:
+  Arquitetura: (128, 128)
+  Learning rate: 0.0001
+  Gamma (discount): 0.99
+  Epsilon: 1.0 → 0.01 (linear em 250 eps)
+  Replay buffer: 1,000,000 experiências
+  Batch size: 128
+  Target network update: a cada 50 steps
+
+Treinamento:
+  Episódio inicial: 1
+  Episódio final: 50
+  Total de episódios nesta sessão: 50
+  Epsilon inicial: 1.0000
+  Timeout por episódio: 300s
+  Checkpoint a cada: 10 episódios
+  Tempo estimado (pessimista): 04:10:00
+================================================================================
+
+================================================================================
+INICIANDO TREINAMENTO
+================================================================================
+
+2025-11-08 14:38:39,177 - INFO - Início do treinamento: 489617:38:39
+2025-11-08 14:38:39,177 - INFO - Checkpoint automático a cada 10 episódios
+2025-11-08 14:53:49,536 - INFO - Episode 10 | Reward: -3.8500 | Avg(100): -3.7907 | Avg(10): -3.7907 | Epsilon: 0.9604 | Steps: 564
+  10 | 00:15:10 | Agent: -97.7% (-97.7%) | Market:   0.0% (  0.0%) | Wins:  0.0% | eps:  0.960
+2025-11-08 14:53:49,766 - INFO - Salvando checkpoint em episódio 10...
+2025-11-08 14:53:49,766 - INFO - DRLStrategy inicializada
+2025-11-08 14:53:49,766 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep10_drl.keras
+2025-11-08 14:53:49,828 - INFO - Modelo DRL salvo com sucesso
+2025-11-08 14:53:49,828 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep10_drl.keras
+2025-11-08 15:08:42,880 - INFO - Episode 20 | Reward: -3.6948 | Avg(100): -3.7120 | Avg(10): -3.6333 | Epsilon: 0.9208 | Steps: 564
+  20 | 00:30:03 | Agent: -97.5% (-97.3%) | Market:   0.0% (  0.0%) | Wins:  0.0% | eps:  0.921
+2025-11-08 15:08:43,057 - INFO - Salvando checkpoint em episódio 20...
+2025-11-08 15:08:43,058 - INFO - DRLStrategy inicializada
+2025-11-08 15:08:43,058 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep20_drl.keras
+2025-11-08 15:08:43,080 - INFO - Modelo DRL salvo com sucesso
+2025-11-08 15:08:43,081 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep20_drl.keras
+2025-11-08 15:24:48,225 - INFO - Episode 30 | Reward: -3.7665 | Avg(100): -3.6729 | Avg(10): -3.5948 | Epsilon: 0.8812 | Steps: 564
+  30 | 00:46:09 | Agent: -97.4% (-97.2%) | Market:   0.0% (  0.0%) | Wins:  0.0% | eps:  0.881
+2025-11-08 15:24:48,609 - INFO - Salvando checkpoint em episódio 30...
+2025-11-08 15:24:48,609 - INFO - DRLStrategy inicializada
+2025-11-08 15:24:48,609 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep30_drl.keras
+2025-11-08 15:24:48,631 - INFO - Modelo DRL salvo com sucesso
+2025-11-08 15:24:48,631 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep30_drl.keras
+2025-11-08 15:40:03,389 - INFO - Episode 40 | Reward: -3.8320 | Avg(100): -3.6756 | Avg(10): -3.6838 | Epsilon: 0.8416 | Steps: 564
+  40 | 01:01:24 | Agent: -97.4% (-97.5%) | Market:   0.0% (  0.0%) | Wins:  0.0% | eps:  0.842
+2025-11-08 15:40:03,618 - INFO - Salvando checkpoint em episódio 40...
+2025-11-08 15:40:03,618 - INFO - DRLStrategy inicializada
+2025-11-08 15:40:03,618 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep40_drl.keras
+2025-11-08 15:40:03,639 - INFO - Modelo DRL salvo com sucesso
+2025-11-08 15:40:03,640 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep40_drl.keras
+2025-11-08 15:55:36,263 - INFO - Episode 50 | Reward: -3.5007 | Avg(100): -3.6504 | Avg(10): -3.5495 | Epsilon: 0.8020 | Steps: 564
+  50 | 01:16:57 | Agent: -97.4% (-97.1%) | Market:   0.0% (  0.0%) | Wins:  0.0% | eps:  0.802
+2025-11-08 15:55:36,439 - INFO - Salvando checkpoint em episódio 50...
+2025-11-08 15:55:36,440 - INFO - DRLStrategy inicializada
+2025-11-08 15:55:36,440 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep50_drl.keras
+2025-11-08 15:55:36,446 - INFO - Modelo DRL salvo com sucesso
+2025-11-08 15:55:36,446 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep50_drl.keras
+
+================================================================================
+TREINAMENTO CONCLUÍDO
+================================================================================
+Tempo total: 01:16:57
+Episódios executados nesta sessão: 50
+Episódio final: 50
+Total de episódios acumulados: 50
+Episódios interrompidos por timeout/limite: 0
+Tempo médio por episódio: 00:01:32
+
+Estatísticas de Performance:
+  Recompensa média (últimos 100 eps): -3.6504
+  Recompensa média (últimos 10 eps): -3.5495
+  NAV médio (todos): 0.0263
+  NAV médio (últimos 100 eps): 0.0263
+  NAV médio (últimos 10 eps): 0.0290
+  ROI médio (últimos 100 eps): -97.37%
+  ROI médio (últimos 10 eps): -97.10%
+
+2025-11-08 15:55:36,466 - INFO - Salvando estatísticas de treinamento...
+2025-11-08 15:55:36,477 - INFO - Estatísticas salvas em: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_training_stats.csv
+2025-11-08 15:55:36,477 - INFO - Atualizando modelo de produção...
+2025-11-08 15:55:36,481 - INFO - Atualizando modelo de produção: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_prod_drl.keras
+2025-11-08 15:55:36,481 - INFO - DRLStrategy inicializada
+2025-11-08 15:55:36,481 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_prod_drl.keras
+2025-11-08 15:55:36,505 - INFO - Modelo DRL salvo com sucesso
+2025-11-08 15:55:36,505 - INFO - Modelo de produção atualizado com sucesso!
+
+================================================================================
+ARQUIVOS SALVOS/ATUALIZADOS
+================================================================================
+1. Modelo de PRODUÇÃO (atualizado):
+   c:\projects\wtnps-trade\models\WDO$_DRLStrategy_prod_drl.keras
+   c:\projects\wtnps-trade\models\WDO$_DRLStrategy_prod_params.joblib
+2. Estatísticas de treinamento:
+   c:\projects\wtnps-trade\models\WDO$_DRLStrategy_training_stats.csv
+   Total de 50 episódios registrados
+3. Checkpoints:
+   c:\projects\wtnps-trade\models/WDO$_DRLStrategy_checkpoint_ep*.keras
+   Último checkpoint: episódio 50
+
+================================================================================
+INFORMAÇÕES IMPORTANTES:
+================================================================================
+✓ O modelo de produção foi ATUALIZADO com os pesos do episódio 50
+✓ Para continuar o treinamento, execute novamente este script
+✓ O treinamento continuará automaticamente a partir do último checkpoint
+
+================================================================================
+PRÓXIMOS PASSOS:
+================================================================================
+1. Analise as estatísticas de treinamento:
+   import pandas as pd
+   stats = pd.read_csv('c:\projects\wtnps-trade\models\WDO$_DRLStrategy_training_stats.csv')
+   stats[['episode', 'reward', 'nav', 'epsilon']].plot(subplots=True)

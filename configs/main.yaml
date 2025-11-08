@@ -42,8 +42,8 @@ assets:
         provider: "MetaTrader5"
 
         data:
-          start_date: "2024-06-01"
-          end_date: "2024-12-31"
+          start_date: "2023-06-01"
+          end_date: "2023-09-01"
           timeframe_model: "H1"  # Timeframe usado para treinar o ambiente DRL
 
         training_trading_rules:
