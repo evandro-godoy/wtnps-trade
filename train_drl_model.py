@@ -288,7 +288,7 @@ def main():
             logger.info("Usuário optou por não usar checkpoint. Iniciando do zero.")
     
     # 10. Solicita número de episódios e timeout    
-    num_episodes = 50
+    num_episodes = 300
     episode_timeout = 300
     
     # Máximo de steps por episódio (proteção contra loops infinitos)
