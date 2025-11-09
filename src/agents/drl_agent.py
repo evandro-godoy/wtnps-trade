@@ -93,8 +93,7 @@ class DDQNAgent:
         learning_rate: float = 0.0001,
         gamma: float = 0.99,
         epsilon_start: float = 1.0,
-        epsilon_end: float = 0.01,
-        epsilon_decay_steps: int = 250,
+        epsilon_min: float = 0.01,
         epsilon_exponential_decay: float = 0.99,
         replay_capacity: int = int(1e6),
         architecture: Tuple[int, ...] = (256, 256),
@@ -111,8 +110,7 @@ class DDQNAgent:
             learning_rate: Taxa de aprendizado
             gamma: Fator de desconto
             epsilon_start: Epsilon inicial (exploração)
-            epsilon_end: Epsilon final
-            epsilon_decay_steps: Steps para decay linear
+            epsilon_min: Epsilon mínimo (valor final)
             epsilon_exponential_decay: Fator de decay exponencial após decay linear
             replay_capacity: Capacidade do replay buffer
             architecture: Tupla com número de unidades por camada oculta
@@ -139,9 +137,10 @@ class DDQNAgent:
         
         # Epsilon-greedy
         self.epsilon = epsilon_start
-        self.epsilon_decay_steps = epsilon_decay_steps
-        self.epsilon_decay = (epsilon_start - epsilon_end) / epsilon_decay_steps
+        self.epsilon_min = epsilon_min
         self.epsilon_exponential_decay = epsilon_exponential_decay
+        self.epsilon_decay_episodes = None  # Set via set_epsilon_decay()
+        self.epsilon_decay_per_episode = None  # Set via set_epsilon_decay()
         self.epsilon_history = []
         
         # Tracking
@@ -203,6 +202,23 @@ class DDQNAgent:
         )
         
         return model
+    
+    def set_epsilon_decay(self, num_episodes: int):
+        """
+        Configura epsilon decay baseado no número total de episódios.
+        
+        Args:
+            num_episodes: Número total de episódios de treinamento
+        """
+        # 80% dos episódios para decay linear
+        self.epsilon_decay_episodes = int(num_episodes * 0.8)
+        # Decay por episódio para atingir epsilon_min em 80% dos episódios
+        self.epsilon_decay_per_episode = (1.0 - self.epsilon_min) / self.epsilon_decay_episodes
+        
+        logger.info(
+            f"Epsilon decay configurado: {self.epsilon_decay_episodes} episódios lineares "
+            f"(decay={self.epsilon_decay_per_episode:.6f} por episódio)"
+        )
     
     def update_target(self):
         """Copia pesos da online network para a target network."""
@@ -280,23 +296,26 @@ class DDQNAgent:
     
     def _decay_epsilon(self):
         """Decai epsilon (linear primeiro, depois exponencial)."""
-        if self.episodes < self.epsilon_decay_steps:
-            # Decay linear
-            self.epsilon -= self.epsilon_decay
+        if self.epsilon_decay_episodes is None or self.epsilon_decay_per_episode is None:
+            logger.warning("Epsilon decay não configurado. Chame set_epsilon_decay() primeiro.")
+            return
+        
+        if self.episodes < self.epsilon_decay_episodes:
+            # Decay linear até 80% dos episódios
+            self.epsilon -= self.epsilon_decay_per_episode
+            self.epsilon = max(self.epsilon, self.epsilon_min)
         else:
-            # Decay exponencial
+            # Decay exponencial após 80% dos episódios
             self.epsilon *= self.epsilon_exponential_decay
+            self.epsilon = max(self.epsilon, self.epsilon_min)
     
     def  experience_replay(self):
         """
         Treina a online network usando experience replay (DDQN).
-        
-        Returns:
-            float: Loss da atualização do modelo, ou None se não houver experiências suficientes
         """
         # Precisa ter experiências suficientes
         if len(self.experience) < self.batch_size:
-            return None
+            return
         
         # Amostra mini-batch
         states, actions, rewards, next_states, not_done = self.experience.sample(self.batch_size)
@@ -333,5 +352,3 @@ class DDQNAgent:
         if self.total_steps % self.tau == 0:
             self.update_target()
             logger.debug(f"Target network atualizada @ step {self.total_steps}")
-        
-        return float(loss)

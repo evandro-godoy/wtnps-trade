@@ -227,8 +227,7 @@ def main():
         'learning_rate': 0.0001,           # Taxa de aprendizado
         'gamma': 0.99,                     # Fator de desconto
         'epsilon_start': 1.0,              # Epsilon inicial para exploração
-        'epsilon_end': 0.01,               # Epsilon final
-        'epsilon_decay_steps': 250,        # Episódios para decay linear
+        'epsilon_min': 0.01,               # Epsilon mínimo
         'epsilon_exponential_decay': 0.99, # Decay exponencial após linear
         'replay_capacity': int(1e6),       # Capacidade do replay buffer
         'architecture': (256, 256),        # Camadas ocultas da rede neural
@@ -244,6 +243,9 @@ def main():
     # 8. Instancia agente DDQN
     logger.info("Criando agente DDQN...")
     agent = DDQNAgent(**hyperparams)
+    
+    # Configura epsilon decay baseado no número total de episódios
+    agent.set_epsilon_decay(num_episodes)
     
     # 9. Verifica se existe checkpoint para continuar treinamento
     models_dir = Path(config.get('global_settings', {}).get('model_directory', 'models'))
@@ -266,16 +268,20 @@ def main():
             if load_checkpoint(agent, checkpoint_path):
                 start_episode = last_episode + 1
                 
-                # Ajusta epsilon baseado no progresso
-                # Assumindo que epsilon decaiu linearmente até epsilon_decay_steps
-                if last_episode < hyperparams['epsilon_decay_steps']:
-                    agent.epsilon = hyperparams['epsilon_start'] - (last_episode * agent.epsilon_decay)
-                else:
-                    # Decay exponencial após decay linear
-                    steps_after_linear = last_episode - hyperparams['epsilon_decay_steps']
-                    agent.epsilon = hyperparams['epsilon_end'] * (hyperparams['epsilon_exponential_decay'] ** steps_after_linear)
+                # Reconfigura epsilon decay após restaurar checkpoint
+                agent.set_epsilon_decay(num_episodes)
                 
-                agent.epsilon = max(agent.epsilon, hyperparams['epsilon_end'])
+                # Ajusta epsilon baseado no progresso
+                epsilon_decay_episodes = int(num_episodes * 0.8)
+                if last_episode < epsilon_decay_episodes:
+                    # Decay linear até 80% dos episódios
+                    agent.epsilon = 1.0 - (last_episode * agent.epsilon_decay_per_episode)
+                else:
+                    # Decay exponencial após 80% dos episódios
+                    steps_after_linear = last_episode - epsilon_decay_episodes
+                    agent.epsilon = hyperparams['epsilon_min'] * (hyperparams['epsilon_exponential_decay'] ** steps_after_linear)
+                
+                agent.epsilon = max(agent.epsilon, hyperparams['epsilon_min'])
                 
                 # Restaura contador de episódios
                 agent.episodes = last_episode
@@ -317,7 +323,7 @@ def main():
     print(f"  Arquitetura: {hyperparams['architecture']}")
     print(f"  Learning rate: {hyperparams['learning_rate']}")
     print(f"  Gamma (discount): {hyperparams['gamma']}")
-    print(f"  Epsilon: {hyperparams['epsilon_start']} → {hyperparams['epsilon_end']} (linear em {hyperparams['epsilon_decay_steps']} eps)")
+    print(f"  Epsilon: {hyperparams['epsilon_start']} → {hyperparams['epsilon_min']} (linear em {int(num_episodes * 0.8)} eps, {num_episodes - int(num_episodes * 0.8)} exponencial)")
     print(f"  Replay buffer: {hyperparams['replay_capacity']:,} experiências")
     print(f"  Batch size: {hyperparams['batch_size']}")
     print(f"  Target network update: a cada {hyperparams['tau']} steps")
@@ -417,10 +423,7 @@ def main():
             logger.info(f"Episódio {episode} concluído em {episode_step + 1} steps. Iniciando treinamento adaptativo...")
             
             # Etapa 1: Executa algumas iterações de amostragem para medir o loss atual
-            if episode == 1:
-                SAMPLE_ITERATIONS = 32
-            else:
-                SAMPLE_ITERATIONS = 8  # Número de iterações para calcular loss médio
+            SAMPLE_ITERATIONS = 8  # Número de iterações para calcular loss médio
 
             episode_losses = []
 
@@ -435,7 +438,7 @@ def main():
             # Etapa 2: Compara com o histórico de loss
             if not historical_loss_tracker:
                 # Primeiro episódio: usa o loss atual como baseline
-                historical_avg_loss = avg_episode_loss
+                historical_avg_loss = avg_episode_loss if avg_episode_loss > 0 else 0.01
             else:
                 # Calcula média dos últimos episódios
                 historical_avg_loss = np.mean(historical_loss_tracker)
@@ -447,10 +450,13 @@ def main():
             
             # Etapa 4: Define número de sessões de estudo adaptativas
             BASE_STUDY_SESSIONS = 8  # Sessões base quando ratio = 1.0
+            MIN_STUDY_SESSIONS = 4   # Estudar no mínimo
+            MAX_STUDY_SESSIONS = 64  # Estudar no máximo (se estiver muito confuso)
+
             study_sessions = int(BASE_STUDY_SESSIONS * loss_ratio)
-            
+                        
             # Limites de segurança: mínimo 4, máximo 64 sessões
-            study_sessions = max(4, min(64, study_sessions))
+            study_sessions = max(MIN_STUDY_SESSIONS, min(MAX_STUDY_SESSIONS, study_sessions))
             
             # Etapa 5: Executa as sessões de estudo (já fizemos SAMPLE_ITERATIONS, fazemos o resto)
             remaining_sessions = max(0, study_sessions - SAMPLE_ITERATIONS)
@@ -480,10 +486,6 @@ def main():
         final_nav = env.portfolio_value
         episode_navs.append(final_nav)
         episode_portfolio_values.append(final_nav)       
-
-
-
-               
         # Log detalhado a cada 10 episódios (formato do notebook)
         if episode % 10 == 0:
             total_time = time() - start_time
