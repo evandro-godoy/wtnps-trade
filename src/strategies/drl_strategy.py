@@ -39,7 +39,7 @@ class DRLStrategy(BaseStrategy):
     
     def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        Calcula as features de mercado (exatamente as mesmas do TradingEnv).
+        Calcula as features de mercado usando indicadores técnicos (pandas_ta).
         
         CRÍTICO: As features devem ser IDÊNTICAS às usadas no ambiente de treino.
         
@@ -49,35 +49,35 @@ class DRLStrategy(BaseStrategy):
         Returns:
             DataFrame com features calculadas
         """
+        import pandas_ta as ta
+        
         df = data.copy()
         
-        # 1. Log Returns
-        df['log_return'] = np.log(df['close'] / df['close'].shift(1))
+        # --- Novas Features usando pandas_ta ---
         
-        # 2. Log Returns de diferentes períodos
-        df['log_return_5'] = np.log(df['close'] / df['close'].shift(5))
-        df['log_return_10'] = np.log(df['close'] / df['close'].shift(10))
-        df['log_return_20'] = np.log(df['close'] / df['close'].shift(20))
+        # 1. EMA 9
+        df['ema_9'] = ta.ema(df['close'], length=9)
         
-        # 3. Volume log change
-        df['log_volume'] = np.log(df['tick_volume'] + 1)  # +1 para evitar log(0)
-        df['log_volume_change'] = df['log_volume'] - df['log_volume'].shift(1)
+        # 2. SMA 20
+        df['sma_20'] = ta.sma(df['close'], length=20)
         
-        # 4. Volatilidade (desvio padrão rolling dos log returns)
-        df['volatility_10'] = df['log_return'].rolling(window=10).std()
-        df['volatility_20'] = df['log_return'].rolling(window=20).std()
+        # 3. SMA 200
+        df['sma_200'] = ta.sma(df['close'], length=200)
         
-        # 5. Percentile rank do preço (posição relativa)
-        df['price_percentile_20'] = df['close'].rolling(window=20).apply(
-            lambda x: pd.Series(x).rank(pct=True).iloc[-1], raw=False
-        )
+        # 4. Distância (normalizada) para a SMA 20
+        df['dist_sma_20'] = (df['close'] - df['sma_20']) / df['close']
         
-        # 6. RSI (Relative Strength Index)
-        delta = df['close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / (loss + 1e-10)  # Evita divisão por zero
-        df['rsi'] = 100 - (100 / (1 + rs))
+        # 5. Distância (normalizada) para a SMA 200
+        df['dist_sma_200'] = (df['close'] - df['sma_200']) / df['close']
+        
+        # 6. ATR (Volatilidade Normalizada)
+        atr = ta.atr(df['high'], df['low'], df['close'], length=14)
+        df['atr'] = atr / df['close']  # Normaliza o ATR pelo preço
+        
+        # Normaliza as features baseadas em preço (exceto distâncias e ATR que já são relativos)
+        price_features = ['ema_9', 'sma_20', 'sma_200']
+        for col in price_features:
+            df[col] = (df[col] / df['close']) - 1  # Normaliza pelo preço de fechamento
         
         return df
     
@@ -89,9 +89,8 @@ class DRLStrategy(BaseStrategy):
         (antes de concatenar com a position feature).
         """
         return [
-            'log_return', 'log_return_5', 'log_return_10', 'log_return_20',
-            'log_volume_change', 'volatility_10', 'volatility_20',
-            'price_percentile_20', 'rsi'
+            'ema_9', 'sma_20', 'sma_200', 
+            'dist_sma_20', 'dist_sma_200', 'atr'
         ]
     
     @classmethod

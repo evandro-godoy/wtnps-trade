@@ -58,19 +58,20 @@ O ambiente **não** herda de `gym.Env` (customizado para nosso projeto).
 ```python
 State = [market_features, position_feature]
 ```
-- **Market features** (9 dimensões):
-  - `log_return`, `log_return_5`, `log_return_10`, `log_return_20`
-  - `log_volume_change`
-  - `volatility_10`, `volatility_20`
-  - `price_percentile_20`
-  - `rsi`
+- **Market features** (6 dimensões):
+  - `ema_9`: Exponential Moving Average (9 períodos, normalizada)
+  - `sma_20`: Simple Moving Average (20 períodos, normalizada)
+  - `sma_200`: Simple Moving Average (200 períodos, normalizada)
+  - `dist_sma_20`: Distância normalizada do preço para SMA 20
+  - `dist_sma_200`: Distância normalizada do preço para SMA 200
+  - `atr`: Average True Range normalizado (volatilidade)
 
 - **Position feature** (3 dimensões, one-hot):
   - `[1,0,0]` = Venda (short)
   - `[0,1,0]` = Hold (cash)
   - `[0,0,1]` = Compra (long)
 
-**Total: 12 dimensões**
+**Total: 9 dimensões**
 
 #### Ações (Actions)
 - `0`: VENDA (short)
@@ -91,14 +92,14 @@ Reward = log( (1 + PnL - Custo) )
 ### 2. Agente DDQN (`DDQNAgent`)
 
 Implementa **Double Deep Q-Learning** com:
-- **Online Network**: Atualizada a cada step
+- **Online Network**: Atualizada após cada episódio (batch training)
 - **Target Network**: Atualizada a cada `tau` steps (estabilidade)
 - **Replay Buffer**: Armazena até 1M experiências
 - **Epsilon-Greedy**: Exploração decai de 1.0 → 0.01
 
 #### Arquitetura da Q-Network
 ```
-Input (state_dim=12) 
+Input (state_dim=9) 
     → Dense(256, relu) 
     → Dense(256, relu) 
     → Dropout(0.1)

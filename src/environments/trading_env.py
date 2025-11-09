@@ -100,48 +100,54 @@ class TradingEnv:
     
     def _calculate_market_features(self):
         """
-        Calcula features de mercado (state features).
-        Baseado em log returns como no FinancialTradingasaGameDRL.pdf.
+        Calcula features de mercado usando indicadores técnicos (pandas_ta).
+        
+        Features:
+        - ema_9: Exponential Moving Average (9 períodos)
+        - sma_20: Simple Moving Average (20 períodos)
+        - sma_200: Simple Moving Average (200 períodos)
+        - dist_sma_20: Distância normalizada para SMA 20
+        - dist_sma_200: Distância normalizada para SMA 200
+        - atr: Average True Range normalizado (volatilidade)
         """
+        import pandas_ta as ta
+        
         df = self.raw_data.copy()
         
-        # 1. Log Returns
-        df['log_return'] = np.log(df['close'] / df['close'].shift(1))
+        # --- Novas Features usando pandas_ta ---
         
-        # 2. Log Returns de diferentes períodos
-        df['log_return_5'] = np.log(df['close'] / df['close'].shift(5))
-        df['log_return_10'] = np.log(df['close'] / df['close'].shift(10))
-        df['log_return_20'] = np.log(df['close'] / df['close'].shift(20))
+        # 1. EMA 9
+        df['ema_9'] = ta.ema(df['close'], length=9)
         
-        # 3. Volume log change
-        df['log_volume'] = np.log(df['volume'] + 1)  # +1 para evitar log(0)
-        df['log_volume_change'] = df['log_volume'] - df['log_volume'].shift(1)
+        # 2. SMA 20
+        df['sma_20'] = ta.sma(df['close'], length=20)
         
-        # 4. Volatilidade (desvio padrão rolling dos log returns)
-        df['volatility_10'] = df['log_return'].rolling(window=10).std()
-        df['volatility_20'] = df['log_return'].rolling(window=20).std()
+        # 3. SMA 200
+        df['sma_200'] = ta.sma(df['close'], length=200)
         
-        # 5. Percentile rank do preço (posição relativa)
-        df['price_percentile_20'] = df['close'].rolling(window=20).apply(
-            lambda x: pd.Series(x).rank(pct=True).iloc[-1], raw=False
-        )
+        # 4. Distância (normalizada) para a SMA 20
+        df['dist_sma_20'] = (df['close'] - df['sma_20']) / df['close']
         
-        # 6. RSI (Relative Strength Index)
-        delta = df['close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / (loss + 1e-10)  # Evita divisão por zero
-        df['rsi'] = 100 - (100 / (1 + rs))
+        # 5. Distância (normalizada) para a SMA 200
+        df['dist_sma_200'] = (df['close'] - df['sma_200']) / df['close']
+        
+        # 6. ATR (Volatilidade Normalizada)
+        atr = ta.atr(df['high'], df['low'], df['close'], length=14)
+        df['atr'] = atr / df['close']  # Normaliza o ATR pelo preço
+        
+        # Lista de nomes das novas features
+        self.market_feature_names = [
+            'ema_9', 'sma_20', 'sma_200', 
+            'dist_sma_20', 'dist_sma_200', 'atr'
+        ]
+        
+        # Normaliza as features baseadas em preço (exceto distâncias e ATR que já são relativos)
+        price_features = ['ema_9', 'sma_20', 'sma_200']
+        for col in price_features:
+            df[col] = (df[col] / df['close']) - 1  # Normaliza pelo preço de fechamento
         
         # Remove NaN (primeiras linhas sem dados suficientes)
         df = df.dropna()
-        
-        # Define lista de features que compõem o estado de mercado
-        self.market_feature_names = [
-            'log_return', 'log_return_5', 'log_return_10', 'log_return_20',
-            'log_volume_change', 'volatility_10', 'volatility_20',
-            'price_percentile_20', 'rsi'
-        ]
         
         # Armazena DataFrame com features + preços originais
         self.market_features_df = df

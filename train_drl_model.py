@@ -230,10 +230,10 @@ def main():
         'epsilon_decay_steps': 250,        # Episódios para decay linear
         'epsilon_exponential_decay': 0.99, # Decay exponencial após linear
         'replay_capacity': int(1e6),       # Capacidade do replay buffer
-        'architecture': (128, 128),        # Camadas ocultas da rede neural
+        'architecture': (256, 256),        # Camadas ocultas da rede neural
         'l2_reg': 1e-6,                    # Regularização L2
-        'tau': 50,                         # Frequência de atualização da target network
-        'batch_size': 128                 # Tamanho do batch para treinamento
+        'tau': 100,                        # Frequência de atualização da target network
+        'batch_size': 2048                 # Tamanho do batch para treinamento
     }
     
     logger.info("Hiperparâmetros do agente:")
@@ -388,15 +388,18 @@ def main():
             # Memoriza transição no replay buffer
             agent.memorize_transition(state, action, reward, next_state, done)
             
-            # Treina a rede usando experience replay
-            agent.experience_replay()
-            
             # Se episódio terminou naturalmente, sai do loop
             if done:
                 break
             
             # Atualiza estado para próximo step
             state = next_state
+        
+        # --- Treina a rede em lote após o episódio (otimização) ---
+        # Executa múltiplas atualizações do modelo usando as experiências coletadas
+        num_replay_iterations = max(1, episode_step + 1)  # Pelo menos 1 iteração
+        for _ in range(num_replay_iterations):
+            agent.experience_replay()
         
         # Registra tempo do episódio
         episode_duration = time() - episode_start_time
