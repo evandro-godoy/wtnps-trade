@@ -22,6 +22,7 @@ import pandas as pd
 import numpy as np
 import re
 from tensorflow import keras
+from collections import deque
 
 # Imports do projeto
 from src.environments.trading_env import TradingEnv
@@ -357,6 +358,9 @@ def main():
     
     # Configuração de checkpoint automático
     logger.info(f"Checkpoint automático a cada {checkpoint_interval} episódios")
+    
+    # Rastreia os últimos 10 episódios para métricas móveis
+    historical_loss_tracker = deque(maxlen=10) 
 
     for episode in range(start_episode, num_episodes+1):
         # Reset do ambiente
@@ -366,7 +370,9 @@ def main():
         # Loop do episódio: executa até max_steps_per_episode ou até done=True
         for episode_step in range(max_steps_per_episode):
             # Proteção de timeout: interrompe episódio atual e continua para o próximo
+            """
             episode_elapsed = time() - episode_start_time
+
             if episode_elapsed > episode_timeout:
                 logger.warning(
                     f"Episódio {episode} excedeu timeout de {episode_timeout}s "
@@ -378,7 +384,8 @@ def main():
                     logger.info("Episódio interrompido pelo usuário.")
                     interrupted_episodes += 1
                     break
-            
+            """
+
             # Agente escolhe ação usando política epsilon-greedy
             action = agent.epsilon_greedy_policy(state)
             
@@ -395,12 +402,76 @@ def main():
             # Atualiza estado para próximo step
             state = next_state
         
-        # --- Treina a rede em lote após o episódio (otimização) ---
-        # Executa múltiplas atualizações do modelo usando as experiências coletadas
-        num_replay_iterations = max(1, episode_step + 1)  # Pelo menos 1 iteração
-        for _ in range(num_replay_iterations):
-            agent.experience_replay()
+            # Informa a cada 250 steps executados
+            steps_executed = episode_step + 1
+            steps_remaining = max_steps_per_episode - steps_executed
+            if steps_executed % 250 == 0:
+                logger.info(f"Episódio {episode}: {steps_executed} steps executados de {max_steps_per_episode} (restam {steps_remaining})")
+
+
+        # --- Treina a rede em lote após o episódio (otimização adaptativa) ---
+        # Sistema de estudo adaptativo baseado no loss do agente
         
+        # Verifica se há experiências suficientes no buffer
+        if len(agent.experience) >= agent.batch_size:
+            logger.info(f"Episódio {episode} concluído em {episode_step + 1} steps. Iniciando treinamento adaptativo...")
+            
+            # Etapa 1: Executa algumas iterações de amostragem para medir o loss atual
+            if episode == 1:
+                SAMPLE_ITERATIONS = 32
+            else:
+                SAMPLE_ITERATIONS = 8  # Número de iterações para calcular loss médio
+
+            episode_losses = []
+
+            for _ in range(SAMPLE_ITERATIONS):
+                loss = agent.experience_replay()
+                if loss is not None:
+                    episode_losses.append(loss)
+            
+            # Calcula loss médio do episódio
+            avg_episode_loss = np.mean(episode_losses) if episode_losses else 0.01
+            
+            # Etapa 2: Compara com o histórico de loss
+            if not historical_loss_tracker:
+                # Primeiro episódio: usa o loss atual como baseline
+                historical_avg_loss = avg_episode_loss
+            else:
+                # Calcula média dos últimos episódios
+                historical_avg_loss = np.mean(historical_loss_tracker)
+            
+            # Etapa 3: Calcula o "ratio de confusão" do agente
+            # Se loss atual > média histórica → agente confuso → precisa estudar mais
+            # Se loss atual < média histórica → agente confiante → estuda menos
+            loss_ratio = (avg_episode_loss / historical_avg_loss) if historical_avg_loss > 0 else 1.0
+            
+            # Etapa 4: Define número de sessões de estudo adaptativas
+            BASE_STUDY_SESSIONS = 8  # Sessões base quando ratio = 1.0
+            study_sessions = int(BASE_STUDY_SESSIONS * loss_ratio)
+            
+            # Limites de segurança: mínimo 4, máximo 64 sessões
+            study_sessions = max(4, min(64, study_sessions))
+            
+            # Etapa 5: Executa as sessões de estudo (já fizemos SAMPLE_ITERATIONS, fazemos o resto)
+            remaining_sessions = max(0, study_sessions - SAMPLE_ITERATIONS)
+            
+            logger.info(
+                f"Episódio {episode}: Loss={avg_episode_loss:.4f}, "
+                f"Histórico={historical_avg_loss:.4f}, Ratio={loss_ratio:.2f}. "
+                f"Executando {remaining_sessions} sessões adicionais (total: {study_sessions})"
+            )
+            
+            for _ in range(remaining_sessions):
+                agent.experience_replay()
+            
+            # Etapa 6: Atualiza histórico de loss para próximo episódio
+            historical_loss_tracker.append(avg_episode_loss)
+        else:
+            logger.info(
+                f"Episódio {episode}: Buffer insuficiente "
+                f"({len(agent.experience)}/{agent.batch_size}). Pulando treinamento."
+            )
+
         # Registra tempo do episódio
         episode_duration = time() - episode_start_time
         episode_times.append(episode_duration)
@@ -408,11 +479,11 @@ def main():
         # Registra métricas do ambiente
         final_nav = env.portfolio_value
         episode_navs.append(final_nav)
-        episode_portfolio_values.append(final_nav)
-        
-        # Calcula número de steps executados (episode_step + 1 pois range começa em 0)
-        steps_executed = episode_step + 1 if 'episode_step' in locals() else 0
-        
+        episode_portfolio_values.append(final_nav)       
+
+
+
+               
         # Log detalhado a cada 10 episódios (formato do notebook)
         if episode % 10 == 0:
             total_time = time() - start_time

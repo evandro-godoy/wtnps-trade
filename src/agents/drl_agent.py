@@ -290,10 +290,13 @@ class DDQNAgent:
     def  experience_replay(self):
         """
         Treina a online network usando experience replay (DDQN).
+        
+        Returns:
+            float: Loss da atualização do modelo, ou None se não houver experiências suficientes
         """
         # Precisa ter experiências suficientes
         if len(self.experience) < self.batch_size:
-            return
+            return None
         
         # Amostra mini-batch
         states, actions, rewards, next_states, not_done = self.experience.sample(self.batch_size)
@@ -330,3 +333,5 @@ class DDQNAgent:
         if self.total_steps % self.tau == 0:
             self.update_target()
             logger.debug(f"Target network atualizada @ step {self.total_steps}")
+        
+        return float(loss)
