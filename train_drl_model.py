@@ -245,6 +245,9 @@ def main():
     agent = DDQNAgent(**hyperparams)
     
     # Configura epsilon decay baseado no número total de episódios
+    num_episodes = 500
+    episode_timeout = 300
+
     agent.set_epsilon_decay(num_episodes)
     
     # 9. Verifica se existe checkpoint para continuar treinamento
@@ -293,9 +296,6 @@ def main():
         else:
             logger.info("Usuário optou por não usar checkpoint. Iniciando do zero.")
     
-    # 10. Solicita número de episódios e timeout    
-    num_episodes = 300
-    episode_timeout = 300
     
     # Máximo de steps por episódio (proteção contra loops infinitos)
     max_steps_per_episode = len(env.market_features_df)
@@ -338,14 +338,7 @@ def main():
     print(f"  Tempo estimado (pessimista): {format_time(num_episodes * episode_timeout)}")
     print("=" * 80)
     
-    # Confirmação do usuário
-    # confirm = input("\nIniciar treinamento? (S/n): ").strip().lower()
-    confirm = 'S'
-    if confirm in ['n', 'no', 'não', 'nao']:
-        logger.info("Treinamento cancelado pelo usuário.")
-        return
-    
-    
+ 
     # 10. Loop de Treinamento
     print("\n" + "=" * 80)
     print("INICIANDO TREINAMENTO")
@@ -375,22 +368,6 @@ def main():
 
         # Loop do episódio: executa até max_steps_per_episode ou até done=True
         for episode_step in range(max_steps_per_episode):
-            # Proteção de timeout: interrompe episódio atual e continua para o próximo
-            """
-            episode_elapsed = time() - episode_start_time
-
-            if episode_elapsed > episode_timeout:
-                logger.warning(
-                    f"Episódio {episode} excedeu timeout de {episode_timeout}s "
-                    f"após {episode_step} steps."
-                )
-                # abort_step = True if input("Deseja parar o treinamento do episódio? (s/N): ").strip().lower() in ['s', 'sim', 'y', 'yes'] else False
-                abort_step = False
-                if abort_step:
-                    logger.info("Episódio interrompido pelo usuário.")
-                    interrupted_episodes += 1
-                    break
-            """
 
             # Agente escolhe ação usando política epsilon-greedy
             action = agent.epsilon_greedy_policy(state)
@@ -422,6 +399,7 @@ def main():
         if len(agent.experience) >= agent.batch_size:
             logger.info(f"Episódio {episode} concluído em {episode_step + 1} steps. Iniciando treinamento adaptativo...")
             
+            
             # Etapa 1: Executa algumas iterações de amostragem para medir o loss atual
             SAMPLE_ITERATIONS = 8  # Número de iterações para calcular loss médio
 
@@ -431,9 +409,10 @@ def main():
                 loss = agent.experience_replay()
                 if loss is not None:
                     episode_losses.append(loss)
-            
+
             # Calcula loss médio do episódio
             avg_episode_loss = np.mean(episode_losses) if episode_losses else 0.01
+            
             
             # Etapa 2: Compara com o histórico de loss
             if not historical_loss_tracker:
@@ -459,15 +438,15 @@ def main():
             study_sessions = max(MIN_STUDY_SESSIONS, min(MAX_STUDY_SESSIONS, study_sessions))
             
             # Etapa 5: Executa as sessões de estudo (já fizemos SAMPLE_ITERATIONS, fazemos o resto)
-            remaining_sessions = max(0, study_sessions - SAMPLE_ITERATIONS)
+            # remaining_sessions = max(0, study_sessions - SAMPLE_ITERATIONS)
             
             logger.info(
                 f"Episódio {episode}: Loss={avg_episode_loss:.4f}, "
                 f"Histórico={historical_avg_loss:.4f}, Ratio={loss_ratio:.2f}. "
-                f"Executando {remaining_sessions} sessões adicionais (total: {study_sessions})"
+                f"Executando {study_sessions} sessões de treinamento.)"
             )
             
-            for _ in range(remaining_sessions):
+            for _ in range(study_sessions):
                 agent.experience_replay()
             
             # Etapa 6: Atualiza histórico de loss para próximo episódio
