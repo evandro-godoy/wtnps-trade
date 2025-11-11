@@ -232,8 +232,8 @@ def main():
         'replay_capacity': int(1e6),       # Capacidade do replay buffer
         'architecture': (256, 256),        # Camadas ocultas da rede neural
         'l2_reg': 1e-6,                    # Regularização L2
-        'tau': 100,                        # Frequência de atualização da target network
-        'batch_size': 2048                 # Tamanho do batch para treinamento
+        'tau': 10,                         # Frequência de atualização da target network
+        'batch_size': 1024                 # Tamanho do batch para treinamento
     }
     
     logger.info("Hiperparâmetros do agente:")
@@ -245,7 +245,7 @@ def main():
     agent = DDQNAgent(**hyperparams)
     
     # Configura epsilon decay baseado no número total de episódios
-    num_episodes = 500
+    num_episodes = 100
     episode_timeout = 300
 
     agent.set_epsilon_decay(num_episodes)
@@ -265,36 +265,31 @@ def main():
         print(f"Episódio do checkpoint: {last_episode}")
         print()
         
-        # resume = input("Deseja continuar o treinamento a partir deste checkpoint? (S/n): ").strip().lower()
-        resume = 'S'
-        if resume not in ['n', 'no', 'não', 'nao']:
-            if load_checkpoint(agent, checkpoint_path):
-                start_episode = last_episode + 1
-                
-                # Reconfigura epsilon decay após restaurar checkpoint
-                agent.set_epsilon_decay(num_episodes)
-                
-                # Ajusta epsilon baseado no progresso
-                epsilon_decay_episodes = int(num_episodes * 0.8)
-                if last_episode < epsilon_decay_episodes:
-                    # Decay linear até 80% dos episódios
-                    agent.epsilon = 1.0 - (last_episode * agent.epsilon_decay_per_episode)
-                else:
-                    # Decay exponencial após 80% dos episódios
-                    steps_after_linear = last_episode - epsilon_decay_episodes
-                    agent.epsilon = hyperparams['epsilon_min'] * (hyperparams['epsilon_exponential_decay'] ** steps_after_linear)
-                
-                agent.epsilon = max(agent.epsilon, hyperparams['epsilon_min'])
-                
-                # Restaura contador de episódios
-                agent.episodes = last_episode
-                
-                logger.info(f"Treinamento continuará a partir do episódio {start_episode}")
-                logger.info(f"Epsilon ajustado para: {agent.epsilon:.4f}")
+        if load_checkpoint(agent, checkpoint_path):
+            start_episode = last_episode + 1
+            
+            # Reconfigura epsilon decay após restaurar checkpoint
+            agent.set_epsilon_decay(num_episodes)
+            
+            # Ajusta epsilon baseado no progresso
+            epsilon_decay_episodes = int(num_episodes * 0.8)
+            if last_episode < epsilon_decay_episodes:
+                # Decay linear até 80% dos episódios
+                agent.epsilon = 1.0 - (last_episode * agent.epsilon_decay_per_episode)
             else:
-                logger.warning("Falha ao carregar checkpoint. Iniciando treinamento do zero.")
+                # Decay exponencial após 80% dos episódios
+                steps_after_linear = last_episode - epsilon_decay_episodes
+                agent.epsilon = hyperparams['epsilon_min'] * (hyperparams['epsilon_exponential_decay'] ** steps_after_linear)
+            
+            agent.epsilon = max(agent.epsilon, hyperparams['epsilon_min'])
+            
+            # Restaura contador de episódios
+            agent.episodes = last_episode
+            
+            logger.info(f"Treinamento continuará a partir do episódio {start_episode}")
+            logger.info(f"Epsilon ajustado para: {agent.epsilon:.4f}")
         else:
-            logger.info("Usuário optou por não usar checkpoint. Iniciando do zero.")
+            logger.warning("Falha ao carregar checkpoint. Iniciando treinamento do zero.")
     
     
     # Máximo de steps por episódio (proteção contra loops infinitos)
@@ -361,7 +356,7 @@ def main():
     # Rastreia os últimos 10 episódios para métricas móveis
     historical_loss_tracker = deque(maxlen=10) 
 
-    for episode in range(start_episode, num_episodes+1):
+    for episode in range(start_episode, start_episode + num_episodes + 1):
         # Reset do ambiente
         state = env.reset()
         episode_start_time = time()
@@ -427,27 +422,47 @@ def main():
             # Se loss atual < média histórica → agente confiante → estuda menos
             loss_ratio = (avg_episode_loss / historical_avg_loss) if historical_avg_loss > 0 else 1.0
             
+            
+
             # Etapa 4: Define número de sessões de estudo adaptativas
-            BASE_STUDY_SESSIONS = 8  # Sessões base quando ratio = 1.0
-            MIN_STUDY_SESSIONS = 4   # Estudar no mínimo
-            MAX_STUDY_SESSIONS = 64  # Estudar no máximo (se estiver muito confuso)
+            BASE_STUDY_SESSIONS = 16  # Sessões base quando ratio = 1.0
+            MIN_STUDY_SESSIONS = 8    # Estudar no mínimo
+            MAX_STUDY_SESSIONS = 64   # Estudar no máximo (se estiver muito confuso)
 
             study_sessions = int(BASE_STUDY_SESSIONS * loss_ratio)
                         
-            # Limites de segurança: mínimo 4, máximo 64 sessões
+            # Limites de segurança: mínimo 8, máximo 64 sessões
             study_sessions = max(MIN_STUDY_SESSIONS, min(MAX_STUDY_SESSIONS, study_sessions))
             
             # Etapa 5: Executa as sessões de estudo (já fizemos SAMPLE_ITERATIONS, fazemos o resto)
-            # remaining_sessions = max(0, study_sessions - SAMPLE_ITERATIONS)
+            # remaining_sessions = max(MIN_STUDY_SESSIONS, study_sessions - SAMPLE_ITERATIONS)
+            
             
             logger.info(
                 f"Episódio {episode}: Loss={avg_episode_loss:.4f}, "
                 f"Histórico={historical_avg_loss:.4f}, Ratio={loss_ratio:.2f}. "
-                f"Executando {study_sessions} sessões de treinamento.)"
+                f"Executando {study_sessions} sessões de treinamento, "
+                f"Sessões de estudo: {study_sessions + SAMPLE_ITERATIONS} (total)."
             )
-            
+
+            loss_remaining = []
+
             for _ in range(study_sessions):
-                agent.experience_replay()
+                loss = agent.experience_replay()
+                if loss is not None:
+                    loss_remaining.append(loss)
+
+            avg_loss_remaining = np.mean(loss_remaining) if loss_remaining else 0.00
+
+            # Recalcula loss médio final do episódio
+            if loss_remaining:
+                combined_losses = episode_losses + loss_remaining
+                avg_episode_loss = np.mean(combined_losses) if combined_losses else avg_episode_loss
+
+            logger.info(f"Episódio {episode}: Treinamento concluído. "
+                        f"Loss médio Pós Treino: {avg_loss_remaining:.4f}, "
+                        f"Loss médio Final do Episódio: {avg_episode_loss:.4f}."
+            )
             
             # Etapa 6: Atualiza histórico de loss para próximo episódio
             historical_loss_tracker.append(avg_episode_loss)
@@ -465,7 +480,7 @@ def main():
         final_nav = env.portfolio_value
         episode_navs.append(final_nav)
         episode_portfolio_values.append(final_nav)       
-        # Log detalhado a cada 10 episódios (formato do notebook)
+        # Log detalhado a cada 10 episódios 
         if episode % 10 == 0:
             total_time = time() - start_time
             

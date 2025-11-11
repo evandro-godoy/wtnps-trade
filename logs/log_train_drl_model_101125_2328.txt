@@ -1,0 +1,745 @@
+(wtnps-trade-py3.12) PS C:\projects\wtnps-trade> poetry run python train_drl_model.py
+2025-11-10 21:29:34.365249: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-11-10 21:29:37.277870: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-11-10 21:29:40,988 - INFO - Diretório de cache de dados inicializado em: C:\projects\wtnps-trade\.cache_data
+================================================================================
+TREINAMENTO DE AGENTE DEEP REINFORCEMENT LEARNING (DDQN)
+================================================================================
+
+2025-11-10 21:29:41,143 - INFO - Carregando configuração: configs/main.yaml
+Ativos disponíveis no config:
+  1. WDO$            | Estratégias: LSTMStrategy, DRLStrategy      | ✓ Habilitado
+  2. WIN$            | Estratégias: LSTMStrategy, DRLStrategy      | ✓ Habilitado
+
+
+Estratégias disponíveis para WDO$:
+  1. LSTMStrategy (Provider: MetaTrader5)
+  2. DRLStrategy (Provider: MetaTrader5)
+
+2025-11-10 21:29:41,154 - INFO - Usando estratégia: DRLStrategy
+2025-11-10 21:29:41,154 - INFO -   Provider: MetaTrader5
+2025-11-10 21:29:41,154 - INFO -   Dados: 2025-01-01 a 2025-10-31
+2025-11-10 21:29:41,154 - INFO -   Timeframe: H1
+2025-11-10 21:29:41,154 - INFO - Conectando ao provider: MetaTrader5...
+2025-11-10 21:29:41,169 - INFO - MetaTrader 5 Conectado: Clear Investimentos MT5 Terminal
+2025-11-10 21:29:41,169 - INFO - Criando ambiente de trading...
+2025-11-10 21:29:41,171 - INFO - Carregando dados históricos para WDO$...
+2025-11-10 21:29:41,173 - INFO - Carregando dados de WDO$ do cache: C:\projects\wtnps-trade\.cache_data\MT5_WDO_H1_20250101_20251031.parquet
+2025-11-10 21:29:41,340 - INFO - Dados carregados do cache (2096 registros).
+2025-11-10 21:29:41,344 - INFO - Dados carregados: 2096 candles de 2025-01-01 a 2025-10-31
+2025-11-10 21:29:41,344 - INFO - Calculando features de mercado para WDO$...
+2025-11-10 21:29:42,538 - INFO - Features calculadas: 1897 steps, 6 features
+2025-11-10 21:29:42,544 - INFO - TradingEnv inicializado: WDO$, Steps=1897, StateDim=9
+2025-11-10 21:29:42,544 - INFO - Ambiente criado: 1897 steps, state_dim=9
+2025-11-10 21:29:42,544 - INFO - Hiperparâmetros do agente:
+2025-11-10 21:29:42,544 - INFO -   state_dim: 9
+2025-11-10 21:29:42,544 - INFO -   num_actions: 3
+2025-11-10 21:29:42,544 - INFO -   learning_rate: 0.0001
+2025-11-10 21:29:42,544 - INFO -   gamma: 0.99
+2025-11-10 21:29:42,546 - INFO -   epsilon_start: 1.0
+2025-11-10 21:29:42,546 - INFO -   epsilon_min: 0.01
+2025-11-10 21:29:42,546 - INFO -   epsilon_exponential_decay: 0.99
+2025-11-10 21:29:42,546 - INFO -   replay_capacity: 1000000
+2025-11-10 21:29:42,546 - INFO -   architecture: (256, 256)
+2025-11-10 21:29:42,546 - INFO -   l2_reg: 1e-06
+2025-11-10 21:29:42,546 - INFO -   tau: 10
+2025-11-10 21:29:42,546 - INFO -   batch_size: 2048
+2025-11-10 21:29:42,546 - INFO - Criando agente DDQN...
+C:\Users\User\AppData\Local\pypoetry\Cache\virtualenvs\wtnps-trade-VyqtAXyS-py3.12\Lib\site-packages\keras\src\layers\core\dense.py:92: UserWarning: Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead.
+  super().__init__(activity_regularizer=activity_regularizer, **kwargs)
+2025-11-10 21:29:42.611938: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: SSE3 SSE4.1 SSE4.2 AVX AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2025-11-10 21:29:42,793 - INFO - DDQNAgent inicializado: StateDim=9, Actions=3, Architecture=(256, 256), LR=0.0001, Gamma=0.99, ReplayCapacity=1000000, BatchSize=2048
+2025-11-10 21:29:42,793 - INFO - Epsilon decay configurado: 80 episódios lineares (decay=0.012375 por episódio)
+
+================================================================================
+CHECKPOINT ENCONTRADO
+================================================================================
+Último checkpoint: WDO$_DRLStrategy_checkpoint_ep300_drl.keras
+Episódio do checkpoint: 300
+
+2025-11-10 21:29:42,795 - INFO - Carregando checkpoint: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep300_drl.keras
+2025-11-10 21:29:42,912 - INFO - Checkpoint carregado com sucesso!
+2025-11-10 21:29:42,912 - INFO - Epsilon decay configurado: 80 episódios lineares (decay=0.012375 por episódio)
+2025-11-10 21:29:42,913 - INFO - Treinamento continuará a partir do episódio 301
+2025-11-10 21:29:42,913 - INFO - Epsilon ajustado para: 0.0100
+2025-11-10 21:29:42,913 - INFO - Treinamento iniciará com 100 episódios.
+2025-11-10 21:29:42,913 - INFO - Timeout por episódio: 300 segundos
+2025-11-10 21:29:42,913 - INFO - Max steps por episódio: 1897
+
+================================================================================
+SUMÁRIO DA CONFIGURAÇÃO
+================================================================================
+Ambiente:
+  Ticker: WDO$
+  Provider: MetaTrader5
+  Período: 2025-01-01 a 2025-10-31
+  Timeframe: H1
+  Steps totais disponíveis: 1897
+  State dimension: 9
+
+Agente DDQN:
+  Arquitetura: (256, 256)
+  Learning rate: 0.0001
+  Gamma (discount): 0.99
+  Epsilon: 1.0 → 0.01 (linear em 80 eps, 20 exponencial)
+  Replay buffer: 1,000,000 experiências
+  Batch size: 2048
+  Target network update: a cada 10 steps
+
+Treinamento:
+  Episódio inicial: 301
+  Episódio final: 400
+  Total de episódios nesta sessão: 100
+  Epsilon inicial: 0.0100
+  Timeout por episódio: 300s
+  Checkpoint a cada: 10 episódios
+  Tempo estimado (pessimista): 08:20:00
+================================================================================
+
+================================================================================
+INICIANDO TREINAMENTO
+================================================================================
+
+2025-11-10 21:29:42,917 - INFO - Início do treinamento: 489672:29:42
+2025-11-10 21:29:42,917 - INFO - Checkpoint automático a cada 10 episódios
+2025-11-10 21:29:59,284 - INFO - Episódio 301: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:30:14,243 - INFO - Episódio 301: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:30:30,905 - INFO - Episódio 301: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:30:46,025 - INFO - Episódio 301: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:30:59,530 - INFO - Episódio 301: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:31:13,411 - INFO - Episódio 301: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:31:26,779 - INFO - Episódio 301: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:31:34,575 - INFO - Episódio 301: Buffer insuficiente (1896/2048). Pulando treinamento.
+2025-11-10 21:31:48,045 - INFO - Episódio 302: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:32:01,679 - INFO - Episódio 302: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:32:15,159 - INFO - Episódio 302: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:32:28,489 - INFO - Episódio 302: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:32:41,721 - INFO - Episódio 302: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:32:54,697 - INFO - Episódio 302: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:33:08,040 - INFO - Episódio 302: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:33:15,635 - INFO - Episódio 302 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:33:19,136 - INFO - Episódio 302: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:33:24,245 - INFO - Episódio 302: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:33:37,300 - INFO - Episódio 303: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:33:50,198 - INFO - Episódio 303: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:34:03,242 - INFO - Episódio 303: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:34:17,560 - INFO - Episódio 303: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:34:32,007 - INFO - Episódio 303: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:34:46,187 - INFO - Episódio 303: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:35:00,435 - INFO - Episódio 303: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:35:08,840 - INFO - Episódio 303 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:35:11,609 - INFO - Episódio 303: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:35:17,833 - INFO - Episódio 303: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:35:32,490 - INFO - Episódio 304: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:35:47,136 - INFO - Episódio 304: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:36:01,513 - INFO - Episódio 304: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:36:16,271 - INFO - Episódio 304: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:36:32,146 - INFO - Episódio 304: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:36:47,092 - INFO - Episódio 304: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:37:00,929 - INFO - Episódio 304: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:37:08,842 - INFO - Episódio 304 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:37:11,895 - INFO - Episódio 304: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:37:18,253 - INFO - Episódio 304: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:37:32,808 - INFO - Episódio 305: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:37:48,007 - INFO - Episódio 305: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:38:04,619 - INFO - Episódio 305: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:38:20,210 - INFO - Episódio 305: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:38:36,448 - INFO - Episódio 305: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:38:52,864 - INFO - Episódio 305: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:39:06,889 - INFO - Episódio 305: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:39:15,211 - INFO - Episódio 305 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:39:18,520 - INFO - Episódio 305: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:39:24,306 - INFO - Episódio 305: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:39:37,818 - INFO - Episódio 306: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:39:50,619 - INFO - Episódio 306: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:40:03,563 - INFO - Episódio 306: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:40:16,600 - INFO - Episódio 306: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:40:29,545 - INFO - Episódio 306: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:40:42,494 - INFO - Episódio 306: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:40:56,264 - INFO - Episódio 306: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:41:04,331 - INFO - Episódio 306 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:41:07,115 - INFO - Episódio 306: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:41:12,483 - INFO - Episódio 306: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:41:26,615 - INFO - Episódio 307: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:41:43,233 - INFO - Episódio 307: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:41:59,396 - INFO - Episódio 307: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:42:14,503 - INFO - Episódio 307: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:42:27,908 - INFO - Episódio 307: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:42:40,936 - INFO - Episódio 307: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:42:54,217 - INFO - Episódio 307: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:43:03,501 - INFO - Episódio 307 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:43:05,986 - INFO - Episódio 307: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:43:11,177 - INFO - Episódio 307: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:43:24,056 - INFO - Episódio 308: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:43:37,076 - INFO - Episódio 308: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:43:50,807 - INFO - Episódio 308: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:44:04,627 - INFO - Episódio 308: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:44:19,404 - INFO - Episódio 308: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:44:34,063 - INFO - Episódio 308: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:44:47,667 - INFO - Episódio 308: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:44:55,585 - INFO - Episódio 308 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:44:58,293 - INFO - Episódio 308: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:45:03,791 - INFO - Episódio 308: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:45:17,941 - INFO - Episódio 309: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:45:32,051 - INFO - Episódio 309: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:45:46,143 - INFO - Episódio 309: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:46:00,879 - INFO - Episódio 309: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:46:15,115 - INFO - Episódio 309: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:46:29,454 - INFO - Episódio 309: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:46:44,173 - INFO - Episódio 309: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:46:51,856 - INFO - Episódio 309 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:46:54,458 - INFO - Episódio 309: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:46:59,633 - INFO - Episódio 309: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:47:12,626 - INFO - Episódio 310: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:47:25,412 - INFO - Episódio 310: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:47:38,120 - INFO - Episódio 310: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:47:50,887 - INFO - Episódio 310: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:48:03,720 - INFO - Episódio 310: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:48:16,801 - INFO - Episódio 310: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:48:30,095 - INFO - Episódio 310: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:48:37,741 - INFO - Episode 310 | Reward: -0.1874 | Avg(100): -0.1298 | Avg(10): -0.1298 | Epsilon: 0.0100 | Steps: 1896
+2025-11-10 21:48:37,741 - INFO - Episódio 310 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:48:40,478 - INFO - Episódio 310: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:48:45,931 - INFO - Episódio 310: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+ 310 | 00:19:03 | Agent: -12.1% (-12.1%) | Market:   0.0% (  0.0%) | Wins:  0.0% | eps:  0.010
+2025-11-10 21:48:45,931 - INFO - Salvando checkpoint em episódio 310...
+2025-11-10 21:48:45,931 - INFO - DRLStrategy inicializada
+2025-11-10 21:48:45,931 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep310_drl.keras
+2025-11-10 21:48:45,972 - INFO - Modelo DRL salvo com sucesso
+2025-11-10 21:48:45,972 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep310_drl.keras
+2025-11-10 21:48:59,702 - INFO - Episódio 311: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:49:12,739 - INFO - Episódio 311: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:49:25,681 - INFO - Episódio 311: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:49:38,743 - INFO - Episódio 311: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:49:52,435 - INFO - Episódio 311: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:50:07,051 - INFO - Episódio 311: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:50:20,183 - INFO - Episódio 311: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:50:27,998 - INFO - Episódio 311 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:50:30,764 - INFO - Episódio 311: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:50:36,139 - INFO - Episódio 311: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:50:50,904 - INFO - Episódio 312: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:51:05,047 - INFO - Episódio 312: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:51:19,087 - INFO - Episódio 312: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:51:33,121 - INFO - Episódio 312: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:51:51,061 - INFO - Episódio 312: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:52:05,016 - INFO - Episódio 312: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:52:18,534 - INFO - Episódio 312: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:52:26,412 - INFO - Episódio 312 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:52:29,065 - INFO - Episódio 312: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:52:34,547 - INFO - Episódio 312: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:52:48,766 - INFO - Episódio 313: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:53:02,887 - INFO - Episódio 313: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:53:21,918 - INFO - Episódio 313: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:53:35,841 - INFO - Episódio 313: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:53:53,860 - INFO - Episódio 313: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:54:07,552 - INFO - Episódio 313: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:54:25,490 - INFO - Episódio 313: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:54:33,654 - INFO - Episódio 313 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:54:36,440 - INFO - Episódio 313: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:54:42,020 - INFO - Episódio 313: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:54:56,737 - INFO - Episódio 314: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:55:10,074 - INFO - Episódio 314: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:55:23,185 - INFO - Episódio 314: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:55:36,302 - INFO - Episódio 314: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:55:49,483 - INFO - Episódio 314: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:56:04,177 - INFO - Episódio 314: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:56:17,159 - INFO - Episódio 314: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:56:24,819 - INFO - Episódio 314 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:56:27,505 - INFO - Episódio 314: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:56:32,779 - INFO - Episódio 314: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:56:45,704 - INFO - Episódio 315: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:56:58,603 - INFO - Episódio 315: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:57:11,593 - INFO - Episódio 315: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:57:24,302 - INFO - Episódio 315: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:57:37,257 - INFO - Episódio 315: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:57:50,086 - INFO - Episódio 315: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:58:03,109 - INFO - Episódio 315: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:58:10,828 - INFO - Episódio 315 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 21:58:13,552 - INFO - Episódio 315: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 21:58:19,005 - INFO - Episódio 315: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 21:58:32,111 - INFO - Episódio 316: 250 steps executados de 1897 (restam 1647)
+2025-11-10 21:58:45,101 - INFO - Episódio 316: 500 steps executados de 1897 (restam 1397)
+2025-11-10 21:58:58,191 - INFO - Episódio 316: 750 steps executados de 1897 (restam 1147)
+2025-11-10 21:59:10,880 - INFO - Episódio 316: 1000 steps executados de 1897 (restam 897)
+2025-11-10 21:59:23,912 - INFO - Episódio 316: 1250 steps executados de 1897 (restam 647)
+2025-11-10 21:59:36,823 - INFO - Episódio 316: 1500 steps executados de 1897 (restam 397)
+2025-11-10 21:59:49,901 - INFO - Episódio 316: 1750 steps executados de 1897 (restam 147)
+2025-11-10 21:59:57,559 - INFO - Episódio 316 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:00:00,207 - INFO - Episódio 316: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:00:06,234 - INFO - Episódio 316: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:00:19,995 - INFO - Episódio 317: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:00:33,611 - INFO - Episódio 317: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:00:47,305 - INFO - Episódio 317: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:01:01,624 - INFO - Episódio 317: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:01:18,002 - INFO - Episódio 317: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:01:31,732 - INFO - Episódio 317: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:01:45,477 - INFO - Episódio 317: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:01:53,573 - INFO - Episódio 317 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:01:56,319 - INFO - Episódio 317: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:02:01,898 - INFO - Episódio 317: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:02:16,172 - INFO - Episódio 318: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:02:29,858 - INFO - Episódio 318: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:02:43,372 - INFO - Episódio 318: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:02:57,253 - INFO - Episódio 318: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:03:10,917 - INFO - Episódio 318: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:03:25,160 - INFO - Episódio 318: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:03:38,993 - INFO - Episódio 318: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:03:47,034 - INFO - Episódio 318 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:03:49,736 - INFO - Episódio 318: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:03:55,074 - INFO - Episódio 318: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:04:08,937 - INFO - Episódio 319: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:04:22,851 - INFO - Episódio 319: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:04:36,776 - INFO - Episódio 319: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:04:51,026 - INFO - Episódio 319: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:05:04,865 - INFO - Episódio 319: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:05:18,481 - INFO - Episódio 319: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:05:33,841 - INFO - Episódio 319: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:05:44,394 - INFO - Episódio 319 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:05:48,087 - INFO - Episódio 319: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:05:55,944 - INFO - Episódio 319: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:06:17,194 - INFO - Episódio 320: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:06:34,925 - INFO - Episódio 320: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:06:59,512 - INFO - Episódio 320: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:07:17,768 - INFO - Episódio 320: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:07:34,994 - INFO - Episódio 320: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:07:50,552 - INFO - Episódio 320: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:08:05,726 - INFO - Episódio 320: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:08:14,414 - INFO - Episode 320 | Reward: -0.0153 | Avg(100): -0.1144 | Avg(10): -0.0990 | Epsilon: 0.0100 | Steps: 1896
+2025-11-10 22:08:14,414 - INFO - Episódio 320 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:08:18,072 - INFO - Episódio 320: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:08:24,548 - INFO - Episódio 320: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+ 320 | 00:38:41 | Agent: -10.6% ( -9.1%) | Market:   0.0% (  0.0%) | Wins:  5.0% | eps:  0.010
+2025-11-10 22:08:24,548 - INFO - Salvando checkpoint em episódio 320...
+2025-11-10 22:08:24,548 - INFO - DRLStrategy inicializada
+2025-11-10 22:08:24,549 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep320_drl.keras
+2025-11-10 22:08:24,586 - INFO - Modelo DRL salvo com sucesso
+2025-11-10 22:08:24,586 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep320_drl.keras
+2025-11-10 22:08:42,496 - INFO - Episódio 321: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:09:00,696 - INFO - Episódio 321: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:09:20,854 - INFO - Episódio 321: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:09:37,877 - INFO - Episódio 321: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:09:54,287 - INFO - Episódio 321: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:10:12,008 - INFO - Episódio 321: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:10:27,749 - INFO - Episódio 321: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:10:36,483 - INFO - Episódio 321 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:10:39,768 - INFO - Episódio 321: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:10:45,215 - INFO - Episódio 321: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:11:01,186 - INFO - Episódio 322: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:11:16,523 - INFO - Episódio 322: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:11:31,558 - INFO - Episódio 322: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:11:47,574 - INFO - Episódio 322: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:12:06,723 - INFO - Episódio 322: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:12:22,574 - INFO - Episódio 322: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:12:37,774 - INFO - Episódio 322: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:12:46,866 - INFO - Episódio 322 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:12:50,538 - INFO - Episódio 322: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:12:57,365 - INFO - Episódio 322: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:13:12,299 - INFO - Episódio 323: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:13:28,492 - INFO - Episódio 323: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:13:43,248 - INFO - Episódio 323: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:13:58,415 - INFO - Episódio 323: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:14:14,016 - INFO - Episódio 323: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:14:33,513 - INFO - Episódio 323: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:14:47,596 - INFO - Episódio 323: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:14:55,776 - INFO - Episódio 323 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:14:58,940 - INFO - Episódio 323: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:15:05,520 - INFO - Episódio 323: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:15:24,085 - INFO - Episódio 324: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:15:39,082 - INFO - Episódio 324: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:15:54,885 - INFO - Episódio 324: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:16:11,604 - INFO - Episódio 324: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:16:31,204 - INFO - Episódio 324: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:16:47,346 - INFO - Episódio 324: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:17:02,923 - INFO - Episódio 324: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:17:12,021 - INFO - Episódio 324 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:17:15,711 - INFO - Episódio 324: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:17:23,029 - INFO - Episódio 324: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:17:38,596 - INFO - Episódio 325: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:17:55,081 - INFO - Episódio 325: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:18:11,527 - INFO - Episódio 325: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:18:26,864 - INFO - Episódio 325: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:18:43,532 - INFO - Episódio 325: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:18:59,067 - INFO - Episódio 325: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:19:15,110 - INFO - Episódio 325: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:19:23,850 - INFO - Episódio 325 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:19:27,667 - INFO - Episódio 325: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:19:38,412 - INFO - Episódio 325: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:19:53,682 - INFO - Episódio 326: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:20:09,002 - INFO - Episódio 326: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:20:24,240 - INFO - Episódio 326: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:20:42,435 - INFO - Episódio 326: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:20:56,888 - INFO - Episódio 326: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:21:13,918 - INFO - Episódio 326: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:21:30,441 - INFO - Episódio 326: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:21:43,766 - INFO - Episódio 326 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:21:47,296 - INFO - Episódio 326: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:21:53,716 - INFO - Episódio 326: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:22:09,345 - INFO - Episódio 327: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:22:25,218 - INFO - Episódio 327: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:22:40,836 - INFO - Episódio 327: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:22:55,872 - INFO - Episódio 327: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:23:14,793 - INFO - Episódio 327: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:23:31,433 - INFO - Episódio 327: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:23:47,046 - INFO - Episódio 327: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:23:55,446 - INFO - Episódio 327 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:23:58,059 - INFO - Episódio 327: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:24:03,383 - INFO - Episódio 327: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:24:17,365 - INFO - Episódio 328: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:24:31,170 - INFO - Episódio 328: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:24:44,913 - INFO - Episódio 328: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:24:58,763 - INFO - Episódio 328: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:25:12,628 - INFO - Episódio 328: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:25:26,518 - INFO - Episódio 328: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:25:40,492 - INFO - Episódio 328: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:25:48,591 - INFO - Episódio 328 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:25:51,278 - INFO - Episódio 328: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:25:56,732 - INFO - Episódio 328: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:26:10,515 - INFO - Episódio 329: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:26:24,597 - INFO - Episódio 329: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:26:38,506 - INFO - Episódio 329: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:26:52,609 - INFO - Episódio 329: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:27:06,454 - INFO - Episódio 329: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:27:20,190 - INFO - Episódio 329: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:27:34,083 - INFO - Episódio 329: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:27:42,319 - INFO - Episódio 329 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:27:45,603 - INFO - Episódio 329: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:27:51,025 - INFO - Episódio 329: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:28:05,232 - INFO - Episódio 330: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:28:19,067 - INFO - Episódio 330: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:28:36,532 - INFO - Episódio 330: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:28:52,841 - INFO - Episódio 330: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:29:11,338 - INFO - Episódio 330: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:29:26,105 - INFO - Episódio 330: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:29:40,595 - INFO - Episódio 330: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:29:49,550 - INFO - Episode 330 | Reward: -0.1351 | Avg(100): -0.1127 | Avg(10): -0.1093 | Epsilon: 0.0100 | Steps: 1896
+2025-11-10 22:29:49,550 - INFO - Episódio 330 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:29:53,197 - INFO - Episódio 330: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:29:58,928 - INFO - Episódio 330: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+ 330 | 01:00:16 | Agent: -10.4% (-10.1%) | Market:   0.0% (  0.0%) | Wins:  6.7% | eps:  0.010
+2025-11-10 22:29:58,928 - INFO - Salvando checkpoint em episódio 330...
+2025-11-10 22:29:58,928 - INFO - DRLStrategy inicializada
+2025-11-10 22:29:58,928 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep330_drl.keras
+2025-11-10 22:29:58,947 - INFO - Modelo DRL salvo com sucesso
+2025-11-10 22:29:58,947 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep330_drl.keras
+2025-11-10 22:30:14,317 - INFO - Episódio 331: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:30:30,343 - INFO - Episódio 331: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:30:44,933 - INFO - Episódio 331: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:30:59,210 - INFO - Episódio 331: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:31:13,638 - INFO - Episódio 331: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:31:28,024 - INFO - Episódio 331: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:31:41,899 - INFO - Episódio 331: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:31:49,841 - INFO - Episódio 331 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:31:52,537 - INFO - Episódio 331: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:31:57,968 - INFO - Episódio 331: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:32:12,198 - INFO - Episódio 332: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:32:26,150 - INFO - Episódio 332: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:32:40,153 - INFO - Episódio 332: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:32:54,368 - INFO - Episódio 332: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:33:08,515 - INFO - Episódio 332: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:33:22,926 - INFO - Episódio 332: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:33:36,863 - INFO - Episódio 332: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:33:45,167 - INFO - Episódio 332 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:33:47,875 - INFO - Episódio 332: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:33:53,317 - INFO - Episódio 332: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:34:07,883 - INFO - Episódio 333: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:34:26,220 - INFO - Episódio 333: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:34:43,886 - INFO - Episódio 333: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:34:57,821 - INFO - Episódio 333: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:35:12,004 - INFO - Episódio 333: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:35:26,156 - INFO - Episódio 333: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:35:39,916 - INFO - Episódio 333: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:35:48,111 - INFO - Episódio 333 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:35:50,812 - INFO - Episódio 333: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:35:56,445 - INFO - Episódio 333: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:36:10,540 - INFO - Episódio 334: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:36:24,284 - INFO - Episódio 334: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:36:37,838 - INFO - Episódio 334: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:36:51,634 - INFO - Episódio 334: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:37:05,637 - INFO - Episódio 334: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:37:19,158 - INFO - Episódio 334: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:37:32,789 - INFO - Episódio 334: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:37:40,752 - INFO - Episódio 334 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:37:43,484 - INFO - Episódio 334: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:37:48,809 - INFO - Episódio 334: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:38:02,612 - INFO - Episódio 335: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:38:16,341 - INFO - Episódio 335: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:38:30,400 - INFO - Episódio 335: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:38:43,806 - INFO - Episódio 335: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:38:57,483 - INFO - Episódio 335: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:39:10,827 - INFO - Episódio 335: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:39:24,550 - INFO - Episódio 335: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:39:32,432 - INFO - Episódio 335 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:39:35,176 - INFO - Episódio 335: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:39:40,537 - INFO - Episódio 335: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:39:54,325 - INFO - Episódio 336: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:40:08,135 - INFO - Episódio 336: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:40:22,104 - INFO - Episódio 336: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:40:35,815 - INFO - Episódio 336: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:40:49,510 - INFO - Episódio 336: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:41:02,746 - INFO - Episódio 336: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:41:16,433 - INFO - Episódio 336: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:41:24,513 - INFO - Episódio 336 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:41:27,138 - INFO - Episódio 336: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:41:32,426 - INFO - Episódio 336: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:41:46,211 - INFO - Episódio 337: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:41:59,714 - INFO - Episódio 337: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:42:13,684 - INFO - Episódio 337: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:42:27,581 - INFO - Episódio 337: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:42:41,041 - INFO - Episódio 337: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:42:55,082 - INFO - Episódio 337: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:43:08,940 - INFO - Episódio 337: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:43:17,087 - INFO - Episódio 337 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:43:19,770 - INFO - Episódio 337: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:43:25,202 - INFO - Episódio 337: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:43:39,320 - INFO - Episódio 338: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:43:53,316 - INFO - Episódio 338: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:44:07,027 - INFO - Episódio 338: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:44:20,749 - INFO - Episódio 338: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:44:34,614 - INFO - Episódio 338: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:44:48,091 - INFO - Episódio 338: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:45:01,567 - INFO - Episódio 338: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:45:09,668 - INFO - Episódio 338 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:45:12,425 - INFO - Episódio 338: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:45:17,661 - INFO - Episódio 338: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:45:31,506 - INFO - Episódio 339: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:45:45,518 - INFO - Episódio 339: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:45:59,613 - INFO - Episódio 339: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:46:13,752 - INFO - Episódio 339: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:46:27,331 - INFO - Episódio 339: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:46:40,884 - INFO - Episódio 339: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:46:54,843 - INFO - Episódio 339: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:47:03,029 - INFO - Episódio 339 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:47:05,682 - INFO - Episódio 339: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:47:11,213 - INFO - Episódio 339: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:47:24,970 - INFO - Episódio 340: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:47:38,682 - INFO - Episódio 340: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:47:52,773 - INFO - Episódio 340: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:48:06,480 - INFO - Episódio 340: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:48:20,291 - INFO - Episódio 340: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:48:33,800 - INFO - Episódio 340: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:48:47,671 - INFO - Episódio 340: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:48:55,642 - INFO - Episode 340 | Reward: -0.1079 | Avg(100): -0.1193 | Avg(10): -0.1389 | Epsilon: 0.0100 | Steps: 1896
+2025-11-10 22:48:55,642 - INFO - Episódio 340 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:48:58,405 - INFO - Episódio 340: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:49:03,840 - INFO - Episódio 340: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+ 340 | 01:19:20 | Agent: -11.0% (-12.8%) | Market:   0.0% (  0.0%) | Wins:  5.0% | eps:  0.010
+2025-11-10 22:49:03,840 - INFO - Salvando checkpoint em episódio 340...
+2025-11-10 22:49:03,846 - INFO - DRLStrategy inicializada
+2025-11-10 22:49:03,846 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep340_drl.keras
+2025-11-10 22:49:03,876 - INFO - Modelo DRL salvo com sucesso
+2025-11-10 22:49:03,876 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep340_drl.keras
+2025-11-10 22:49:17,628 - INFO - Episódio 341: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:49:31,527 - INFO - Episódio 341: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:49:45,411 - INFO - Episódio 341: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:49:59,013 - INFO - Episódio 341: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:50:12,978 - INFO - Episódio 341: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:50:26,537 - INFO - Episódio 341: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:50:40,488 - INFO - Episódio 341: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:50:48,798 - INFO - Episódio 341 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:50:51,425 - INFO - Episódio 341: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:50:56,699 - INFO - Episódio 341: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:51:10,572 - INFO - Episódio 342: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:51:24,209 - INFO - Episódio 342: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:51:38,058 - INFO - Episódio 342: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:51:51,641 - INFO - Episódio 342: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:52:05,518 - INFO - Episódio 342: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:52:19,389 - INFO - Episódio 342: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:52:32,701 - INFO - Episódio 342: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:52:40,803 - INFO - Episódio 342 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:52:43,424 - INFO - Episódio 342: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:52:48,824 - INFO - Episódio 342: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:53:02,988 - INFO - Episódio 343: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:53:16,915 - INFO - Episódio 343: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:53:31,024 - INFO - Episódio 343: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:53:44,815 - INFO - Episódio 343: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:53:58,855 - INFO - Episódio 343: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:54:12,880 - INFO - Episódio 343: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:54:26,746 - INFO - Episódio 343: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:54:34,532 - INFO - Episódio 343 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:54:37,357 - INFO - Episódio 343: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:54:42,638 - INFO - Episódio 343: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:54:56,429 - INFO - Episódio 344: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:55:10,161 - INFO - Episódio 344: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:55:24,108 - INFO - Episódio 344: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:55:37,882 - INFO - Episódio 344: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:55:51,754 - INFO - Episódio 344: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:56:05,663 - INFO - Episódio 344: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:56:19,523 - INFO - Episódio 344: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:56:27,329 - INFO - Episódio 344 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:56:30,010 - INFO - Episódio 344: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:56:35,314 - INFO - Episódio 344: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:56:48,545 - INFO - Episódio 345: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:57:02,019 - INFO - Episódio 345: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:57:15,991 - INFO - Episódio 345: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:57:29,871 - INFO - Episódio 345: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:57:43,750 - INFO - Episódio 345: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:57:57,644 - INFO - Episódio 345: 1500 steps executados de 1897 (restam 397)
+2025-11-10 22:58:11,612 - INFO - Episódio 345: 1750 steps executados de 1897 (restam 147)
+2025-11-10 22:58:19,542 - INFO - Episódio 345 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 22:58:22,228 - INFO - Episódio 345: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 22:58:27,646 - INFO - Episódio 345: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 22:58:41,233 - INFO - Episódio 346: 250 steps executados de 1897 (restam 1647)
+2025-11-10 22:58:55,010 - INFO - Episódio 346: 500 steps executados de 1897 (restam 1397)
+2025-11-10 22:59:08,721 - INFO - Episódio 346: 750 steps executados de 1897 (restam 1147)
+2025-11-10 22:59:22,323 - INFO - Episódio 346: 1000 steps executados de 1897 (restam 897)
+2025-11-10 22:59:36,122 - INFO - Episódio 346: 1250 steps executados de 1897 (restam 647)
+2025-11-10 22:59:49,776 - INFO - Episódio 346: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:00:03,601 - INFO - Episódio 346: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:00:12,193 - INFO - Episódio 346 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:00:14,865 - INFO - Episódio 346: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:00:20,350 - INFO - Episódio 346: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:00:33,996 - INFO - Episódio 347: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:00:47,807 - INFO - Episódio 347: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:01:01,407 - INFO - Episódio 347: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:01:21,363 - INFO - Episódio 347: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:01:36,640 - INFO - Episódio 347: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:01:51,798 - INFO - Episódio 347: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:02:07,589 - INFO - Episódio 347: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:02:16,476 - INFO - Episódio 347 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:02:19,726 - INFO - Episódio 347: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:02:27,027 - INFO - Episódio 347: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:02:40,709 - INFO - Episódio 348: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:02:54,259 - INFO - Episódio 348: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:03:07,837 - INFO - Episódio 348: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:03:21,873 - INFO - Episódio 348: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:03:36,052 - INFO - Episódio 348: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:03:49,878 - INFO - Episódio 348: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:04:03,600 - INFO - Episódio 348: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:04:11,655 - INFO - Episódio 348 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:04:14,464 - INFO - Episódio 348: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:04:20,012 - INFO - Episódio 348: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:04:33,513 - INFO - Episódio 349: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:04:47,376 - INFO - Episódio 349: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:05:01,124 - INFO - Episódio 349: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:05:15,371 - INFO - Episódio 349: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:05:29,129 - INFO - Episódio 349: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:05:42,931 - INFO - Episódio 349: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:05:56,748 - INFO - Episódio 349: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:06:04,464 - INFO - Episódio 349 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:06:07,099 - INFO - Episódio 349: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:06:12,441 - INFO - Episódio 349: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:06:26,405 - INFO - Episódio 350: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:06:40,272 - INFO - Episódio 350: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:06:54,031 - INFO - Episódio 350: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:07:07,817 - INFO - Episódio 350: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:07:22,440 - INFO - Episódio 350: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:07:36,220 - INFO - Episódio 350: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:07:50,161 - INFO - Episódio 350: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:07:58,480 - INFO - Episode 350 | Reward: -0.1873 | Avg(100): -0.1210 | Avg(10): -0.1281 | Epsilon: 0.0100 | Steps: 1896
+2025-11-10 23:07:58,480 - INFO - Episódio 350 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:08:01,189 - INFO - Episódio 350: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:08:06,597 - INFO - Episódio 350: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+ 350 | 01:38:23 | Agent: -11.2% (-12.0%) | Market:   0.0% (  0.0%) | Wins:  4.0% | eps:  0.010
+2025-11-10 23:08:06,597 - INFO - Salvando checkpoint em episódio 350...
+2025-11-10 23:08:06,597 - INFO - DRLStrategy inicializada
+2025-11-10 23:08:06,597 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep350_drl.keras
+2025-11-10 23:08:06,621 - INFO - Modelo DRL salvo com sucesso
+2025-11-10 23:08:06,622 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep350_drl.keras
+2025-11-10 23:08:20,711 - INFO - Episódio 351: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:08:35,028 - INFO - Episódio 351: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:08:48,849 - INFO - Episódio 351: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:09:02,660 - INFO - Episódio 351: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:09:16,173 - INFO - Episódio 351: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:09:29,962 - INFO - Episódio 351: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:09:43,810 - INFO - Episódio 351: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:09:51,985 - INFO - Episódio 351 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:09:54,674 - INFO - Episódio 351: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:09:59,944 - INFO - Episódio 351: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:10:13,873 - INFO - Episódio 352: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:10:27,850 - INFO - Episódio 352: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:10:41,721 - INFO - Episódio 352: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:10:55,630 - INFO - Episódio 352: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:11:09,619 - INFO - Episódio 352: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:11:23,180 - INFO - Episódio 352: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:11:36,773 - INFO - Episódio 352: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:11:44,647 - INFO - Episódio 352 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:11:47,301 - INFO - Episódio 352: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:11:52,816 - INFO - Episódio 352: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:12:06,410 - INFO - Episódio 353: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:12:20,471 - INFO - Episódio 353: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:12:34,271 - INFO - Episódio 353: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:12:48,779 - INFO - Episódio 353: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:13:05,677 - INFO - Episódio 353: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:13:19,711 - INFO - Episódio 353: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:13:33,938 - INFO - Episódio 353: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:13:41,851 - INFO - Episódio 353 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:13:44,494 - INFO - Episódio 353: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:13:49,946 - INFO - Episódio 353: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:14:03,889 - INFO - Episódio 354: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:14:17,616 - INFO - Episódio 354: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:14:31,677 - INFO - Episódio 354: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:14:45,483 - INFO - Episódio 354: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:14:59,312 - INFO - Episódio 354: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:15:13,343 - INFO - Episódio 354: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:15:27,138 - INFO - Episódio 354: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:15:35,291 - INFO - Episódio 354 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:15:37,976 - INFO - Episódio 354: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:15:43,286 - INFO - Episódio 354: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:15:57,081 - INFO - Episódio 355: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:16:11,250 - INFO - Episódio 355: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:16:25,358 - INFO - Episódio 355: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:16:38,803 - INFO - Episódio 355: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:16:52,544 - INFO - Episódio 355: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:17:06,187 - INFO - Episódio 355: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:17:20,196 - INFO - Episódio 355: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:17:28,418 - INFO - Episódio 355 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:17:31,085 - INFO - Episódio 355: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:17:36,436 - INFO - Episódio 355: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:17:50,365 - INFO - Episódio 356: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:18:04,260 - INFO - Episódio 356: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:18:18,125 - INFO - Episódio 356: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:18:31,722 - INFO - Episódio 356: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:18:45,678 - INFO - Episódio 356: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:18:59,238 - INFO - Episódio 356: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:19:13,585 - INFO - Episódio 356: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:19:21,348 - INFO - Episódio 356 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:19:24,064 - INFO - Episódio 356: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:19:29,420 - INFO - Episódio 356: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:19:43,206 - INFO - Episódio 357: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:19:56,827 - INFO - Episódio 357: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:20:10,846 - INFO - Episódio 357: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:20:24,752 - INFO - Episódio 357: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:20:38,471 - INFO - Episódio 357: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:20:52,501 - INFO - Episódio 357: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:21:06,445 - INFO - Episódio 357: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:21:14,535 - INFO - Episódio 357 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:21:17,116 - INFO - Episódio 357: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:21:22,536 - INFO - Episódio 357: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:21:36,302 - INFO - Episódio 358: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:21:50,420 - INFO - Episódio 358: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:22:03,980 - INFO - Episódio 358: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:22:18,608 - INFO - Episódio 358: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:22:32,112 - INFO - Episódio 358: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:22:45,905 - INFO - Episódio 358: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:23:02,794 - INFO - Episódio 358: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:23:11,090 - INFO - Episódio 358 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:23:13,807 - INFO - Episódio 358: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:23:19,126 - INFO - Episódio 358: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:23:33,028 - INFO - Episódio 359: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:23:47,075 - INFO - Episódio 359: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:24:00,969 - INFO - Episódio 359: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:24:14,802 - INFO - Episódio 359: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:24:28,398 - INFO - Episódio 359: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:24:42,166 - INFO - Episódio 359: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:24:55,650 - INFO - Episódio 359: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:25:03,870 - INFO - Episódio 359 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:25:06,554 - INFO - Episódio 359: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:25:12,069 - INFO - Episódio 359: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+2025-11-10 23:25:26,076 - INFO - Episódio 360: 250 steps executados de 1897 (restam 1647)
+2025-11-10 23:25:39,738 - INFO - Episódio 360: 500 steps executados de 1897 (restam 1397)
+2025-11-10 23:25:53,377 - INFO - Episódio 360: 750 steps executados de 1897 (restam 1147)
+2025-11-10 23:26:06,966 - INFO - Episódio 360: 1000 steps executados de 1897 (restam 897)
+2025-11-10 23:26:20,788 - INFO - Episódio 360: 1250 steps executados de 1897 (restam 647)
+2025-11-10 23:26:41,343 - INFO - Episódio 360: 1500 steps executados de 1897 (restam 397)
+2025-11-10 23:26:56,309 - INFO - Episódio 360: 1750 steps executados de 1897 (restam 147)
+2025-11-10 23:27:09,466 - INFO - Episode 360 | Reward: -0.2025 | Avg(100): -0.1247 | Avg(10): -0.1432 | Epsilon: 0.0100 | Steps: 1896
+2025-11-10 23:27:09,466 - INFO - Episódio 360 concluído em 1896 steps. Iniciando treinamento adaptativo...
+2025-11-10 23:27:13,357 - INFO - Episódio 360: Loss=0.0100, Histórico=0.0100, Ratio=1.00. Executando 16 sessões de treinamento, Sessões de estudo: 24 (total).
+2025-11-10 23:27:20,688 - INFO - Episódio 360: Treinamento concluído. Loss médio Pós Treino: 0.0000, Loss médio Final do Episódio: 0.0100.
+ 360 | 01:57:37 | Agent: -11.5% (-13.2%) | Market:   0.0% (  0.0%) | Wins:  3.3% | eps:  0.010
+2025-11-10 23:27:20,689 - INFO - Salvando checkpoint em episódio 360...
+2025-11-10 23:27:20,692 - INFO - DRLStrategy inicializada
+2025-11-10 23:27:20,692 - INFO - Salvando modelo DRL em c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep360_drl.keras
+2025-11-10 23:27:20,720 - INFO - Modelo DRL salvo com sucesso
+2025-11-10 23:27:20,724 - INFO - Checkpoint salvo: c:\projects\wtnps-trade\models\WDO$_DRLStrategy_checkpoint_ep360_drl.keras
