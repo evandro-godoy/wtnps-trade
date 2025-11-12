@@ -29,7 +29,7 @@ assets:
         data:
           start_date: "2023-01-01"
           end_date: "2025-10-31"
-          timeframe_model: "D1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
+          timeframe_model: "1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
 
         training_trading_rules:
           initial_capital: 5000
