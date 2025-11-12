@@ -232,8 +232,8 @@ def main():
         'replay_capacity': int(1e6),       # Capacidade do replay buffer
         'architecture': (256, 256),        # Camadas ocultas da rede neural
         'l2_reg': 1e-6,                    # Regularização L2
-        'tau': 10,                         # Frequência de atualização da target network
-        'batch_size': 1024                 # Tamanho do batch para treinamento
+        'tau': 50,                         # Frequência de atualização da target network
+        'batch_size': 256                  # Tamanho do batch para treinamento
     }
     
     logger.info("Hiperparâmetros do agente:")
@@ -245,7 +245,7 @@ def main():
     agent = DDQNAgent(**hyperparams)
     
     # Configura epsilon decay baseado no número total de episódios
-    num_episodes = 100
+    num_episodes = 1
     episode_timeout = 300
 
     agent.set_epsilon_decay(num_episodes)
