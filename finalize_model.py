@@ -1,14 +1,17 @@
+# finalize_model.py
 import sys
 import logging
 import os
 
-# Importa as funções necessárias do script de treino principal
-# Assumimos que 'train_drl_model' está no mesmo diretório
 try:
-    from train_drl_model import load_config, setup_logging, finalize_training
-except ImportError:
-    print("Erro: Não foi possível encontrar 'train_drl_model.py'.")
-    print("Certifique-se de que este script está no mesmo diretório que 'train_drl_model.py'.")
+    # 1. Importa as funções de negócio do script de treino
+    from train_drl_model import load_config, finalize_training
+    
+    # 2. Importa a função de logging da sua localização correta
+    from src.utils.logger import setup_logging
+except ImportError as e:
+    print(f"Erro de importação: {e}")
+    print("Certifique-se de que 'train_drl_model.py' e 'src/utils/logger.py' estão acessíveis.")
     sys.exit(1)
 
 def main():
@@ -21,7 +24,9 @@ def main():
     config_path = 'configs/main.yaml'
     
     try:
-        setup_logging()
+        # Configura um log específico para o processo de finalização
+        setup_logging(log_file_prefix='finalize_model')
+        
         config = load_config(config_path)
 
         # --- Defina os parâmetros do modelo que você quer finalizar ---
