@@ -13,7 +13,7 @@ Uso:
 
 O script pedirá o ticker do ativo a ser treinado.
 """
-import os
+
 import yaml
 import logging
 from pathlib import Path
@@ -23,13 +23,12 @@ import numpy as np
 import re
 from tensorflow import keras
 from collections import deque
+import sys # <--- ADICIONADO (Necessário para o logger)
 
 # --- NOVAS IMPORTAÇÕES ---
-# Importações necessárias para o novo logger e a função de finalização
-import shutil
+import shutil 
 import glob
-from src.utils.logger import setup_logging
-from src.reporting.plot import plot_training_stats
+from src.utils.logger import setup_logging # <--- CORRIGIDO
 # -------------------------
 
 # Imports do projeto
@@ -39,13 +38,13 @@ from src.data_handler.provider import get_provider_instance
 from src.strategies.drl_strategy import DRLStrategy
 
 # --- CONFIGURAÇÃO DE LOGGING ANTIGA REMOVIDA ---
-# O logging.basicConfig() que estava aqui foi removido
-# e substituído pela chamada setup_logging() dentro da main().
-
+# logging.basicConfig(...) e logger = ... removidos daqui
+# ----------------------------------------------
 
 def load_config(config_path: str = 'configs/main.yaml') -> dict:
     """Carrega o arquivo de configuração YAML."""
-    # (O logger é obtido dentro da 'main' agora)
+    logger = logging.getLogger(__name__) # <--- Logger obtido dentro da função
+    logger.info(f"Carregando configuração: {config_path}")
     with open(config_path, 'r') as file:
         return yaml.safe_load(file)
 
@@ -77,7 +76,7 @@ def save_checkpoint(agent, path: str):
     except Exception as e:
         logging.error(f"Erro ao salvar checkpoint: {e}")
 
-# --- NOVA FUNÇÃO ADICIONADA ---
+# --- NOVA FUNÇÃO ADICIONADA (CORRIGIDA) ---
 def finalize_training(config: dict, strategy_name: str, ticker: str):
     """
     Finaliza o treinamento: identifica o melhor modelo (ou o último, se
@@ -91,11 +90,13 @@ def finalize_training(config: dict, strategy_name: str, ticker: str):
     # --- 1. Definir Caminhos ---
     base_name = f"{ticker}${strategy_name}"
     model_dir = config['paths']['models_dir']
-    report_dir = config['paths']['reports_dir']
-
+    
+    # (Removido o report_dir, pois não geramos mais o gráfico)
+    
     stats_file_path = os.path.join(model_dir, f"{base_name}_training_stats.csv")
     prod_model_path = os.path.join(model_dir, f"{base_name}_prod_drl.keras")
-    plot_file_path = os.path.join(report_dir, f"{base_name}_training_report.html")
+    
+    # (Removido o plot_file_path)
 
     best_checkpoint_path = None
     stats_df = None
@@ -118,7 +119,8 @@ def finalize_training(config: dict, strategy_name: str, ticker: str):
 
                 logger.info(f"  Melhor episódio (pelo log): {best_episode} (Reward MA 100: {best_reward:.4f})")
                 
-                checkpoint_name = f"{base_name}_checkpoint_ep{best_episode}_drl.keras"
+                # O nome do checkpoint no seu script original era ligeiramente diferente
+                checkpoint_name = f"{ticker}_{strategy_name}_checkpoint_ep{best_episode}_drl.keras"
                 best_checkpoint_path = os.path.join(model_dir, checkpoint_name)
 
         except Exception as e:
@@ -131,7 +133,8 @@ def finalize_training(config: dict, strategy_name: str, ticker: str):
         
         logger.info("Procurando pelo ÚLTIMO checkpoint salvo...")
         
-        checkpoint_pattern = os.path.join(model_dir, f"{base_name}_checkpoint_ep*_drl.keras")
+        # O nome do checkpoint no seu script original era ligeiramente diferente
+        checkpoint_pattern = os.path.join(model_dir, f"{ticker}_{strategy_name}_checkpoint_ep*_drl.keras")
         checkpoints = glob.glob(checkpoint_pattern)
         
         if not checkpoints:
@@ -166,151 +169,162 @@ def finalize_training(config: dict, strategy_name: str, ticker: str):
     else:
         logger.warning(f"Checkpoint selecionado ({best_checkpoint_path}) não foi encontrado. O modelo de produção não foi atualizado.")
 
-    # --- 4. Gerar Gráfico de Treinamento (se o log existiu) ---
-    if stats_df is not None and not stats_df.empty:
-        try:
-            plot_training_stats(stats_df, plot_file_path)
-            logger.info(f"Relatório gráfico de treinamento salvo em: {plot_file_path}")
-        except Exception as e:
-            logger.error(f"Falha ao gerar o gráfico de treinamento: {e}")
-    else:
-        logger.info("Pulando geração de gráfico (sem dados de estatísticas).")
+    # --- 4. Gerar Gráfico (REMOVIDO) ---
+    # A chamada para plot_training_stats() foi removida pois a função não existe.
+    logger.info("Finalização concluída.")
 # -------------------------
 
 
 # --- FUNÇÃO print_summary() REMOVIDA ---
-# (A função print_summary(..) que estava aqui foi removida)
-# -------------------------
+# (A função print_summary(...) original foi removida)
+# ---------------------------------------
 
 
 def main():
     # --- LÓGICA DE LOGGING ATUALIZADA ---
-    # Configura o logging centralizado
     setup_logging(log_file_prefix='train_drl_model')
     logger = logging.getLogger(__name__)
-    # -------------------------
+    # ------------------------------------
+
+    # --- Variáveis para o bloco finally/except ---
+    config = None
+    strategy_name = 'DRLStrategy' # Nome fixo
+    ticker_input = None
+    # ------------------------------------
 
     start_time = time()
     
-    config = load_config()
-    models_dir = config['paths']['models_dir']
-    Path(models_dir).mkdir(parents=True, exist_ok=True)
+    try:
+        config = load_config()
+        models_dir = config['paths']['models_dir']
+        Path(models_dir).mkdir(parents=True, exist_ok=True)
 
-    available_tickers = [
-        asset for asset in config['assets'] 
-        if config['assets'][asset].get('enabled', False) and 
-           'DRLStrategy' in config['assets'][asset].get('strategies', [])
-    ]
-    
-    if not available_tickers:
-        logger.error("Nenhum ativo habilitado para DRLStrategy encontrado no 'main.yaml'.")
-        return
-
-    ticker_input = get_ticker_input(available_tickers)
-    
-    asset_config = config['assets'][ticker_input]
-    strategy_name = 'DRLStrategy' # Nome fixo para este script
-    strategy_config = config['strategies'][strategy_name]
-    provider_name = asset_config['provider']
-    provider_config = config['providers'][provider_name]
-
-    logger.info(f"Usando estratégia: {strategy_name}")
-    logger.info(f"  Provider: {provider_name}")
-    logger.info(f"  Dados: {provider_config['data_range']['train_start']} a {provider_config['data_range']['train_end']}")
-    logger.info(f"  Timeframe: {provider_config['timeframe']}")
-
-    # 1. Carregar Dados
-    logger.info("Conectando ao provider...")
-    provider = get_provider_instance(config, provider_name)
-    
-    logger.info(f"Carregando dados históricos para {ticker_input}...")
-    market_data = provider.load_data(
-        ticker=ticker_input,
-        start_date=provider_config['data_range']['train_start'],
-        end_date=provider_config['data_range']['train_end'],
-        timeframe=provider_config['timeframe']
-    )
-    
-    # 2. Criar Ambiente
-    logger.info("Criando ambiente de trading...")
-    env = TradingEnv(
-        market_data=market_data,
-        config=config,
-        **strategy_config.get('environment', {})
-    )
-    logger.info(f"Ambiente criado: {env.total_steps} steps, state_dim={env.state_dim}")
-
-    # 3. Criar Agente
-    logger.info("Criando agente DDQN...")
-    agent_config = strategy_config.get('agent', {})
-    agent = DDQNAgent(
-        state_dim=env.state_dim,
-        num_actions=env.action_space.n,
-        config=agent_config
-    )
-    
-    # 4. Carregar Checkpoint (se existir)
-    start_episode = 1
-    epsilon = agent_config.get('epsilon_start', 1.0)
-    
-    # Define o padrão do checkpoint
-    checkpoint_base_name = f"{ticker_input}_{strategy_name}_checkpoint"
-    prod_model_name = f"{ticker_input}_{strategy_name}_prod_drl.keras"
-    stats_name = f"{ticker_input}_{strategy_name}_training_stats.csv"
-    stats_path = Path(models_dir) / stats_name
-
-    # Encontra o checkpoint mais recente
-    checkpoint_files = list(Path(models_dir).glob(f"{checkpoint_base_name}_ep*.keras"))
-    if checkpoint_files:
-        latest_checkpoint = max(checkpoint_files, key=lambda p: int(re.search(r'_ep(\d+)_drl\.keras$', str(p)).group(1)))
+        available_tickers = [
+            asset for asset in config['assets'] 
+            if config['assets'][asset].get('enabled', False) and 
+            'DRLStrategy' in config['assets'][asset].get('strategies', [])
+        ]
         
-        match = re.search(r'_ep(\d+)_drl\.keras$', str(latest_checkpoint))
-        if match:
-            try:
-                start_episode = int(match.group(1)) + 1
-                agent.load(str(latest_checkpoint))
-                logger.info(f"Checkpoint carregado: {latest_checkpoint}")
-                
-                # Ajustar epsilon
-                epsilon_min = agent_config.get('epsilon_min', 0.01)
-                epsilon_decay_episodes = agent_config.get('epsilon_linear_decay_episodes', 80)
-                
-                if start_episode > epsilon_decay_episodes:
-                    epsilon = epsilon_min
-                else:
-                    epsilon = agent_config.get('epsilon_start', 1.0) - (start_episode * (
-                        (agent_config.get('epsilon_start', 1.0) - epsilon_min) / epsilon_decay_episodes
-                    ))
-                
-                epsilon = max(epsilon_min, epsilon) # Garante
-                
-                logger.info(f"Treinamento continuará a partir do episódio {start_episode}")
-                logger.info(f"Epsilon ajustado para: {epsilon:.4f}")
-                
-            except Exception as e:
-                logger.error(f"Erro ao carregar checkpoint: {e}. Começando do zero.")
-                start_episode = 1
-                epsilon = agent_config.get('epsilon_start', 1.0)
-    else:
-        logger.info("Nenhum checkpoint encontrado. Iniciando novo treinamento.")
+        if not available_tickers:
+            logger.error("Nenhum ativo habilitado para DRLStrategy encontrado no 'main.yaml'.")
+            return
 
-    # 5. Loop de Treinamento
-    training_config = strategy_config.get('training', {})
-    num_episodes = training_config.get('episodes', 100)
-    batch_size = agent_config.get('batch_size', 32)
-    checkpoint_interval = training_config.get('checkpoint_freq', 10)
-    
-    # Histórico para médias móveis
-    rewards_history = deque(maxlen=100)
-    nav_history = deque(maxlen=100)
-    
-    # Abre o arquivo de stats (ou cria se não existir)
-    file_exists = stats_path.exists()
-    with open(stats_path, 'a', buffering=1) as stats_file:
-        if not file_exists:
-            stats_file.write("episode,reward,steps,epsilon,nav,reward_ma_10,reward_ma_100,nav_ma_10,nav_ma_100\n")
+        ticker_input = get_ticker_input(available_tickers)
         
-        try:
+        asset_config = config['assets'][ticker_input]
+        # strategy_name = 'DRLStrategy' # (Definido acima)
+        strategy_config = config['strategies'][strategy_name]
+        provider_name = asset_config['provider']
+        provider_config = config['providers'][provider_name]
+
+        logger.info(f"Usando estratégia: {strategy_name}")
+        logger.info(f"  Provider: {provider_name}")
+        logger.info(f"  Dados: {provider_config['data_range']['train_start']} a {provider_config['data_range']['train_end']}")
+        logger.info(f"  Timeframe: {provider_config['timeframe']}")
+
+        # 1. Carregar Dados
+        logger.info("Conectando ao provider...")
+        provider = get_provider_instance(config, provider_name)
+        
+        logger.info(f"Carregando dados históricos para {ticker_input}...")
+        market_data = provider.load_data(
+            ticker=ticker_input,
+            start_date=provider_config['data_range']['train_start'],
+            end_date=provider_config['data_range']['train_end'],
+            timeframe=provider_config['timeframe']
+        )
+        
+        # 2. Criar Ambiente
+        logger.info("Criando ambiente de trading...")
+        env = TradingEnv(
+            market_data=market_data,
+            config=config,
+            **strategy_config.get('environment', {})
+        )
+        logger.info(f"Ambiente criado: {env.total_steps} steps, state_dim={env.state_dim}")
+
+        # 3. Criar Agente
+        logger.info("Criando agente DDQN...")
+        agent_config = strategy_config.get('agent', {})
+        agent = DDQNAgent(
+            state_dim=env.state_dim,
+            num_actions=env.action_space.n,
+            config=agent_config
+        )
+        
+        # 4. Carregar Checkpoint (se existir)
+        start_episode = 1
+        epsilon = agent_config.get('epsilon_start', 1.0)
+        
+        # Define o padrão do checkpoint
+        checkpoint_base_name = f"{ticker_input}_{strategy_name}_checkpoint"
+        prod_model_name = f"{ticker_input}_{strategy_name}_prod_drl.keras" # <--- Nomeação original
+        stats_name = f"{ticker_input}${strategy_name}_training_stats.csv" # <--- Nomeação corrigida para bater com finalize
+        stats_path = Path(models_dir) / stats_name
+
+        # Encontra o checkpoint mais recente
+        checkpoint_files = list(Path(models_dir).glob(f"{checkpoint_base_name}_ep*.keras"))
+        if checkpoint_files:
+            # Encontra o checkpoint com o maior número de episódio
+            latest_checkpoint_path = None
+            latest_episode_num = -1
+            for cp_path in checkpoint_files:
+                match = re.search(r'_ep(\d+)_drl\.keras$', str(cp_path))
+                if match:
+                    episode_num = int(match.group(1))
+                    if episode_num > latest_episode_num:
+                        latest_episode_num = episode_num
+                        latest_checkpoint_path = cp_path
+
+            if latest_checkpoint_path:
+                try:
+                    start_episode = latest_episode_num + 1
+                    agent.load(str(latest_checkpoint_path))
+                    logger.info(f"Checkpoint carregado: {latest_checkpoint_path}")
+                    
+                    # Ajustar epsilon
+                    epsilon_min = agent_config.get('epsilon_min', 0.01)
+                    epsilon_decay_episodes = agent_config.get('epsilon_linear_decay_episodes', 80)
+                    
+                    if start_episode > epsilon_decay_episodes:
+                        epsilon = epsilon_min
+                    else:
+                        epsilon = agent_config.get('epsilon_start', 1.0) - (start_episode * (
+                            (agent_config.get('epsilon_start', 1.0) - epsilon_min) / epsilon_decay_episodes
+                        ))
+                    
+                    epsilon = max(epsilon_min, epsilon) # Garante
+                    
+                    logger.info(f"Treinamento continuará a partir do episódio {start_episode}")
+                    logger.info(f"Epsilon ajustado para: {epsilon:.4f}")
+                    
+                except Exception as e:
+                    logger.error(f"Erro ao carregar checkpoint: {e}. Começando do zero.")
+                    start_episode = 1
+                    epsilon = agent_config.get('epsilon_start', 1.0)
+            else:
+                 logger.info("Checkpoints encontrados, mas não foi possível extrair números de episódios. Começando do zero.")
+                 start_episode = 1
+                 epsilon = agent_config.get('epsilon_start', 1.0)
+        else:
+            logger.info("Nenhum checkpoint encontrado. Iniciando novo treinamento.")
+
+        # 5. Loop de Treinamento
+        training_config = strategy_config.get('training', {})
+        num_episodes = training_config.get('episodes', 100)
+        batch_size = agent_config.get('batch_size', 32)
+        checkpoint_interval = training_config.get('checkpoint_freq', 10)
+        
+        # Histórico para médias móveis
+        rewards_history = deque(maxlen=100)
+        nav_history = deque(maxlen=100)
+        
+        # Abre o arquivo de stats (ou cria se não existir)
+        file_exists = stats_path.exists()
+        with open(stats_path, 'a', buffering=1) as stats_file:
+            if not file_exists:
+                stats_file.write("episode,reward,steps,epsilon,nav,reward_ma_10,reward_ma_100,nav_ma_10,nav_ma_100\n")
+            
             for episode in range(start_episode, start_episode + num_episodes):
                 logger.info(f"--- Iniciando Episódio {episode}/{start_episode + num_episodes - 1} ---")
                 state = env.reset()
@@ -371,16 +385,29 @@ def main():
                     save_checkpoint(agent, str(checkpoint_path))
             
             logger.info("Treinamento concluído.")
+        
+        # --- CHAMADA DE FINALIZAÇÃO (SUCESSO) ---
+        finalize_training(config, strategy_name, ticker_input)
 
-        except KeyboardInterrupt:
-            logger.warning("Treinamento interrompido pelo usuário.")
-            # --- CHAMADA DE FINALIZAÇÃO (EM CASO DE INTERRUPÇÃO) ---
+    except KeyboardInterrupt:
+        logger.warning("Treinamento interrompido pelo usuário.")
+        # --- CHAMADA DE FINALIZAÇÃO (INTERRUPÇÃO) ---
+        if config and strategy_name and ticker_input:
+            logger.info("Executando finalização de emergência...")
             finalize_training(config, strategy_name, ticker_input)
-            return # Sai da função
-
-    # --- CHAMADA DE FINALIZAÇÃO (SUCESSO) ---
-    # Substitui o print_summary
-    finalize_training(config, strategy_name, ticker_input)
+        else:
+            logger.error("Interrupção antes da inicialização. Não é possível finalizar.")
+            
+    except Exception as e:
+        logger.error(f"Erro fatal no script de treinamento: {e}", exc_info=True)
+        sys.exit(1)
+        
+    finally:
+        logger.info(f"Treinamento finalizado em {time() - start_time:.2f} segundos.")
+        # Limpar handlers
+        for handler in logging.root.handlers[:]:
+            handler.close()
+            logging.root.removeHandler(handler)
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ import os
 
 try:
     # 1. Importa as funções de negócio do script de treino
+    #    (load_config é de train_drl_model, e finalize_training também está lá)
     from train_drl_model import load_config, finalize_training
     
     # 2. Importa a função de logging da sua localização correta

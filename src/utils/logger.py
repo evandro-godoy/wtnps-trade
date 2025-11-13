@@ -1,5 +1,7 @@
+# src/utils/logger.py
 import logging
 import os
+import sys
 from datetime import datetime
 
 def setup_logging(log_file_prefix='log'):
@@ -15,7 +17,7 @@ def setup_logging(log_file_prefix='log'):
     log_filename = f"{log_file_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     log_filepath = os.path.join(log_dir, log_filename)
 
-    # Remove handlers existentes para evitar duplicação (útil em re-execuções)
+    # Remove handlers existentes para evitar duplicação
     for handler in logging.root.handlers[:]:
         handler.close()
         logging.root.removeHandler(handler)
@@ -23,10 +25,10 @@ def setup_logging(log_file_prefix='log'):
     # Configura o logging
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
+        format="%(asctime)s - %(levelname)s - [%(name)s] %(message)s",
         handlers=[
             logging.FileHandler(log_filepath), # Salva no arquivo
-            logging.StreamHandler()            # Exibe no console
+            logging.StreamHandler(sys.stdout)  # Exibe no console
         ]
     )
     logging.info(f"Logging configurado. Salvando em: {log_filepath}")
