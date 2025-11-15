@@ -51,7 +51,7 @@ class LSTMWrapper(BaseEstimator, ClassifierMixin): # RENOMEADO
     Um wrapper para o modelo Keras (TensorFlow) para torná-lo compatível
     com a API do Scikit-Learn e adicionar métodos de persistência.
     """
-    def __init__(self, lookback=60, lstm_units=50, epochs=50, batch_size=32, n_features=1):
+    def __init__(self, lookback=60, lstm_units=50, epochs=50, batch_size=128, n_features=1):
         self.lookback = lookback
         self.lstm_units = lstm_units
         self.epochs = epochs
@@ -282,8 +282,8 @@ class LSTMStrategy(BaseStrategy):
         self.target_period = target_period
         # Nomes das features que serão usadas (importante!)
         self.feature_names = [
-            'ema_9', 'sma_20', 'sma_50', 'sma_200',
-            'volume', 'volatility', 'rsi'
+            'ema_9', 'sma_20', 'sma_200', 'dist_sma_20', 'dist_sma_200',
+            'volume', 'volatility'
         ]
 
     def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -295,8 +295,14 @@ class LSTMStrategy(BaseStrategy):
         # Médias Móveis
         df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
         df['sma_20'] = df['close'].rolling(window=20).mean()
-        df['sma_50'] = df['close'].rolling(window=50).mean()
+        # df['sma_50'] = df['close'].rolling(window=50).mean()
         df['sma_200'] = df['close'].rolling(window=200).mean()
+
+        df['dist_sma_20'] = (df['close'] - df['sma_20']) / df['close']
+        df['dist_sma_200'] = (df['close'] - df['sma_200']) / df['close']
+        
+        df['dist_sma_20'] = df['dist_sma_20'].fillna(0)  # Preenche NaNs iniciais
+        df['dist_sma_200'] = df['dist_sma_200'].fillna(0)  # Preenche NaNs iniciais
 
         # Volume (assume que 'volume' já existe nos dados do provider)
         if 'volume' not in df.columns:
@@ -318,6 +324,7 @@ class LSTMStrategy(BaseStrategy):
              df['volatility'] = 0.0 # Define como 0 se não houver dados suficientes
 
         # RSI (Índice de Força Relativa)
+        """
         rsi_period = 14
         delta = df['close'].diff()
         gain = delta.where(delta > 0, 0).rolling(window=rsi_period).mean()
@@ -328,7 +335,7 @@ class LSTMStrategy(BaseStrategy):
         
         df['rsi'] = 100 - (100 / (1 + rs))
         df['rsi'] = df['rsi'].fillna(50) # Preenche NaNs iniciais (comum no RSI) com 50 (neutro)
-
+        """
 
         # Remove colunas auxiliares se existirem
         df = df.drop(columns=['returns', 'future_close'], errors='ignore')

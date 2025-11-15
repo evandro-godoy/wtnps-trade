@@ -23,13 +23,6 @@ import numpy as np
 import re
 from tensorflow import keras
 from collections import deque
-import sys # <--- ADICIONADO (Necessário para o logger)
-
-# --- NOVAS IMPORTAÇÕES ---
-import shutil 
-import glob
-from src.utils.logger import setup_logging # <--- CORRIGIDO
-# -------------------------
 
 # Imports do projeto
 from src.environments.trading_env import TradingEnv
@@ -37,377 +30,612 @@ from src.agents.drl_agent import DDQNAgent
 from src.data_handler.provider import get_provider_instance
 from src.strategies.drl_strategy import DRLStrategy
 
-# --- CONFIGURAÇÃO DE LOGGING ANTIGA REMOVIDA ---
-# logging.basicConfig(...) e logger = ... removidos daqui
-# ----------------------------------------------
+# Configuração de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - [%(name)s] %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 def load_config(config_path: str = 'configs/main.yaml') -> dict:
     """Carrega o arquivo de configuração YAML."""
-    logger = logging.getLogger(__name__) # <--- Logger obtido dentro da função
     logger.info(f"Carregando configuração: {config_path}")
-    with open(config_path, 'r') as file:
-        return yaml.safe_load(file)
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
 
-def get_ticker_input(available_tickers: list) -> str:
-    """Solicita ao usuário que escolha um ticker da lista."""
-    logger = logging.getLogger(__name__)
-    print("Ativos disponíveis no config:")
-    for i, ticker in enumerate(available_tickers, 1):
-        print(f"  {i}. {ticker}")
+
+def get_asset_config(config: dict, ticker: str) -> dict:
+    """Busca a configuração de um ativo específico."""
+    assets_list = config.get('assets', [])
+    for asset_cfg in assets_list:
+        if asset_cfg.get('ticker') == ticker:
+            return asset_cfg
+    raise ValueError(f"Ticker '{ticker}' não encontrado em configs/main.yaml")
+
+
+def get_strategy_config(asset_config: dict, strategy_name: str) -> dict:
+    """Busca a configuração de uma estratégia específica dentro de um ativo."""
+    strategies_list = asset_config.get('strategies', [])
+    for strat_cfg in strategies_list:
+        if strat_cfg.get('name') == strategy_name:
+            return strat_cfg
     
-    while True:
-        try:
-            choice = input(f"Escolha o número do ativo para treinar (1-{len(available_tickers)}): ")
-            choice_idx = int(choice) - 1
-            if 0 <= choice_idx < len(available_tickers):
-                selected_ticker = available_tickers[choice_idx]
-                logger.info(f"Ticker selecionado: {selected_ticker}")
-                return selected_ticker
-            else:
-                print("Escolha inválida. Tente novamente.")
-        except ValueError:
-            print("Entrada inválida. Por favor, insira um número.")
+    available = [s.get('name') for s in strategies_list]
+    raise ValueError(
+        f"Estratégia '{strategy_name}' não encontrada para '{asset_config.get('ticker')}'. "
+        f"Disponíveis: {available}"
+    )
 
-def save_checkpoint(agent, path: str):
-    """Salva o checkpoint do modelo do agente."""
+
+def format_time(seconds: float) -> str:
+    """Formata tempo em HH:MM:SS."""
+    m, s = divmod(int(seconds), 60)
+    h, m = divmod(m, 60)
+    return f'{h:02d}:{m:02d}:{s:02d}'
+
+
+def find_latest_checkpoint(models_dir: Path, ticker: str) -> tuple:
+    """
+    Busca o último checkpoint disponível para um ticker.
+    
+    Args:
+        models_dir: Diretório de modelos
+        ticker: Ticker do ativo (ex: 'WDO$')
+    
+    Returns:
+        Tupla (checkpoint_path, episode_number) ou (None, 0) se não encontrar
+    """
+    pattern = f"{ticker}_DRLStrategy_checkpoint_ep*.keras"
+    checkpoints = list(models_dir.glob(pattern))
+    
+    if not checkpoints:
+        return None, 0
+    
+    # Extrai número do episódio de cada checkpoint
+    checkpoint_episodes = []
+    for cp in checkpoints:
+        match = re.search(r'checkpoint_ep(\d+)_drl\.keras$', cp.name)
+        if match:
+            episode_num = int(match.group(1))
+            checkpoint_episodes.append((cp, episode_num))
+    
+    if not checkpoint_episodes:
+        return None, 0
+    
+    # Retorna o checkpoint com maior número de episódio
+    latest = max(checkpoint_episodes, key=lambda x: x[1])
+    return latest[0], latest[1]
+
+
+def load_checkpoint(agent: DDQNAgent, checkpoint_path: Path) -> bool:
+    """
+    Carrega pesos de um checkpoint para o agente.
+    
+    Args:
+        agent: Instância do agente DDQN
+        checkpoint_path: Caminho para o arquivo .keras
+    
+    Returns:
+        True se carregou com sucesso, False caso contrário
+    """
     try:
-        agent.save(path)
-        logging.info(f"Checkpoint salvo em: {path}")
+        logger.info(f"Carregando checkpoint: {checkpoint_path}")
+        model = keras.models.load_model(checkpoint_path)
+        
+        # Carrega pesos na online network
+        agent.online_network.set_weights(model.get_weights())
+        
+        # Atualiza target network
+        agent.update_target()
+        
+        logger.info("Checkpoint carregado com sucesso!")
+        return True
     except Exception as e:
-        logging.error(f"Erro ao salvar checkpoint: {e}")
+        logger.error(f"Erro ao carregar checkpoint: {e}")
+        return False
 
-# --- NOVA FUNÇÃO ADICIONADA (CORRIGIDA) ---
-def finalize_training(config: dict, strategy_name: str, ticker: str):
-    """
-    Finaliza o treinamento: identifica o melhor modelo (ou o último, se
-    interrompido) e o promove para produção.
-    """
-    logger = logging.getLogger(__name__)
-    logger.info("=" * 80)
-    logger.info("FINALIZANDO E SELECIONANDO MELHOR MODELO")
-    logger.info("=" * 80)
-
-    # --- 1. Definir Caminhos ---
-    base_name = f"{ticker}${strategy_name}"
-    model_dir = config['paths']['models_dir']
-    
-    # (Removido o report_dir, pois não geramos mais o gráfico)
-    
-    stats_file_path = os.path.join(model_dir, f"{base_name}_training_stats.csv")
-    prod_model_path = os.path.join(model_dir, f"{base_name}_prod_drl.keras")
-    
-    # (Removido o plot_file_path)
-
-    best_checkpoint_path = None
-    stats_df = None
-
-    # --- 2. Lógica de Seleção ---
-    
-    # CENÁRIO 1: Treino concluído (arquivo de log existe)
-    if os.path.exists(stats_file_path):
-        logger.info("Analisando arquivo de estatísticas (CSV) para encontrar o melhor episódio.")
-        try:
-            stats_df = pd.read_csv(stats_file_path)
-            if stats_df.empty:
-                logger.warning("Arquivo de estatísticas está vazio.")
-            else:
-                # Encontra o índice da MAIOR recompensa média de 100 episódios
-                best_episode_idx = stats_df['reward_ma_100'].idxmax()
-                best_stats = stats_df.loc[best_episode_idx]
-                best_episode = int(best_stats['episode'])
-                best_reward = best_stats['reward_ma_100']
-
-                logger.info(f"  Melhor episódio (pelo log): {best_episode} (Reward MA 100: {best_reward:.4f})")
-                
-                # O nome do checkpoint no seu script original era ligeiramente diferente
-                checkpoint_name = f"{ticker}_{strategy_name}_checkpoint_ep{best_episode}_drl.keras"
-                best_checkpoint_path = os.path.join(model_dir, checkpoint_name)
-
-        except Exception as e:
-            logger.error(f"Erro ao ler ou analisar o arquivo de estatísticas: {e}")
-
-    # CENÁRIO 2: Treino interrompido (Log não existe ou falhou)
-    if best_checkpoint_path is None or not os.path.exists(best_checkpoint_path):
-        if not os.path.exists(stats_file_path): # Se o log não existia, loga o aviso
-            logger.warning(f"Arquivo de estatísticas '{stats_file_path}' não encontrado ou vazio.")
-        
-        logger.info("Procurando pelo ÚLTIMO checkpoint salvo...")
-        
-        # O nome do checkpoint no seu script original era ligeiramente diferente
-        checkpoint_pattern = os.path.join(model_dir, f"{ticker}_{strategy_name}_checkpoint_ep*_drl.keras")
-        checkpoints = glob.glob(checkpoint_pattern)
-        
-        if not checkpoints:
-            logger.error("Nenhum arquivo de checkpoint encontrado. Não é possível gerar o modelo de produção.")
-            return
-        
-        # Encontra o checkpoint com o maior número de episódio
-        latest_episode = -1
-        latest_checkpoint_path = None
-        for cp_path in checkpoints:
-            match = re.search(r'_ep(\d+)_drl\.keras$', cp_path)
-            if match:
-                episode_num = int(match.group(1))
-                if episode_num > latest_episode:
-                    latest_episode = episode_num
-                    latest_checkpoint_path = cp_path
-        
-        if latest_checkpoint_path:
-            best_checkpoint_path = latest_checkpoint_path
-            logger.info(f"  Melhor modelo (pelo último checkpoint): Episódio {latest_episode}")
-        else:
-            logger.error("Checkpoints encontrados, mas não foi possível extrair números de episódios.")
-            return
-
-    # --- 3. Promover o Melhor Checkpoint para Produção ---
-    if best_checkpoint_path and os.path.exists(best_checkpoint_path):
-        try:
-            shutil.copy(best_checkpoint_path, prod_model_path)
-            logger.info(f"Modelo de produção salvo: {prod_model_path}")
-        except Exception as e:
-            logger.error(f"Falha ao copiar o melhor checkpoint para produção: {e}")
-    else:
-        logger.warning(f"Checkpoint selecionado ({best_checkpoint_path}) não foi encontrado. O modelo de produção não foi atualizado.")
-
-    # --- 4. Gerar Gráfico (REMOVIDO) ---
-    # A chamada para plot_training_stats() foi removida pois a função não existe.
-    logger.info("Finalização concluída.")
-# -------------------------
-
-
-# --- FUNÇÃO print_summary() REMOVIDA ---
-# (A função print_summary(...) original foi removida)
-# ---------------------------------------
 
 
 def main():
-    # --- LÓGICA DE LOGGING ATUALIZADA ---
-    setup_logging(log_file_prefix='train_drl_model')
-    logger = logging.getLogger(__name__)
-    # ------------------------------------
-
-    # --- Variáveis para o bloco finally/except ---
-    config = None
-    strategy_name = 'DRLStrategy' # Nome fixo
-    ticker_input = None
-    # ------------------------------------
-
-    start_time = time()
+    """Função principal de treinamento."""
     
+    print("=" * 80)
+    print("TREINAMENTO DE AGENTE DEEP REINFORCEMENT LEARNING (DDQN)")
+    print("=" * 80)
+    print()
+    
+    # 1. Carrega configuração
+    config = load_config()
+    
+    # 2. Lista ativos disponíveis
+    assets_list = config.get('assets', [])
+    print("Ativos disponíveis no config:")
+    for i, asset in enumerate(assets_list, 1):
+        ticker = asset.get('ticker', 'N/A')
+        enabled = asset.get('enabled', False)
+        strategies = asset.get('strategies', [])
+        status = "✓ Habilitado" if enabled else "✗ Desabilitado"
+        strategy_names = ', '.join([s.get('name', 'N/A') for s in strategies])
+        print(f"  {i}. {ticker:<15} | Estratégias: {strategy_names:<30} | {status}")
+    print()
+    
+    # 3. Solicita ticker ao usuário
+    # ticker_input = input("Digite o ticker do ativo para treinar (ex: WDO$): ").strip()
+    ticker_input = 'WDO$'
+    
+    
+    if not ticker_input:
+        logger.error("Ticker não fornecido. Abortando.")
+        return
+    
+    # 4. Obtém configuração do ativo
     try:
-        config = load_config()
-        models_dir = config['paths']['models_dir']
-        Path(models_dir).mkdir(parents=True, exist_ok=True)
+        asset_config = get_asset_config(config, ticker_input)
+    except ValueError as e:
+        logger.error(str(e))
+        return
+    
+    # 5. Lista estratégias disponíveis para este ativo
+    strategies_list = asset_config.get('strategies', [])
+    if not strategies_list:
+        logger.error(f"Nenhuma estratégia configurada para '{ticker_input}'")
+        return
+    
+    print(f"\nEstratégias disponíveis para {ticker_input}:")
+    for i, strat in enumerate(strategies_list, 1):
+        strat_name = strat.get('name', 'N/A')
+        strat_provider = strat.get('provider', 'N/A')
+        print(f"  {i}. {strat_name} (Provider: {strat_provider})")
+    print()
+    
+    # 6. Busca estratégia DRL (ou solicita escolha)
+    drl_strategy_config = None
+    for strat in strategies_list:
+        if strat.get('name') == 'DRLStrategy':
+            drl_strategy_config = strat
+            break
+    
+    if not drl_strategy_config:
+        logger.error(f"Estratégia 'DRLStrategy' não encontrada para '{ticker_input}'")
+        logger.info(f"Adicione uma estratégia DRL no config ou use outro ticker")
+        return
+    
+    logger.info(f"Usando estratégia: DRLStrategy")
+    logger.info(f"  Provider: {drl_strategy_config.get('provider')}")
+    logger.info(f"  Dados: {drl_strategy_config['data']['start_date']} a {drl_strategy_config['data']['end_date']}")
+    logger.info(f"  Timeframe: {drl_strategy_config['data']['timeframe_model']}")
+    
+    # 7. Instancia provider
+    provider_name = drl_strategy_config.get('provider')
+    logger.info(f"Conectando ao provider: {provider_name}...")
+    provider = get_provider_instance(provider_name)
+    
+    # 8. Instancia ambiente de trading
+    logger.info("Criando ambiente de trading...")
+    # IMPORTANTE: TradingEnv agora recebe strategy_config + ticker
+    env = TradingEnv(
+        ticker=ticker_input,
+        strategy_config=drl_strategy_config,
+        provider=provider
+    )
+    logger.info(f"Ambiente criado: {len(env.market_features_df)} steps, state_dim={env.state_dim}")
+    
+    # 7. Define hiperparâmetros do agente DDQN
+    hyperparams = {
+        'state_dim': env.state_dim,
+        'num_actions': env.num_actions,
+        'learning_rate': 0.0001,           # Taxa de aprendizado
+        'gamma': 0.99,                     # Fator de desconto
+        'epsilon_start': 1.0,              # Epsilon inicial para exploração
+        'epsilon_min': 0.01,               # Epsilon mínimo
+        'epsilon_exponential_decay': 0.99, # Decay exponencial após linear
+        'replay_capacity': int(1e6),       # Capacidade do replay buffer
+        'architecture': (256, 256),        # Camadas ocultas da rede neural
+        'l2_reg': 1e-6,                    # Regularização L2
+        'tau': 30,                        # Frequência de atualização da target network
+        'batch_size': 256                  # Tamanho do batch para treinamento
+    }
+    
+    logger.info("Hiperparâmetros do agente:")
+    for key, value in hyperparams.items():
+        logger.info(f"  {key}: {value}")
+    
+    # 8. Instancia agente DDQN
+    logger.info("Criando agente DDQN...")
+    agent = DDQNAgent(**hyperparams)
+    
+    # Configura epsilon decay baseado no número total de episódios
+    num_episodes = 500
+    episode_timeout = 300
 
-        available_tickers = [
-            asset for asset in config['assets'] 
-            if config['assets'][asset].get('enabled', False) and 
-            'DRLStrategy' in config['assets'][asset].get('strategies', [])
-        ]
+    agent.set_epsilon_decay(num_episodes)
+    
+    # 9. Verifica se existe checkpoint para continuar treinamento
+    models_dir = Path(config.get('global_settings', {}).get('model_directory', 'models'))
+    models_dir.mkdir(parents=True, exist_ok=True)
+    
+    checkpoint_path, last_episode = find_latest_checkpoint(models_dir, ticker_input)
+    start_episode = 1
+    
+    if checkpoint_path:
+        print("\n" + "=" * 80)
+        print("CHECKPOINT ENCONTRADO")
+        print("=" * 80)
+        print(f"Último checkpoint: {checkpoint_path.name}")
+        print(f"Episódio do checkpoint: {last_episode}")
+        print()
         
-        if not available_tickers:
-            logger.error("Nenhum ativo habilitado para DRLStrategy encontrado no 'main.yaml'.")
-            return
-
-        ticker_input = get_ticker_input(available_tickers)
-        
-        asset_config = config['assets'][ticker_input]
-        # strategy_name = 'DRLStrategy' # (Definido acima)
-        strategy_config = config['strategies'][strategy_name]
-        provider_name = asset_config['provider']
-        provider_config = config['providers'][provider_name]
-
-        logger.info(f"Usando estratégia: {strategy_name}")
-        logger.info(f"  Provider: {provider_name}")
-        logger.info(f"  Dados: {provider_config['data_range']['train_start']} a {provider_config['data_range']['train_end']}")
-        logger.info(f"  Timeframe: {provider_config['timeframe']}")
-
-        # 1. Carregar Dados
-        logger.info("Conectando ao provider...")
-        provider = get_provider_instance(config, provider_name)
-        
-        logger.info(f"Carregando dados históricos para {ticker_input}...")
-        market_data = provider.load_data(
-            ticker=ticker_input,
-            start_date=provider_config['data_range']['train_start'],
-            end_date=provider_config['data_range']['train_end'],
-            timeframe=provider_config['timeframe']
-        )
-        
-        # 2. Criar Ambiente
-        logger.info("Criando ambiente de trading...")
-        env = TradingEnv(
-            market_data=market_data,
-            config=config,
-            **strategy_config.get('environment', {})
-        )
-        logger.info(f"Ambiente criado: {env.total_steps} steps, state_dim={env.state_dim}")
-
-        # 3. Criar Agente
-        logger.info("Criando agente DDQN...")
-        agent_config = strategy_config.get('agent', {})
-        agent = DDQNAgent(
-            state_dim=env.state_dim,
-            num_actions=env.action_space.n,
-            config=agent_config
-        )
-        
-        # 4. Carregar Checkpoint (se existir)
-        start_episode = 1
-        epsilon = agent_config.get('epsilon_start', 1.0)
-        
-        # Define o padrão do checkpoint
-        checkpoint_base_name = f"{ticker_input}_{strategy_name}_checkpoint"
-        prod_model_name = f"{ticker_input}_{strategy_name}_prod_drl.keras" # <--- Nomeação original
-        stats_name = f"{ticker_input}${strategy_name}_training_stats.csv" # <--- Nomeação corrigida para bater com finalize
-        stats_path = Path(models_dir) / stats_name
-
-        # Encontra o checkpoint mais recente
-        checkpoint_files = list(Path(models_dir).glob(f"{checkpoint_base_name}_ep*.keras"))
-        if checkpoint_files:
-            # Encontra o checkpoint com o maior número de episódio
-            latest_checkpoint_path = None
-            latest_episode_num = -1
-            for cp_path in checkpoint_files:
-                match = re.search(r'_ep(\d+)_drl\.keras$', str(cp_path))
-                if match:
-                    episode_num = int(match.group(1))
-                    if episode_num > latest_episode_num:
-                        latest_episode_num = episode_num
-                        latest_checkpoint_path = cp_path
-
-            if latest_checkpoint_path:
-                try:
-                    start_episode = latest_episode_num + 1
-                    agent.load(str(latest_checkpoint_path))
-                    logger.info(f"Checkpoint carregado: {latest_checkpoint_path}")
-                    
-                    # Ajustar epsilon
-                    epsilon_min = agent_config.get('epsilon_min', 0.01)
-                    epsilon_decay_episodes = agent_config.get('epsilon_linear_decay_episodes', 80)
-                    
-                    if start_episode > epsilon_decay_episodes:
-                        epsilon = epsilon_min
-                    else:
-                        epsilon = agent_config.get('epsilon_start', 1.0) - (start_episode * (
-                            (agent_config.get('epsilon_start', 1.0) - epsilon_min) / epsilon_decay_episodes
-                        ))
-                    
-                    epsilon = max(epsilon_min, epsilon) # Garante
-                    
-                    logger.info(f"Treinamento continuará a partir do episódio {start_episode}")
-                    logger.info(f"Epsilon ajustado para: {epsilon:.4f}")
-                    
-                except Exception as e:
-                    logger.error(f"Erro ao carregar checkpoint: {e}. Começando do zero.")
-                    start_episode = 1
-                    epsilon = agent_config.get('epsilon_start', 1.0)
+        if load_checkpoint(agent, checkpoint_path):
+            start_episode = last_episode + 1
+            
+            # Reconfigura epsilon decay após restaurar checkpoint
+            agent.set_epsilon_decay(num_episodes)
+            
+            # Ajusta epsilon baseado no progresso
+            epsilon_decay_episodes = int(num_episodes * 0.8)
+            if last_episode < epsilon_decay_episodes:
+                # Decay linear até 80% dos episódios
+                agent.epsilon = 1.0 - (last_episode * agent.epsilon_decay_per_episode)
             else:
-                 logger.info("Checkpoints encontrados, mas não foi possível extrair números de episódios. Começando do zero.")
-                 start_episode = 1
-                 epsilon = agent_config.get('epsilon_start', 1.0)
+                # Decay exponencial após 80% dos episódios
+                steps_after_linear = last_episode - epsilon_decay_episodes
+                agent.epsilon = hyperparams['epsilon_min'] * (hyperparams['epsilon_exponential_decay'] ** steps_after_linear)
+            
+            agent.epsilon = max(agent.epsilon, hyperparams['epsilon_min'])
+            
+            # Restaura contador de episódios
+            agent.episodes = last_episode
+            
+            logger.info(f"Treinamento continuará a partir do episódio {start_episode}")
+            logger.info(f"Epsilon ajustado para: {agent.epsilon:.4f}")
         else:
-            logger.info("Nenhum checkpoint encontrado. Iniciando novo treinamento.")
+            logger.warning("Falha ao carregar checkpoint. Iniciando treinamento do zero.")
+    
+    
+    # Máximo de steps por episódio (proteção contra loops infinitos)
+    max_steps_per_episode = len(env.market_features_df)
+    
+    checkpoint_interval = max(10, num_episodes // 10)  # A cada 10% ou mínimo 10 episódios
 
-        # 5. Loop de Treinamento
-        training_config = strategy_config.get('training', {})
-        num_episodes = training_config.get('episodes', 100)
-        batch_size = agent_config.get('batch_size', 32)
-        checkpoint_interval = training_config.get('checkpoint_freq', 10)
-        
-        # Histórico para médias móveis
-        rewards_history = deque(maxlen=100)
-        nav_history = deque(maxlen=100)
-        
-        # Abre o arquivo de stats (ou cria se não existir)
-        file_exists = stats_path.exists()
-        with open(stats_path, 'a', buffering=1) as stats_file:
-            if not file_exists:
-                stats_file.write("episode,reward,steps,epsilon,nav,reward_ma_10,reward_ma_100,nav_ma_10,nav_ma_100\n")
+    logger.info(f"Treinamento iniciará com {num_episodes} episódios.")
+    logger.info(f"Timeout por episódio: {episode_timeout} segundos")
+    logger.info(f"Max steps por episódio: {max_steps_per_episode}")
+    
+    # Validação e sumário de configuração
+    print()
+    print("=" * 80)
+    print("SUMÁRIO DA CONFIGURAÇÃO")
+    print("=" * 80)
+    print(f"Ambiente:")
+    print(f"  Ticker: {ticker_input}")
+    print(f"  Provider: {drl_strategy_config.get('provider')}")
+    print(f"  Período: {drl_strategy_config['data']['start_date']} a {drl_strategy_config['data']['end_date']}")
+    print(f"  Timeframe: {drl_strategy_config['data']['timeframe_model']}")
+    print(f"  Steps totais disponíveis: {len(env.market_features_df)}")
+    print(f"  State dimension: {env.state_dim}")
+    print()
+    print(f"Agente DDQN:")
+    print(f"  Arquitetura: {hyperparams['architecture']}")
+    print(f"  Learning rate: {hyperparams['learning_rate']}")
+    print(f"  Gamma (discount): {hyperparams['gamma']}")
+    print(f"  Epsilon: {hyperparams['epsilon_start']} → {hyperparams['epsilon_min']} (linear em {int(num_episodes * 0.8)} eps, {num_episodes - int(num_episodes * 0.8)} exponencial)")
+    print(f"  Replay buffer: {hyperparams['replay_capacity']:,} experiências")
+    print(f"  Batch size: {hyperparams['batch_size']}")
+    print(f"  Target network update: a cada {hyperparams['tau']} steps")
+    print()
+    print(f"Treinamento:")
+    print(f"  Episódio inicial: {start_episode}")
+    print(f"  Episódio final: {start_episode + num_episodes - 1}")
+    print(f"  Total de episódios nesta sessão: {num_episodes}")
+    print(f"  Epsilon inicial: {agent.epsilon:.4f}")
+    print(f"  Timeout por episódio: {episode_timeout}s")
+    print(f"  Checkpoint a cada: {checkpoint_interval} episódios")
+    print(f"  Tempo estimado (pessimista): {format_time(num_episodes * episode_timeout)}")
+    print("=" * 80)
+    
+ 
+    # 10. Loop de Treinamento
+    print("\n" + "=" * 80)
+    print("INICIANDO TREINAMENTO")
+    print("=" * 80 + "\n")
+    
+    start_time = time()
+    logger.info(f"Início do treinamento: {format_time(start_time)}")
+    
+    # Estatísticas para estimativa de tempo
+    episode_times = []
+    interrupted_episodes = 0
+    
+    # Tracking de métricas de performance
+    episode_navs = []              # NAV final de cada episódio
+    episode_portfolio_values = []  # Portfolio value final
+    
+    # Configuração de checkpoint automático
+    logger.info(f"Checkpoint automático a cada {checkpoint_interval} episódios")
+    
+    # Rastreia os últimos 10 episódios para métricas móveis
+    historical_loss_tracker = deque(maxlen=10) 
+
+    for episode in range(start_episode, start_episode + num_episodes + 1):
+        # Reset do ambiente
+        state = env.reset()
+        episode_start_time = time()
+
+        # Loop do episódio: executa até max_steps_per_episode ou até done=True
+        for episode_step in range(max_steps_per_episode):
+
+            # Agente escolhe ação usando política epsilon-greedy
+            action = agent.epsilon_greedy_policy(state)
             
-            for episode in range(start_episode, start_episode + num_episodes):
-                logger.info(f"--- Iniciando Episódio {episode}/{start_episode + num_episodes - 1} ---")
-                state = env.reset()
-                done = False
-                total_reward = 0
-                step = 0
-                
-                while not done:
-                    action = agent.act(state, epsilon)
-                    next_state, reward, done, _, info = env.step(action)
-                    agent.remember(state, action, reward, next_state, done)
-                    state = next_state
-                    total_reward += reward
-                    step += 1
-                
-                # Treinamento (replay)
-                if len(agent.replay_buffer) > batch_size:
-                    agent.replay(batch_size)
-                
-                # Decaimento do Epsilon
-                epsilon_min = agent_config.get('epsilon_min', 0.01)
-                epsilon_decay_episodes = agent_config.get('epsilon_linear_decay_episodes', 80)
-                
-                if episode <= epsilon_decay_episodes:
-                     epsilon = agent_config.get('epsilon_start', 1.0) - (episode * (
-                        (agent_config.get('epsilon_start', 1.0) - epsilon_min) / epsilon_decay_episodes
-                    ))
-                else:
-                    # Decaimento exponencial após o linear
-                    epsilon *= agent_config.get('epsilon_exponential_decay', 0.99)
-                
-                epsilon = max(epsilon_min, epsilon) # Garante
-                
-                # Atualizar target network
-                if episode % agent_config.get('tau', 10) == 0:
-                    agent.update_target_model()
-                    
-                # Logging e Stats
-                nav = info.get('nav', 0)
-                rewards_history.append(total_reward)
-                nav_history.append(nav)
-                
-                reward_ma_10 = np.mean(list(rewards_history)[-10:])
-                reward_ma_100 = np.mean(rewards_history)
-                nav_ma_10 = np.mean(list(nav_history)[-10:])
-                nav_ma_100 = np.mean(nav_history)
-                
-                logger.info(f"Episode {episode} | Reward: {total_reward:.4f} | "
-                             f"Avg(100): {reward_ma_100:.4f} | Avg(10): {reward_ma_10:.4f} | "
-                             f"Epsilon: {epsilon:.4f} | Steps: {step} | NAV: {nav:.4f}")
-
-                # Salva stats
-                stats_file.write(f"{episode},{total_reward},{step},{epsilon},{nav},{reward_ma_10},{reward_ma_100},{nav_ma_10},{nav_ma_100}\n")
-                
-                # Salva Checkpoint
-                if checkpoint_interval > 0 and episode % checkpoint_interval == 0:
-                    checkpoint_path = Path(models_dir) / f"{checkpoint_base_name}_ep{episode}_drl.keras"
-                    save_checkpoint(agent, str(checkpoint_path))
+            # Executa ação no ambiente
+            next_state, reward, done = env.step(action)
             
-            logger.info("Treinamento concluído.")
+            # Memoriza transição no replay buffer
+            agent.memorize_transition(state, action, reward, next_state, done)
+            
+            # Se episódio terminou naturalmente, sai do loop
+            if done:
+                break
+            
+            # Atualiza estado para próximo step
+            state = next_state
         
-        # --- CHAMADA DE FINALIZAÇÃO (SUCESSO) ---
-        finalize_training(config, strategy_name, ticker_input)
+            # Informa a cada 250 steps executados
+            steps_executed = episode_step + 1
+            steps_remaining = max_steps_per_episode - steps_executed
+            if steps_executed % 250 == 0:
+                logger.info(f"Episódio {episode}: {steps_executed} steps executados de {max_steps_per_episode} (restam {steps_remaining})")
 
-    except KeyboardInterrupt:
-        logger.warning("Treinamento interrompido pelo usuário.")
-        # --- CHAMADA DE FINALIZAÇÃO (INTERRUPÇÃO) ---
-        if config and strategy_name and ticker_input:
-            logger.info("Executando finalização de emergência...")
-            finalize_training(config, strategy_name, ticker_input)
+
+        # --- Treina a rede em lote após o episódio (otimização adaptativa) ---
+        # Sistema de estudo adaptativo baseado no loss do agente
+        
+        # Verifica se há experiências suficientes no buffer
+        if len(agent.experience) >= agent.batch_size:
+            logger.info(f"Episódio {episode} concluído em {episode_step + 1} steps. Iniciando treinamento adaptativo...")
+            
+            
+            # Etapa 1: Executa algumas iterações de amostragem para medir o loss atual
+            SAMPLE_ITERATIONS = 8  # Número de iterações para calcular loss médio
+
+            episode_losses = []
+
+            for _ in range(SAMPLE_ITERATIONS):
+                loss = agent.experience_replay()
+                if loss is not None:
+                    episode_losses.append(loss)
+
+            # Calcula loss médio do episódio
+            avg_episode_loss = np.mean(episode_losses) if episode_losses else 0.01
+            
+            
+            # Etapa 2: Compara com o histórico de loss
+            if not historical_loss_tracker:
+                # Primeiro episódio: usa o loss atual como baseline
+                historical_avg_loss = avg_episode_loss if avg_episode_loss > 0 else 0.01
+            else:
+                # Calcula média dos últimos episódios
+                historical_avg_loss = np.mean(historical_loss_tracker)
+            
+            # Etapa 3: Calcula o "ratio de confusão" do agente
+            # Se loss atual > média histórica → agente confuso → precisa estudar mais
+            # Se loss atual < média histórica → agente confiante → estuda menos
+            loss_ratio = (avg_episode_loss / historical_avg_loss) if historical_avg_loss > 0 else 1.0
+            
+            
+
+            # Etapa 4: Define número de sessões de estudo adaptativas
+            BASE_STUDY_SESSIONS = 16  # Sessões base quando ratio = 1.0
+            MIN_STUDY_SESSIONS = 8    # Estudar no mínimo
+            MAX_STUDY_SESSIONS = 64   # Estudar no máximo (se estiver muito confuso)
+
+            study_sessions = int(BASE_STUDY_SESSIONS * loss_ratio)
+                        
+            # Limites de segurança: mínimo 8, máximo 64 sessões
+            study_sessions = max(MIN_STUDY_SESSIONS, min(MAX_STUDY_SESSIONS, study_sessions))
+            
+            # Etapa 5: Executa as sessões de estudo (já fizemos SAMPLE_ITERATIONS, fazemos o resto)
+            # remaining_sessions = max(MIN_STUDY_SESSIONS, study_sessions - SAMPLE_ITERATIONS)
+            
+            
+            logger.info(
+                f"Episódio {episode}: Loss={avg_episode_loss:.4f}, "
+                f"Histórico={historical_avg_loss:.4f}, Ratio={loss_ratio:.2f}. "
+                f"Executando {study_sessions} sessões de treinamento, "
+                f"Sessões de estudo: {study_sessions + SAMPLE_ITERATIONS} (total)."
+            )
+
+            loss_remaining = []
+
+            for _ in range(study_sessions):
+                loss = agent.experience_replay()
+                if loss is not None:
+                    loss_remaining.append(loss)
+
+            avg_loss_remaining = np.mean(loss_remaining) if loss_remaining else 0.00
+
+            # Recalcula loss médio final do episódio
+            if loss_remaining:
+                combined_losses = episode_losses + loss_remaining
+                avg_episode_loss = np.mean(combined_losses) if combined_losses else avg_episode_loss
+
+            logger.info(f"Episódio {episode}: Treinamento concluído. "
+                        f"Loss médio Pós Treino: {avg_loss_remaining:.4f}, "
+                        f"Loss médio Final do Episódio: {avg_episode_loss:.4f}."
+            )
+            
+            # Etapa 6: Atualiza histórico de loss para próximo episódio
+            historical_loss_tracker.append(avg_episode_loss)
         else:
-            logger.error("Interrupção antes da inicialização. Não é possível finalizar.")
-            
-    except Exception as e:
-        logger.error(f"Erro fatal no script de treinamento: {e}", exc_info=True)
-        sys.exit(1)
+            logger.info(
+                f"Episódio {episode}: Buffer insuficiente "
+                f"({len(agent.experience)}/{agent.batch_size}). Pulando treinamento."
+            )
+
+        # Registra tempo do episódio
+        episode_duration = time() - episode_start_time
+        episode_times.append(episode_duration)
         
-    finally:
-        logger.info(f"Treinamento finalizado em {time() - start_time:.2f} segundos.")
-        # Limpar handlers
-        for handler in logging.root.handlers[:]:
-            handler.close()
-            logging.root.removeHandler(handler)
+        # Registra métricas do ambiente
+        final_nav = env.portfolio_value
+        episode_navs.append(final_nav)
+        episode_portfolio_values.append(final_nav)       
+        # Log detalhado a cada 10 episódios 
+        if episode % 10 == 0:
+            total_time = time() - start_time
+            
+            # Calcula médias móveis de NAV (100 e 10 episódios)
+            nav_ma_100 = np.mean(episode_navs[-100:]) if episode_navs else 1.0
+            nav_ma_10 = np.mean(episode_navs[-10:]) if episode_navs else 1.0
+            
+            # Como não temos market_nav, usamos 1.0 (sem retorno) como referência
+            # Ou poderia ser calculado como buy-and-hold se disponível
+            market_nav_100 = 1.0
+            market_nav_10 = 1.0
+            
+            # Calcula win ratio (NAV > 1.0 indica lucro)
+            wins = sum([1 for nav in episode_navs[-100:] if nav > 1.0])
+            win_ratio = wins / min(len(episode_navs), 100)
+            
+            # Formato idêntico ao notebook:
+            # {episode:>4d} | {time} | Agent: {nav_ma_100-1:>6.1%} ({nav_ma_10-1:>6.1%}) | 
+            # Market: {market_nav_100-1:>6.1%} ({market_nav_10-1:>6.1%}) | Wins: {win_ratio:>5.1%} | eps: {epsilon:>6.3f}
+            template = '{:>4d} | {} | Agent: {:>6.1%} ({:>6.1%}) | '
+            template += 'Market: {:>6.1%} ({:>6.1%}) | '
+            template += 'Wins: {:>5.1%} | eps: {:>6.3f}'
+            
+            print(template.format(
+                episode,
+                format_time(total_time),
+                nav_ma_100 - 1,  # Converte NAV para retorno percentual
+                nav_ma_10 - 1,
+                market_nav_100 - 1,
+                market_nav_10 - 1,
+                win_ratio,
+                agent.epsilon
+            ))
+        
+        # Checkpoint automático
+        if episode % checkpoint_interval == 0:
+            logger.info(f"Salvando checkpoint em episódio {episode}...")
+            checkpoint_prefix = str(models_dir / f"{ticker_input}_DRLStrategy_checkpoint_ep{episode}")
+            
+            strategy_saver = DRLStrategy()
+            strategy_saver.save(agent.online_network, checkpoint_prefix)
+            logger.info(f"Checkpoint salvo: {checkpoint_prefix}_drl.keras")
+    
+    total_training_time = time() - start_time
+    print("\n" + "=" * 80)
+    print("TREINAMENTO CONCLUÍDO")
+    print("=" * 80)
+    print(f"Tempo total: {format_time(total_training_time)}")
+    print(f"Episódios executados nesta sessão: {num_episodes}")
+    print(f"Episódio final: {start_episode + num_episodes - 1}")
+    print(f"Total de episódios acumulados: {agent.episodes}")
+    print(f"Episódios interrompidos por timeout/limite: {interrupted_episodes}")
+    if episode_times:
+        print(f"Tempo médio por episódio: {format_time(sum(episode_times)/len(episode_times))}")
+    print()
+    print("Estatísticas de Performance:")
+    print(f"  Recompensa média (últimos 100 eps): {sum(agent.rewards_history[-100:]) / min(len(agent.rewards_history), 100):.4f}")
+    print(f"  Recompensa média (últimos 10 eps): {sum(agent.rewards_history[-10:]) / min(len(agent.rewards_history), 10):.4f}")
+    if episode_navs:
+        avg_nav_all = sum(episode_navs) / len(episode_navs)
+        avg_nav_100 = sum(episode_navs[-100:]) / min(len(episode_navs), 100)
+        avg_nav_10 = sum(episode_navs[-10:]) / min(len(episode_navs), 10)
+        print(f"  NAV médio (todos): {avg_nav_all:.4f}")
+        print(f"  NAV médio (últimos 100 eps): {avg_nav_100:.4f}")
+        print(f"  NAV médio (últimos 10 eps): {avg_nav_10:.4f}")
+        print(f"  ROI médio (últimos 100 eps): {(avg_nav_100 - 1.0) * 100:.2f}%")
+        print(f"  ROI médio (últimos 10 eps): {(avg_nav_10 - 1.0) * 100:.2f}%")
+    print()
+    
+    # 11. Salva estatísticas de treinamento
+    logger.info("Salvando estatísticas de treinamento...")
+    
+    # Cria DataFrame com histórico de episódios
+    training_stats = pd.DataFrame({
+        'episode': list(range(start_episode, start_episode + len(agent.rewards_history))),
+        'reward': agent.rewards_history,
+        'steps': agent.steps_per_episode if hasattr(agent, 'steps_per_episode') else [0] * len(agent.rewards_history),
+        'epsilon': agent.epsilon_history if hasattr(agent, 'epsilon_history') else [0] * len(agent.rewards_history),
+        'nav': episode_navs[:len(agent.rewards_history)],  # Garante mesmo tamanho
+    })
+    
+    # Adiciona médias móveis
+    training_stats['reward_ma_10'] = training_stats['reward'].rolling(window=10, min_periods=1).mean()
+    training_stats['reward_ma_100'] = training_stats['reward'].rolling(window=100, min_periods=1).mean()
+    training_stats['nav_ma_10'] = training_stats['nav'].rolling(window=10, min_periods=1).mean()
+    training_stats['nav_ma_100'] = training_stats['nav'].rolling(window=100, min_periods=1).mean()
+    
+    # Salva CSV
+    stats_filename = f"{ticker_input}_DRLStrategy_training_stats.csv"
+    stats_path = models_dir / stats_filename
+    
+    # Se continuou de checkpoint, mescla com estatísticas anteriores se existirem
+    if start_episode > 1 and stats_path.exists():
+        logger.info("Mesclando com estatísticas anteriores...")
+        old_stats = pd.read_csv(stats_path)
+        # Remove episódios duplicados (se existirem)
+        old_stats = old_stats[old_stats['episode'] < start_episode]
+        # Concatena com novas estatísticas
+        training_stats = pd.concat([old_stats, training_stats], ignore_index=True)
+    
+    training_stats.to_csv(stats_path, index=False)
+    logger.info(f"Estatísticas salvas em: {stats_path}")
+    
+    # 12. Atualiza o modelo de produção
+    logger.info("Atualizando modelo de produção...")
+    
+    # NOVO FORMATO: ticker_StrategyName_prod
+    model_prefix = str(models_dir / f"{ticker_input}_DRLStrategy_prod")
+    
+    logger.info(f"Atualizando modelo de produção: {model_prefix}_drl.keras")
+    
+    # Usa DRLStrategy para salvar (mantém interface consistente)
+    strategy_saver = DRLStrategy()
+    model_to_save = agent.online_network
+    strategy_saver.save(model_to_save, model_prefix)
+    
+    logger.info("Modelo de produção atualizado com sucesso!")
+    print()
+    print("=" * 80)
+    print("ARQUIVOS SALVOS/ATUALIZADOS")
+    print("=" * 80)
+    print(f"1. Modelo de PRODUÇÃO (atualizado):")
+    print(f"   {model_prefix}_drl.keras")
+    print(f"   {model_prefix}_params.joblib")
+    print(f"2. Estatísticas de treinamento:")
+    print(f"   {stats_path}")
+    print(f"   Total de {len(training_stats)} episódios registrados")
+    if checkpoint_interval > 0 and len(agent.rewards_history) >= checkpoint_interval:
+        print(f"3. Checkpoints:")
+        print(f"   {models_dir}/{ticker_input}_DRLStrategy_checkpoint_ep*.keras")
+        print(f"   Último checkpoint: episódio {start_episode + num_episodes - 1}")
+    print()
+    print("=" * 80)
+    print("INFORMAÇÕES IMPORTANTES:")
+    print("=" * 80)
+    print(f"✓ O modelo de produção foi ATUALIZADO com os pesos do episódio {start_episode + num_episodes - 1}")
+    print(f"✓ Para continuar o treinamento, execute novamente este script")
+    print(f"✓ O treinamento continuará automaticamente a partir do último checkpoint")
+    print()
+    print("=" * 80)
+    print("PRÓXIMOS PASSOS:")
+    print("=" * 80)
+    print(f"1. Analise as estatísticas de treinamento:")
+    print(f"   import pandas as pd")
+    print(f"   stats = pd.read_csv('{stats_path}')")
+    print(f"   stats[['episode', 'reward', 'nav', 'epsilon']].plot(subplots=True)")
+    print()
+    print(f"2. Teste o modelo usando SimulationEngine:")
+    print(f"   - Abra notebooks/simulation/drl_inference_example.ipynb")
+    print(f"   - Configure asset_symbol='{ticker_input}', strategy_name='DRLStrategy'")
+    print()
+    print(f"3. Use em live trading (se configurado):")
+    print(f"   - Verifique live_trading.enabled no config do ativo")
+    print(f"   - Execute: poetry run python src/live_trader.py")
+    print("=" * 80)
 
 
 if __name__ == "__main__":
