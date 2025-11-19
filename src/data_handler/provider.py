@@ -3,7 +3,7 @@
 import MetaTrader5 as mt5
 import pandas as pd
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz # Para lidar com timezones
 import logging
 from abc import ABC, abstractmethod
@@ -88,6 +88,63 @@ class MetaTraderProvider(BaseDataProvider):
             logger.warning(f"Timeframe '{tf_str}' não mapeado no MT5.")
         return tf_constant
 
+    def _download_rates_in_chunks(self, ticker: str, timeframe: int, start_dt: datetime, end_dt: datetime, chunk_size_days: int = 365) -> pd.DataFrame:
+        """
+        Baixa dados do MT5 em pedaços (chunks) para evitar limites de API.
+        Útil para períodos longos de dados.
+        
+        Args:
+            ticker: Símbolo do ativo
+            timeframe: Constante MT5 de timeframe (ex: mt5.TIMEFRAME_M15)
+            start_dt: Data/hora de início (datetime com timezone UTC)
+            end_dt: Data/hora de fim (datetime com timezone UTC)
+            chunk_size_days: Tamanho do chunk em dias (padrão: 365)
+            
+        Returns:
+            DataFrame com dados consolidados
+        """
+        rates_list = []
+        current_start = start_dt.astimezone(pytz.UTC) if start_dt.tzinfo else pytz.UTC.localize(start_dt)
+        final_end = end_dt.astimezone(pytz.UTC) if end_dt.tzinfo else pytz.UTC.localize(end_dt)
+        final_end = final_end + timedelta(hours=23, minutes=59)
+        
+        logger.info(f"Iniciando download em chunks de {chunk_size_days} dias para {ticker}...")
+        
+        chunk_count = 0
+        while current_start < final_end:
+            current_end = min(current_start + timedelta(days=chunk_size_days), final_end)
+            
+            logger.debug(f"  Chunk {chunk_count + 1}: Baixando de {current_start.date()} até {current_end.date()}...")
+            
+            try:
+                chunk = mt5.copy_rates_range(ticker, timeframe, current_start, current_end)
+                
+                if chunk is not None and len(chunk) > 0:
+                    rates_list.append(pd.DataFrame(chunk))
+                    logger.debug(f"    OK ({len(chunk)} candles)")
+                else:
+                    logger.debug(f"    Vazio ou sem dados")
+            except Exception as e:
+                logger.error(f"    Erro ao buscar chunk: {e}")
+            
+            # Avança para o próximo chunk
+            current_start = current_end
+            chunk_count += 1
+        
+        if not rates_list:
+            logger.warning(f"Nenhum dado retornado do MT5 em {chunk_count} chunks para {ticker}.")
+            return pd.DataFrame()
+        
+        # Concatena todos os chunks e remove duplicatas
+        df_final = pd.concat(rates_list, ignore_index=True)
+        
+        # Remove duplicatas baseado no timestamp
+        if 'time' in df_final.columns:
+            df_final = df_final.drop_duplicates(subset='time').reset_index(drop=True)
+        
+        logger.info(f"Download em chunks concluído: {len(df_final)} candles consolidados de {chunk_count} chunks.")
+        return df_final
+
     def get_data(self, ticker: str, start_date: str, end_date: str, timeframe: int) -> pd.DataFrame:
         """Busca dados históricos do MT5 com cache e tratamento de timezone."""
         if not self.is_connected():
@@ -128,19 +185,15 @@ class MetaTraderProvider(BaseDataProvider):
                 logger.warning(f"Erro ao ler cache {cache_filepath}: {e}. Buscando novamente.")
 
         logger.info(f"Buscando dados de {ticker} do MT5 ({start_date} a {end_date} @ {timeframe_str})...")
-        try:
-            rates = mt5.copy_rates_range(ticker, timeframe, start_dt_utc, end_dt_utc)
-        except Exception as e:
-             logger.error(f"Erro ao chamar mt5.copy_rates_range para {ticker}: {e}")
-             return pd.DataFrame()
-
-        if rates is None or len(rates) == 0:
+        
+        # Usa download em chunks para períodos longos (melhora confiabilidade)
+        data = self._download_rates_in_chunks(ticker, timeframe, start_dt_utc, end_dt_utc)
+        
+        if data.empty:
             logger.warning(f"Nenhum dado retornado do MT5 para {ticker} no período.")
             # Cria cache vazio para evitar buscar novamente
             pd.DataFrame().to_parquet(cache_filepath, index=False)
             return pd.DataFrame()
-
-        data = pd.DataFrame(rates)
         # Remove linhas onde todos os valores OHLC são zero ou nulos (dados inválidos)
         data = data[(data[['open', 'high', 'low', 'close']] != 0).any(axis=1)]
         data = data.dropna(subset=['open', 'high', 'low', 'close'], how='all')
