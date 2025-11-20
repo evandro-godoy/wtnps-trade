@@ -1,0 +1,434 @@
+{
+  "ticker": "WDO$",
+  "threshold": 0.7,
+  "period": {
+    "start": "2025-11-03 15:00",
+    "end": "2025-11-19 14:25",
+    "total_candles": 1362
+  },
+  "classification_metrics": {
+    "accuracy": 0.3935389133627019,
+    "precision": 0.6685082872928176,
+    "recall": 0.13641488162344984,
+    "f1_score": 0.22659176029962547,
+    "confusion_matrix": {
+      "true_negatives": 415,
+      "false_positives": 60,
+      "false_negatives": 766,
+      "true_positives": 121
+    },
+    "class_distribution": {
+      "calm_actual": 475,
+      "explosion_actual": 887,
+      "calm_predicted": 1181,
+      "explosion_predicted": 181
+    },
+    "total_samples": 1362
+  },
+  "trading_performance": {
+    "total_signals": 11,
+    "winning_trades": 5,
+    "losing_trades": 5,
+    "win_rate": 0.45454545454545453,
+    "total_return_r": 0.2754224217571,
+    "expectancy_r": 0.025038401977918182,
+    "profit_factor": 1.6774776840744339,
+    "avg_win_r": 0.13639267449007544,
+    "avg_loss_r": -0.08130819013865544,
+    "avg_holding_candles": 64.0,
+    "exit_reason_counts": {
+      "OVERNIGHT_FORCE": 10,
+      "DATA_END": 1
+    },
+    "initial_capital": 2000.0,
+    "final_capital": 2011.016896870284,
+    "monetary_return": 11.016896870284,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.05,
+    "trades_log": [
+      {
+        "day": "2025-11-04",
+        "entry_time": "2025-11-04 09:50",
+        "exit_time": "2025-11-04 15:25",
+        "entry_price": 5414.0,
+        "exit_price": 5442.5,
+        "stop_price": 5305.72,
+        "take_profit_price": 5684.7,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 68,
+        "pnl_r": 0.2632065016623575,
+        "pnl_monetary": 10.5282600664943,
+        "result": "WIN"
+      },
+      {
+        "day": "2025-11-05",
+        "entry_time": "2025-11-05 10:15",
+        "exit_time": "2025-11-05 15:25",
+        "entry_price": 5391.0,
+        "exit_price": 5386.0,
+        "stop_price": 5283.18,
+        "take_profit_price": 5660.55,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 63,
+        "pnl_r": -0.04637358560563915,
+        "pnl_monetary": -1.854943424225566,
+        "result": "LOSS"
+      },
+      {
+        "day": "2025-11-06",
+        "entry_time": "2025-11-06 11:10",
+        "exit_time": "2025-11-06 15:25",
+        "entry_price": 5384.0,
+        "exit_price": 5378.5,
+        "stop_price": 5276.32,
+        "take_profit_price": 5653.2,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 52,
+        "pnl_r": -0.051077265973253946,
+        "pnl_monetary": -2.043090638930158,
+        "result": "LOSS"
+      },
+      {
+        "day": "2025-11-10",
+        "entry_time": "2025-11-10 09:20",
+        "exit_time": "2025-11-10 15:25",
+        "entry_price": 5338.0,
+        "exit_price": 5314.5,
+        "stop_price": 5231.24,
+        "take_profit_price": 5604.900000000001,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 74,
+        "pnl_r": -0.22011989509179422,
+        "pnl_monetary": -8.80479580367177,
+        "result": "LOSS"
+      },
+      {
+        "day": "2025-11-11",
+        "entry_time": "2025-11-11 10:35",
+        "exit_time": "2025-11-11 15:25",
+        "entry_price": 5295.5,
+        "exit_price": 5295.5,
+        "stop_price": 5189.59,
+        "take_profit_price": 5560.275000000001,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 59,
+        "pnl_r": 0.0,
+        "pnl_monetary": 0.0,
+        "result": "FLAT"
+      },
+      {
+        "day": "2025-11-12",
+        "entry_time": "2025-11-12 09:40",
+        "exit_time": "2025-11-12 15:25",
+        "entry_price": 5316.5,
+        "exit_price": 5313.0,
+        "stop_price": 5210.17,
+        "take_profit_price": 5582.325,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 70,
+        "pnl_r": -0.032916392363396996,
+        "pnl_monetary": -1.3166556945358798,
+        "result": "LOSS"
+      },
+      {
+        "day": "2025-11-13",
+        "entry_time": "2025-11-13 09:55",
+        "exit_time": "2025-11-13 15:25",
+        "entry_price": 5300.5,
+        "exit_price": 5309.5,
+        "stop_price": 5194.49,
+        "take_profit_price": 5565.525000000001,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 67,
+        "pnl_r": 0.08489765116498427,
+        "pnl_monetary": 3.3959060465993707,
+        "result": "WIN"
+      },
+      {
+        "day": "2025-11-14",
+        "entry_time": "2025-11-14 11:10",
+        "exit_time": "2025-11-14 15:25",
+        "entry_price": 5299.5,
+        "exit_price": 5313.0,
+        "stop_price": 5193.51,
+        "take_profit_price": 5564.475,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 52,
+        "pnl_r": 0.12737050665157115,
+        "pnl_monetary": 5.094820266062846,
+        "result": "WIN"
+      },
+      {
+        "day": "2025-11-17",
+        "entry_time": "2025-11-17 10:10",
+        "exit_time": "2025-11-17 15:25",
+        "entry_price": 5325.5,
+        "exit_price": 5344.0,
+        "stop_price": 5218.99,
+        "take_profit_price": 5591.775000000001,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 64,
+        "pnl_r": 0.17369261102243885,
+        "pnl_monetary": 6.947704440897554,
+        "result": "WIN"
+      },
+      {
+        "day": "2025-11-18",
+        "entry_time": "2025-11-18 10:30",
+        "exit_time": "2025-11-18 15:25",
+        "entry_price": 5336.0,
+        "exit_price": 5339.5,
+        "stop_price": 5229.28,
+        "take_profit_price": 5602.8,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 60,
+        "pnl_r": 0.03279610194902541,
+        "pnl_monetary": 1.3118440779610163,
+        "result": "WIN"
+      }
+    ],
+    "daily_stats": {
+      "2025-11-04": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "pnl_r": 0.2632065016623575,
+        "pnl_monetary": 10.5282600664943
+      },
+      "2025-11-05": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "pnl_r": -0.04637358560563915,
+        "pnl_monetary": -1.854943424225566
+      },
+      "2025-11-06": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "pnl_r": -0.051077265973253946,
+        "pnl_monetary": -2.043090638930158
+      },
+      "2025-11-10": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "pnl_r": -0.22011989509179422,
+        "pnl_monetary": -8.80479580367177
+      },
+      "2025-11-11": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 0,
+        "pnl_r": 0.0,
+        "pnl_monetary": 0.0
+      },
+      "2025-11-12": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "pnl_r": -0.032916392363396996,
+        "pnl_monetary": -1.3166556945358798
+      },
+      "2025-11-13": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "pnl_r": 0.08489765116498427,
+        "pnl_monetary": 3.3959060465993707
+      },
+      "2025-11-14": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "pnl_r": 0.12737050665157115,
+        "pnl_monetary": 5.094820266062846
+      },
+      "2025-11-17": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "pnl_r": 0.17369261102243885,
+        "pnl_monetary": 6.947704440897554
+      },
+      "2025-11-18": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "pnl_r": 0.03279610194902541,
+        "pnl_monetary": 1.3118440779610163
+      },
+      "2025-11-19": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "pnl_r": -0.05605381165919284,
+        "pnl_monetary": -2.2421524663677137
+      }
+    },
+    "full_trades": [
+      {
+        "day": "2025-11-04",
+        "entry_time": "2025-11-04 09:50",
+        "exit_time": "2025-11-04 15:25",
+        "entry_price": 5414.0,
+        "exit_price": 5442.5,
+        "stop_price": 5305.72,
+        "take_profit_price": 5684.7,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 68,
+        "pnl_r": 0.2632065016623575,
+        "pnl_monetary": 10.5282600664943,
+        "result": "WIN"
+      },
+      {
+        "day": "2025-11-05",
+        "entry_time": "2025-11-05 10:15",
+        "exit_time": "2025-11-05 15:25",
+        "entry_price": 5391.0,
+        "exit_price": 5386.0,
+        "stop_price": 5283.18,
+        "take_profit_price": 5660.55,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 63,
+        "pnl_r": -0.04637358560563915,
+        "pnl_monetary": -1.854943424225566,
+        "result": "LOSS"
+      },
+      {
+        "day": "2025-11-06",
+        "entry_time": "2025-11-06 11:10",
+        "exit_time": "2025-11-06 15:25",
+        "entry_price": 5384.0,
+        "exit_price": 5378.5,
+        "stop_price": 5276.32,
+        "take_profit_price": 5653.2,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 52,
+        "pnl_r": -0.051077265973253946,
+        "pnl_monetary": -2.043090638930158,
+        "result": "LOSS"
+      },
+      {
+        "day": "2025-11-10",
+        "entry_time": "2025-11-10 09:20",
+        "exit_time": "2025-11-10 15:25",
+        "entry_price": 5338.0,
+        "exit_price": 5314.5,
+        "stop_price": 5231.24,
+        "take_profit_price": 5604.900000000001,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 74,
+        "pnl_r": -0.22011989509179422,
+        "pnl_monetary": -8.80479580367177,
+        "result": "LOSS"
+      },
+      {
+        "day": "2025-11-11",
+        "entry_time": "2025-11-11 10:35",
+        "exit_time": "2025-11-11 15:25",
+        "entry_price": 5295.5,
+        "exit_price": 5295.5,
+        "stop_price": 5189.59,
+        "take_profit_price": 5560.275000000001,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 59,
+        "pnl_r": 0.0,
+        "pnl_monetary": 0.0,
+        "result": "FLAT"
+      },
+      {
+        "day": "2025-11-12",
+        "entry_time": "2025-11-12 09:40",
+        "exit_time": "2025-11-12 15:25",
+        "entry_price": 5316.5,
+        "exit_price": 5313.0,
+        "stop_price": 5210.17,
+        "take_profit_price": 5582.325,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 70,
+        "pnl_r": -0.032916392363396996,
+        "pnl_monetary": -1.3166556945358798,
+        "result": "LOSS"
+      },
+      {
+        "day": "2025-11-13",
+        "entry_time": "2025-11-13 09:55",
+        "exit_time": "2025-11-13 15:25",
+        "entry_price": 5300.5,
+        "exit_price": 5309.5,
+        "stop_price": 5194.49,
+        "take_profit_price": 5565.525000000001,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 67,
+        "pnl_r": 0.08489765116498427,
+        "pnl_monetary": 3.3959060465993707,
+        "result": "WIN"
+      },
+      {
+        "day": "2025-11-14",
+        "entry_time": "2025-11-14 11:10",
+        "exit_time": "2025-11-14 15:25",
+        "entry_price": 5299.5,
+        "exit_price": 5313.0,
+        "stop_price": 5193.51,
+        "take_profit_price": 5564.475,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 52,
+        "pnl_r": 0.12737050665157115,
+        "pnl_monetary": 5.094820266062846,
+        "result": "WIN"
+      },
+      {
+        "day": "2025-11-17",
+        "entry_time": "2025-11-17 10:10",
+        "exit_time": "2025-11-17 15:25",
+        "entry_price": 5325.5,
+        "exit_price": 5344.0,
+        "stop_price": 5218.99,
+        "take_profit_price": 5591.775000000001,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 64,
+        "pnl_r": 0.17369261102243885,
+        "pnl_monetary": 6.947704440897554,
+        "result": "WIN"
+      },
+      {
+        "day": "2025-11-18",
+        "entry_time": "2025-11-18 10:30",
+        "exit_time": "2025-11-18 15:25",
+        "entry_price": 5336.0,
+        "exit_price": 5339.5,
+        "stop_price": 5229.28,
+        "take_profit_price": 5602.8,
+        "exit_reason": "OVERNIGHT_FORCE",
+        "holding_period_candles": 60,
+        "pnl_r": 0.03279610194902541,
+        "pnl_monetary": 1.3118440779610163,
+        "result": "WIN"
+      },
+      {
+        "day": "2025-11-19",
+        "entry_time": "2025-11-19 08:15",
+        "exit_time": "2025-11-19 14:25",
+        "entry_price": 5352.0,
+        "exit_price": 5346.0,
+        "stop_price": 5244.96,
+        "take_profit_price": 5619.6,
+        "exit_reason": "DATA_END",
+        "holding_period_candles": 75,
+        "pnl_r": -0.05605381165919284,
+        "pnl_monetary": -2.2421524663677137,
+        "result": "LOSS"
+      }
+    ]
+  },
+  "trade_params": {
+    "initial_capital": 2000,
+    "avg_win_r": 2.5,
+    "avg_loss_r": -1.0,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.05
+  },
+  "timestamp": "2025-11-20 20:16:08"
+}

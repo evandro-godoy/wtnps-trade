@@ -1,0 +1,128 @@
+{
+  "ticker": "WDO$",
+  "threshold": 0.7,
+  "period": {
+    "start": "2025-11-03 15:00",
+    "end": "2025-11-19 14:25",
+    "total_candles": 1362
+  },
+  "classification_metrics": {
+    "accuracy": 0.3935389133627019,
+    "precision": 0.6685082872928176,
+    "recall": 0.13641488162344984,
+    "f1_score": 0.22659176029962547,
+    "confusion_matrix": {
+      "true_negatives": 415,
+      "false_positives": 60,
+      "false_negatives": 766,
+      "true_positives": 121
+    },
+    "class_distribution": {
+      "calm_actual": 475,
+      "explosion_actual": 887,
+      "calm_predicted": 1181,
+      "explosion_predicted": 181
+    },
+    "total_samples": 1362
+  },
+  "trading_performance": {
+    "total_signals": 2,
+    "winning_trades": 1,
+    "losing_trades": 1,
+    "win_rate": 0.5,
+    "total_return_r": -0.5231800585402694,
+    "expectancy_r": -0.2615900292701347,
+    "profit_factor": 0.4768199414597306,
+    "avg_win_r": 0.4768199414597306,
+    "avg_loss_r": -1.0,
+    "initial_capital": 2000.0,
+    "final_capital": 1979.0727976583892,
+    "monetary_return": -20.927202341610776,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.05,
+    "trades_log": [
+      {
+        "day": "2025-11-11",
+        "entry_time": "2025-11-04 09:50",
+        "exit_time": "2025-11-11 06:00",
+        "entry_price": 5414.0,
+        "exit_price": 5305.72,
+        "stop_price": 5305.72,
+        "take_profit_price": 5684.7,
+        "exit_reason": "STOP",
+        "holding_period_candles": 525,
+        "pnl_r": -1.0,
+        "pnl_monetary": -40.0,
+        "result": "LOSS"
+      },
+      {
+        "day": "2025-11-19",
+        "entry_time": "2025-11-11 10:35",
+        "exit_time": "2025-11-19 14:25",
+        "entry_price": 5295.5,
+        "exit_price": 5346.0,
+        "stop_price": 5189.59,
+        "take_profit_price": 5560.275000000001,
+        "exit_reason": "DATA_END",
+        "holding_period_candles": 731,
+        "pnl_r": 0.4768199414597306,
+        "pnl_monetary": 19.072797658389224,
+        "result": "WIN"
+      }
+    ],
+    "daily_stats": {
+      "2025-11-11": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "pnl_r": -1.0,
+        "pnl_monetary": -40.0
+      },
+      "2025-11-19": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "pnl_r": 0.4768199414597306,
+        "pnl_monetary": 19.072797658389224
+      }
+    },
+    "full_trades": [
+      {
+        "day": "2025-11-11",
+        "entry_time": "2025-11-04 09:50",
+        "exit_time": "2025-11-11 06:00",
+        "entry_price": 5414.0,
+        "exit_price": 5305.72,
+        "stop_price": 5305.72,
+        "take_profit_price": 5684.7,
+        "exit_reason": "STOP",
+        "holding_period_candles": 525,
+        "pnl_r": -1.0,
+        "pnl_monetary": -40.0,
+        "result": "LOSS"
+      },
+      {
+        "day": "2025-11-19",
+        "entry_time": "2025-11-11 10:35",
+        "exit_time": "2025-11-19 14:25",
+        "entry_price": 5295.5,
+        "exit_price": 5346.0,
+        "stop_price": 5189.59,
+        "take_profit_price": 5560.275000000001,
+        "exit_reason": "DATA_END",
+        "holding_period_candles": 731,
+        "pnl_r": 0.4768199414597306,
+        "pnl_monetary": 19.072797658389224,
+        "result": "WIN"
+      }
+    ]
+  },
+  "trade_params": {
+    "initial_capital": 2000,
+    "avg_win_r": 2.5,
+    "avg_loss_r": -1.0,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.05
+  },
+  "timestamp": "2025-11-20 20:08:57"
+}

@@ -443,7 +443,7 @@ def train_all_models(config_path: str = 'configs/main.yaml'):
             # --- Salvamento ---
             try:
                 # NOVO FORMATO: ticker_StrategyName_prod
-                model_save_prefix = str(models_dir / f"{asset_symbol}_{strategy_class_name}_prod")
+                model_save_prefix = str(models_dir / f"{asset_symbol}_{strategy_class_name}_{tf_string}_prod")
                 logger.info(f"Salvando modelo para {asset_symbol}/{strategy_name} -> {model_save_prefix}...")
                 strategy_instance.save(production_model, model_save_prefix)
                 logger.info(f"Modelo para {asset_symbol}/{strategy_name} salvo com sucesso.")

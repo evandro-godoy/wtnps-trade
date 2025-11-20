@@ -11,6 +11,7 @@ Adequações:
 - Payoff médio (avg_win_r) derivado de `take_profit_pct / stop_loss_pct` quando ambos disponíveis.
 - Uso consistente do tamanho das sequências (probabilidades/predictions alinhados ao lookback).
 - Validações adicionais de consistência de arrays antes do cálculo de métricas.
+ - Relatórios gerados: JSON, TXT e agora HTML (human readable) com métricas, trades e parâmetros.
 """
 
 import sys
@@ -28,7 +29,8 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 import json
-
+import importlib
+from src.data_handler import provider as data_provider_module
 from sklearn.metrics import (
     accuracy_score, 
     precision_score, 
@@ -82,7 +84,10 @@ class BacktestEngine:
         actual_targets: np.ndarray,
         prices: pd.DataFrame,
         threshold: float = 3.0,
-        trade_params: Optional[Dict] = None
+        trade_params: Optional[Dict] = None,
+        min_signals: Optional[int] = None,
+        market_close_hour: int = 17,
+        max_holding_candles: Optional[int] = None
     ) -> Dict:
         """
         Executa o backtest com as predições do modelo.
@@ -114,23 +119,29 @@ class BacktestEngine:
 
         logger.info(f"Períodos analisados (sequências válidas): {len(probabilities)}")
         
-        # Aplicar threshold nas probabilidades
+        # Aplicar threshold nas probabilidades (com ajuste dinâmico para garantir mínimo de sinais)
         y_pred_threshold = (probabilities > threshold).astype(int).flatten()
+        if min_signals is not None:
+            original_threshold = threshold
+            step = 0.05
+            while np.sum(y_pred_threshold == 1) < min_signals and threshold > 0.05:
+                threshold = max(0.05, threshold - step)
+                y_pred_threshold = (probabilities > threshold).astype(int).flatten()
+            if threshold != original_threshold:
+                logger.info(f"Threshold ajustado dinamicamente de {original_threshold:.2f} para {threshold:.2f} visando mínimo de {min_signals} sinais.")
         
         # Métricas de classificação
         metrics = self._calculate_metrics(actual_targets, y_pred_threshold)
         
-        # Simular trades
-        trade_results = self._simulate_trades(
-            y_pred_threshold,
-            actual_targets,
-            prices,
-            ticker,
-            avg_win=trade_params.get('avg_win_r', 2.0) if trade_params else 2.0,
-            avg_loss=trade_params.get('avg_loss_r', -1.0) if trade_params else -1.0,
-            initial_capital=trade_params.get('initial_capital') if trade_params else None,
+        # Simular trades em formato Day Trade com controle de posição
+        trade_results = self._simulate_daytrade_positions(
+            signals=y_pred_threshold,
+            prices=prices,
             stop_loss_pct=trade_params.get('stop_loss_pct') if trade_params else None,
-            take_profit_pct=trade_params.get('take_profit_pct') if trade_params else None
+            take_profit_pct=trade_params.get('take_profit_pct') if trade_params else None,
+            initial_capital=trade_params.get('initial_capital') if trade_params else None,
+            market_close_hour=market_close_hour,
+            max_holding_candles=max_holding_candles
         )
         
         # Consolidar resultados
@@ -144,6 +155,7 @@ class BacktestEngine:
             },
             'classification_metrics': metrics,
             'trading_performance': trade_results,
+            'trade_params': trade_params if trade_params else {},
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
@@ -155,16 +167,7 @@ class BacktestEngine:
         y_true: np.ndarray,
         y_pred: np.ndarray
     ) -> Dict:
-        """
-        Calcula métricas de classificação.
-        
-        Args:
-            y_true: Targets reais
-            y_pred: Predições do modelo
-            
-        Returns:
-            Dicionário com métricas
-        """
+        """Calcula métricas de classificação."""
         # Garantir que arrays são 1D
         y_true = y_true.flatten()
         y_pred = y_pred.flatten()
@@ -312,6 +315,238 @@ class BacktestEngine:
         logger.info(f"Profit Factor: {profit_factor:.2f}")
         
         return results
+
+    def _simulate_daytrade_positions(
+        self,
+        signals: np.ndarray,
+        prices: pd.DataFrame,
+        stop_loss_pct: Optional[float] = None,
+        take_profit_pct: Optional[float] = None,
+        initial_capital: Optional[float] = None,
+        market_close_hour: int = 17,
+        max_holding_candles: Optional[int] = None
+    ) -> Dict:
+        """Simula execução Day Trade com controle de posição e regras adicionais.
+
+        Regras:
+        - Abre posição LONG quando signal == 1 e nenhuma posição aberta e hora < market_close_hour.
+        - Força flat diário: fecha no candle cujo hour >= market_close_hour.
+        - Se dia muda e posição continua aberta (timezone desalinhado), força saída OVERNIGHT_FORCE no último candle do dia anterior.
+        - Stop / Take conforme percentuais; prioridade STOP antes de TAKE.
+        - Max holding: força saída 'MAX_HOLDING' se excede max_holding_candles.
+        - Calcula PnL em R com base no stop quando disponível.
+        """
+        logger.info("Simulando Day Trade com controle de posição...")
+        self.trades = []
+        open_pos = None
+        risk_unit_value = initial_capital * stop_loss_pct if (initial_capital is not None and stop_loss_pct) else None
+        prev_ts = None
+
+        if len(signals) != len(prices):
+            min_len = min(len(signals), len(prices))
+            signals = signals[:min_len]
+            prices = prices.iloc[:min_len]
+
+        for i, (ts, row) in enumerate(prices.iterrows()):
+            hour = ts.hour
+            signal = signals[i]
+
+            # Overnight force close if date changed and position still open
+            if open_pos and prev_ts is not None and ts.date() != prev_ts.date():
+                prev_close = prices.loc[prev_ts, 'close'] if prev_ts in prices.index else open_pos['entry_price']
+                pnl_r = (prev_close - open_pos['entry_price']) / (open_pos['entry_price'] - open_pos['stop_price']) if open_pos['stop_price'] else 0.0
+                trade = {
+                    'day': prev_ts.date().isoformat(),
+                    'entry_time': open_pos['entry_time'].strftime('%Y-%m-%d %H:%M'),
+                    'exit_time': prev_ts.strftime('%Y-%m-%d %H:%M'),
+                    'entry_price': float(open_pos['entry_price']),
+                    'exit_price': float(prev_close),
+                    'stop_price': float(open_pos['stop_price']) if open_pos['stop_price'] else None,
+                    'take_profit_price': float(open_pos['take_profit_price']) if open_pos['take_profit_price'] else None,
+                    'exit_reason': 'OVERNIGHT_FORCE',
+                    'holding_period_candles': (i - 1) - open_pos['entry_index'] + 1,
+                    'pnl_r': float(pnl_r),
+                }
+                if risk_unit_value is not None:
+                    trade['pnl_monetary'] = float(pnl_r * risk_unit_value)
+                trade['result'] = 'WIN' if pnl_r > 0 else ('LOSS' if pnl_r < 0 else 'FLAT')
+                self.trades.append(trade)
+                open_pos = None
+
+            # Market close enforcement
+            if open_pos and hour >= market_close_hour:
+                exit_price = row['close']
+                pnl_r = (exit_price - open_pos['entry_price']) / (open_pos['entry_price'] - open_pos['stop_price']) if open_pos['stop_price'] else 0.0
+                trade = {
+                    'day': ts.date().isoformat(),
+                    'entry_time': open_pos['entry_time'].strftime('%Y-%m-%d %H:%M'),
+                    'exit_time': ts.strftime('%Y-%m-%d %H:%M'),
+                    'entry_price': float(open_pos['entry_price']),
+                    'exit_price': float(exit_price),
+                    'stop_price': float(open_pos['stop_price']) if open_pos['stop_price'] else None,
+                    'take_profit_price': float(open_pos['take_profit_price']) if open_pos['take_profit_price'] else None,
+                    'exit_reason': 'MARKET_CLOSE',
+                    'holding_period_candles': i - open_pos['entry_index'] + 1,
+                    'pnl_r': float(pnl_r),
+                }
+                if risk_unit_value is not None:
+                    trade['pnl_monetary'] = float(pnl_r * risk_unit_value)
+                trade['result'] = 'WIN' if pnl_r > 0 else ('LOSS' if pnl_r < 0 else 'FLAT')
+                self.trades.append(trade)
+                open_pos = None
+                prev_ts = ts
+                continue
+
+            # Open position
+            if open_pos is None and signal == 1 and hour < market_close_hour:
+                entry_price = row['close']
+                stop_price = entry_price * (1 - stop_loss_pct) if stop_loss_pct else None
+                take_profit_price = entry_price * (1 + take_profit_pct) if take_profit_pct else None
+                open_pos = {
+                    'entry_time': ts,
+                    'entry_price': entry_price,
+                    'stop_price': stop_price,
+                    'take_profit_price': take_profit_price,
+                    'entry_index': i
+                }
+                prev_ts = ts
+                continue
+
+            # Manage open position
+            if open_pos:
+                high = row['high']
+                low = row['low']
+                exit_reason = None
+                exit_price = None
+                stop_hit = open_pos['stop_price'] is not None and low <= open_pos['stop_price']
+                take_hit = open_pos['take_profit_price'] is not None and high >= open_pos['take_profit_price']
+
+                if stop_hit:
+                    exit_reason = 'STOP'
+                    exit_price = open_pos['stop_price']
+                elif take_hit:
+                    exit_reason = 'TAKE_PROFIT'
+                    exit_price = open_pos['take_profit_price']
+
+                # Max holding enforcement
+                if exit_reason is None and max_holding_candles is not None:
+                    holding = i - open_pos['entry_index'] + 1
+                    if holding >= max_holding_candles:
+                        exit_reason = 'MAX_HOLDING'
+                        exit_price = row['close']
+
+                if exit_reason:
+                    if open_pos['stop_price']:
+                        pnl_r = (exit_price - open_pos['entry_price']) / (open_pos['entry_price'] - open_pos['stop_price'])
+                    else:
+                        if take_profit_pct and stop_loss_pct and exit_reason == 'TAKE_PROFIT':
+                            pnl_r = take_profit_pct / stop_loss_pct
+                        elif exit_reason == 'STOP':
+                            pnl_r = -1.0 if stop_loss_pct else 0.0
+                        else:
+                            pnl_r = 0.0
+                    trade = {
+                        'day': ts.date().isoformat(),
+                        'entry_time': open_pos['entry_time'].strftime('%Y-%m-%d %H:%M'),
+                        'exit_time': ts.strftime('%Y-%m-%d %H:%M'),
+                        'entry_price': float(open_pos['entry_price']),
+                        'exit_price': float(exit_price),
+                        'stop_price': float(open_pos['stop_price']) if open_pos['stop_price'] else None,
+                        'take_profit_price': float(open_pos['take_profit_price']) if open_pos['take_profit_price'] else None,
+                        'exit_reason': exit_reason,
+                        'holding_period_candles': i - open_pos['entry_index'] + 1,
+                        'pnl_r': float(pnl_r),
+                    }
+                    if risk_unit_value is not None:
+                        trade['pnl_monetary'] = float(pnl_r * risk_unit_value)
+                    trade['result'] = 'WIN' if pnl_r > 0 else ('LOSS' if pnl_r < 0 else 'FLAT')
+                    self.trades.append(trade)
+                    open_pos = None
+
+            prev_ts = ts
+
+        # Final close if still open
+        if open_pos:
+            last_ts = prices.index[-1]
+            exit_price = prices.iloc[-1]['close']
+            if open_pos['stop_price']:
+                pnl_r = (exit_price - open_pos['entry_price']) / (open_pos['entry_price'] - open_pos['stop_price'])
+            else:
+                pnl_r = 0.0
+            trade = {
+                'day': last_ts.date().isoformat(),
+                'entry_time': open_pos['entry_time'].strftime('%Y-%m-%d %H:%M'),
+                'exit_time': last_ts.strftime('%Y-%m-%d %H:%M'),
+                'entry_price': float(open_pos['entry_price']),
+                'exit_price': float(exit_price),
+                'stop_price': float(open_pos['stop_price']) if open_pos['stop_price'] else None,
+                'take_profit_price': float(open_pos['take_profit_price']) if open_pos['take_profit_price'] else None,
+                'exit_reason': 'DATA_END',
+                'holding_period_candles': len(prices) - open_pos['entry_index'],
+                'pnl_r': float(pnl_r),
+            }
+            if risk_unit_value is not None:
+                trade['pnl_monetary'] = float(pnl_r * risk_unit_value)
+            trade['result'] = 'WIN' if pnl_r > 0 else ('LOSS' if pnl_r < 0 else 'FLAT')
+            self.trades.append(trade)
+
+        # Aggregations
+        total_signals = len(self.trades)
+        winning_trades = sum(1 for t in self.trades if t['result'] == 'WIN')
+        losing_trades = sum(1 for t in self.trades if t['result'] == 'LOSS')
+        total_return_r = sum(t['pnl_r'] for t in self.trades)
+        win_rate = winning_trades / total_signals if total_signals > 0 else 0.0
+        expectancy = total_return_r / total_signals if total_signals > 0 else 0.0
+        gross_profit_r = sum(t['pnl_r'] for t in self.trades if t['pnl_r'] > 0)
+        gross_loss_r = abs(sum(t['pnl_r'] for t in self.trades if t['pnl_r'] < 0))
+        profit_factor = gross_profit_r / gross_loss_r if gross_loss_r > 0 else 0.0
+
+        daily_stats: Dict[str, Dict[str, float]] = {}
+        for t in self.trades:
+            d = t['day']
+            if d not in daily_stats:
+                daily_stats[d] = {'trades': 0, 'wins': 0, 'losses': 0, 'pnl_r': 0.0, 'pnl_monetary': 0.0}
+            daily_stats[d]['trades'] += 1
+            if t['result'] == 'WIN':
+                daily_stats[d]['wins'] += 1
+            elif t['result'] == 'LOSS':
+                daily_stats[d]['losses'] += 1
+            daily_stats[d]['pnl_r'] += t['pnl_r']
+            if 'pnl_monetary' in t:
+                daily_stats[d]['pnl_monetary'] += t['pnl_monetary']
+
+        monetary_return = None
+        final_capital = None
+        if initial_capital is not None and stop_loss_pct is not None:
+            monetary_return = total_return_r * risk_unit_value if risk_unit_value is not None else None
+            final_capital = initial_capital + monetary_return if monetary_return is not None else None
+
+        exit_reason_counts: Dict[str, int] = {}
+        for t in self.trades:
+            exit_reason_counts[t['exit_reason']] = exit_reason_counts.get(t['exit_reason'], 0) + 1
+        avg_holding = float(np.mean([t['holding_period_candles'] for t in self.trades])) if self.trades else 0.0
+
+        return {
+            'total_signals': total_signals,
+            'winning_trades': winning_trades,
+            'losing_trades': losing_trades,
+            'win_rate': float(win_rate),
+            'total_return_r': float(total_return_r),
+            'expectancy_r': float(expectancy),
+            'profit_factor': float(profit_factor),
+            'avg_win_r': float(gross_profit_r / winning_trades) if winning_trades > 0 else 0.0,
+            'avg_loss_r': float(-gross_loss_r / losing_trades) if losing_trades > 0 else 0.0,
+            'avg_holding_candles': avg_holding,
+            'exit_reason_counts': exit_reason_counts,
+            'initial_capital': float(initial_capital) if initial_capital is not None else None,
+            'final_capital': float(final_capital) if final_capital is not None else None,
+            'monetary_return': float(monetary_return) if monetary_return is not None else None,
+            'stop_loss_pct': float(stop_loss_pct) if stop_loss_pct is not None else None,
+            'take_profit_pct': float(take_profit_pct) if take_profit_pct is not None else None,
+            'trades_log': self.trades[:10],
+            'daily_stats': daily_stats,
+            'full_trades': self.trades
+        }
     
     def optimize_threshold(
         self,
@@ -426,73 +661,284 @@ class BacktestEngine:
             f.write(f"  True Positives (Explosão corretamente identificada): {conf['true_positives']}\n\n")
             dist = cm['class_distribution']
             f.write("Distribuição de Classes:\n")
-            f.write(f"  Real: Calmo = {dist['calm_actual']}, Explosão = {dist['explosion_actual']}\n")
-            f.write(f"  Predito: Calmo = {dist['calm_predicted']}, Explosão = {dist['explosion_predicted']}\n\n")
+            for cls, count in dist.items():
+                f.write(f"  Classe {cls}: {count}\n")
+            f.write("\n")
+            perf = self.results.get('trading_performance', {})
             f.write("-" * 80 + "\n")
-            f.write("PERFORMANCE DE TRADING (Simulação)\n")
+            f.write("PERFORMANCE DE TRADING (DAY TRADE)\n")
             f.write("-" * 80 + "\n")
-            tp = self.results['trading_performance']
-            f.write(f"Total de Sinais de Entrada: {tp['total_signals']}\n")
-            f.write(f"Trades Vencedores: {tp['winning_trades']}\n")
-            f.write(f"Trades Perdedores: {tp['losing_trades']}\n")
-            f.write(f"Win Rate: {tp['win_rate']:.2%}\n\n")
-            f.write(f"Retorno Total: {tp['total_return_r']:.2f}R\n")
-            f.write(f"Expectativa por Trade: {tp['expectancy_r']:.2f}R\n")
-            f.write(f"Profit Factor: {tp['profit_factor']:.2f}\n\n")
-            f.write(f"Payoff Médio: Win = {tp['avg_win_r']:.2f}R, Loss = {tp['avg_loss_r']:.2f}R\n\n")
-            if tp.get('initial_capital') is not None:
-                f.write(f"Capital Inicial: {tp['initial_capital']:.2f}\n")
-            if tp.get('final_capital') is not None:
-                f.write(f"Capital Final: {tp['final_capital']:.2f}\n")
-            if tp.get('monetary_return') is not None:
-                f.write(f"Retorno Monetário: {tp['monetary_return']:.2f}\n")
-            if tp.get('stop_loss_pct') is not None and tp.get('take_profit_pct') is not None:
-                f.write(f"Stop Loss %: {tp['stop_loss_pct']:.4f} | Take Profit %: {tp['take_profit_pct']:.4f}\n\n")
-            if tp['trades_log']:
-                f.write("-" * 80 + "\n")
-                f.write("AMOSTRA DE TRADES (Primeiros 10)\n")
-                f.write("-" * 80 + "\n")
-                for trade in tp['trades_log']:
+            f.write(f"Total Trades: {perf.get('total_signals', 0)}\n")
+            f.write(f"Winning Trades: {perf.get('winning_trades', 0)}\n")
+            f.write(f"Losing Trades: {perf.get('losing_trades', 0)}\n")
+            f.write(f"Win Rate: {perf.get('win_rate', 0):.2%}\n")
+            f.write(f"Retorno Total (R): {perf.get('total_return_r', 0):.2f}R\n")
+            f.write(f"Expectativa por Trade (R): {perf.get('expectancy_r', 0):.2f}R\n")
+            f.write(f"Profit Factor: {perf.get('profit_factor', 0):.2f}\n")
+            f.write(f"Payoff Médio: Win = {perf.get('avg_win_r',0):.2f}R | Loss = {perf.get('avg_loss_r',0):.2f}R\n")
+            if perf.get('avg_holding_candles') is not None:
+                f.write(f"Média Holding (candles): {perf.get('avg_holding_candles',0):.1f}\n")
+            erc = perf.get('exit_reason_counts', {})
+            if erc:
+                f.write("Motivos de Saída:\n")
+                for reason, count in erc.items():
+                    f.write(f"  {reason}: {count}\n")
+            if perf.get('initial_capital') is not None:
+                f.write(f"Capital Inicial: {perf.get('initial_capital'):.2f}\n")
+            if perf.get('final_capital') is not None:
+                f.write(f"Capital Final: {perf.get('final_capital'):.2f}\n")
+            if perf.get('monetary_return') is not None:
+                f.write(f"Retorno Monetário: {perf.get('monetary_return'):.2f}\n")
+            if perf.get('stop_loss_pct') is not None and perf.get('take_profit_pct') is not None:
+                f.write(f"Stop Loss %: {perf.get('stop_loss_pct'):.4f} | Take Profit %: {perf.get('take_profit_pct'):.4f}\n")
+            f.write("\nAmostra de Trades:\n")
+            for trade in self.trades[:10]:
+                if 'timestamp' in trade:
                     f.write(f"  {trade['timestamp']} | {trade['signal']} | {trade['result']} | PnL: {trade['pnl_r']:.2f}R\n")
+                    continue
+                f.write(
+                    f"  Entry: {trade.get('entry_time')} | Exit: {trade.get('exit_time')} | Reason: {trade.get('exit_reason')} | EP: {trade.get('entry_price'):.2f} | XP: {trade.get('exit_price'):.2f} | PnL(R): {trade.get('pnl_r',0):.2f} | Result: {trade.get('result')}\n"
+                )
             f.write("\n" + "=" * 80 + "\n")
             f.write("FIM DO RELATÓRIO\n")
             f.write("=" * 80 + "\n")
 
+    def generate_html_report(self, output_dir: str = 'reports/backtest') -> str:
+        """Gera relatório em HTML detalhado (human readable) do backtest.
+
+        Inclui:
+        - Metadados (ticker, período, threshold, timestamp)
+        - Métricas de classificação (tabela)
+        - Matriz de confusão
+        - Distribuição de classes
+        - Parâmetros de trade utilizados
+        - Performance de trading (win rate, expectancy, profit factor, capital)
+        - Log completo de trades simulados
+        - Observações metodológicas
+        """
+        if not self.results:
+            logger.warning("Nenhum resultado para gerar HTML.")
+            return ""
+
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        ticker = self.results['ticker']
+        timestamp_file = datetime.now().strftime('%Y%m%d_%H%M%S')
+        html_file = output_path / f"backtest_{ticker}_{timestamp_file}.html"
+
+        r = self.results
+        cm = r['classification_metrics']
+        tp = r['trading_performance']
+        trade_params = r.get('trade_params', {})
+        conf = cm['confusion_matrix']
+        dist = cm['class_distribution']
+
+        # Monta tabela detalhada de trades agrupados por dia
+        full_trades = r['trading_performance'].get('full_trades', [])
+        daily_stats = r['trading_performance'].get('daily_stats', {})
+        daily_sections = []
+        for day, stats in sorted(daily_stats.items()):
+            day_trades = [t for t in full_trades if t['day'] == day]
+            rows = []
+            for t in day_trades:
+                stop_str = f"{t['stop_price']:.2f}" if t.get('stop_price') is not None else ""
+                take_str = f"{t['take_profit_price']:.2f}" if t.get('take_profit_price') is not None else ""
+                pnl_m_str = f"{t['pnl_monetary']:.2f}" if t.get('pnl_monetary') is not None else ""
+                rows.append(
+                    "<tr>" +
+                    f"<td>{t['entry_time']}</td>" +
+                    f"<td>{t['exit_time']}</td>" +
+                    f"<td>{t['exit_reason']}</td>" +
+                    f"<td>{t['entry_price']:.2f}</td>" +
+                    f"<td>{stop_str}</td>" +
+                    f"<td>{take_str}</td>" +
+                    f"<td>{t['exit_price']:.2f}</td>" +
+                    f"<td>{t['holding_period_candles']}</td>" +
+                    f"<td>{t['pnl_r']:.2f}R</td>" +
+                    f"<td>{pnl_m_str}</td>" +
+                    f"<td>{t['result']}</td>" +
+                    "</tr>"
+                )
+            table_html = (
+                f"<h3>Dia {day} - Trades (PnL R={stats['pnl_r']:.2f}, Monetário={stats.get('pnl_monetary', 0):.2f})</h3>" +
+                "<table class='table'>" +
+                "<thead><tr><th>Entrada</th><th>Saída</th><th>Motivo Saída</th><th>Preço Entrada</th><th>Stop</th><th>Take</th><th>Preço Saída</th><th>Candles</th><th>PnL (R)</th><th>PnL Monetário</th><th>Resultado</th></tr></thead><tbody>" +
+                "".join(rows) + "</tbody></table>"
+            )
+            daily_sections.append(table_html)
+        trades_table_html = "".join(daily_sections)
+
+        # CSS simples embutido
+        css = """
+        body {font-family: Arial, sans-serif; margin:24px; color:#222;}
+        h1,h2,h3 {margin: 0 0 12px;}
+        .section {margin-top:32px;}
+        .meta-box {display:flex; flex-wrap:wrap; gap:16px;}
+        .meta {background:#f5f5f5; padding:10px 14px; border-radius:6px; border:1px solid #ddd; min-width:220px;}
+        table.table {border-collapse: collapse; width:100%; margin-top:12px;}
+        table.table th, table.table td {border:1px solid #ccc; padding:6px 8px; font-size:13px; text-align:left;}
+        table.table th {background:#fafafa;}
+        .kpi-grid {display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px;}
+        .kpi {background:#ffffff; border:1px solid #ddd; border-radius:6px; padding:10px;}
+        .footer {margin-top:40px; font-size:12px; color:#666;}
+        code {background:#eee; padding:2px 4px; border-radius:4px;}
+        .tag {display:inline-block; background:#004d7a; color:#fff; padding:2px 6px; font-size:11px; border-radius:4px; margin-right:6px;}
+        """
+
+        # HTML
+        with open(html_file, 'w', encoding='utf-8') as f:
+            f.write("<html><head><meta charset='utf-8'><title>Backtest " + ticker + "</title>")
+            f.write(f"<style>{css}</style></head><body>")
+            f.write(f"<h1>Relatório de Backtest - {ticker}</h1>")
+            f.write("<div class='meta-box'>")
+            f.write(f"<div class='meta'><strong>Período Início:</strong><br>{r['period']['start']}</div>")
+            f.write(f"<div class='meta'><strong>Período Fim:</strong><br>{r['period']['end']}</div>")
+            f.write(f"<div class='meta'><strong>Total Candles:</strong><br>{r['period']['total_candles']}</div>")
+            f.write(f"<div class='meta'><strong>Threshold:</strong><br>{r['threshold']:.2f}</div>")
+            f.write(f"<div class='meta'><strong>Timestamp Execução:</strong><br>{r['timestamp']}</div>")
+            if trade_params:
+                f.write(f"<div class='meta'><strong>Parâmetros Trade:</strong><br>" + ", ".join([f"{k}={v}" for k,v in trade_params.items()]) + "</div>")
+            f.write("</div>")
+
+            # Métricas de Classificação
+            f.write("<div class='section'><h2>Métricas de Classificação</h2>")
+            f.write("<div class='kpi-grid'>")
+            f.write(f"<div class='kpi'><h3>Acurácia</h3><p>{cm['accuracy']:.2%}</p></div>")
+            f.write(f"<div class='kpi'><h3>Precisão</h3><p>{cm['precision']:.2%}</p></div>")
+            f.write(f"<div class='kpi'><h3>Recall</h3><p>{cm['recall']:.2%}</p></div>")
+            f.write(f"<div class='kpi'><h3>F1-Score</h3><p>{cm['f1_score']:.4f}</p></div>")
+            f.write("</div>")
+            f.write("<h3>Matriz de Confusão</h3>")
+            f.write("<table class='table'><thead><tr><th>TN</th><th>FP</th><th>FN</th><th>TP</th></tr></thead><tbody>")
+            f.write(f"<tr><td>{conf['true_negatives']}</td><td>{conf['false_positives']}</td><td>{conf['false_negatives']}</td><td>{conf['true_positives']}</td></tr>")
+            f.write("</tbody></table>")
+            f.write("<h3>Distribuição de Classes</h3>")
+            f.write("<table class='table'><thead><tr><th>Tipo</th><th>Calmo</th><th>Explosão</th></tr></thead><tbody>")
+            f.write(f"<tr><td>Real</td><td>{dist['calm_actual']}</td><td>{dist['explosion_actual']}</td></tr>")
+            f.write(f"<tr><td>Predito</td><td>{dist['calm_predicted']}</td><td>{dist['explosion_predicted']}</td></tr>")
+            f.write("</tbody></table>")
+            f.write("</div>")
+
+            # Performance Trading
+            f.write("<div class='section'><h2>Performance de Trading</h2>")
+            perf_rows = [
+                ("Total Sinais", tp['total_signals']),
+                ("Trades Vencedores", tp['winning_trades']),
+                ("Trades Perdedores", tp['losing_trades']),
+                ("Win Rate", f"{tp['win_rate']:.2%}"),
+                ("Retorno Total (R)", f"{tp['total_return_r']:.2f}"),
+                ("Expectativa (R/trade)", f"{tp['expectancy_r']:.2f}"),
+                ("Profit Factor", f"{tp['profit_factor']:.2f}"),
+                ("Payoff Médio Win", f"{tp['avg_win_r']:.2f}R"),
+                ("Payoff Médio Loss", f"{tp['avg_loss_r']:.2f}R"),
+            ]
+            if tp.get('avg_holding_candles') is not None:
+                perf_rows.append(("Média Holding (candles)", f"{tp['avg_holding_candles']:.1f}"))
+            if tp.get('initial_capital') is not None:
+                perf_rows.append(("Capital Inicial", f"{tp['initial_capital']:.2f}"))
+            if tp.get('final_capital') is not None:
+                perf_rows.append(("Capital Final", f"{tp['final_capital']:.2f}"))
+            if tp.get('monetary_return') is not None:
+                perf_rows.append(("Retorno Monetário", f"{tp['monetary_return']:.2f}"))
+            if tp.get('stop_loss_pct') is not None and tp.get('take_profit_pct') is not None:
+                perf_rows.append(("Stop/Take (%)", f"SL={tp['stop_loss_pct']:.4f} TP={tp['take_profit_pct']:.4f}"))
+            if tp.get('exit_reason_counts'):
+                reasons_summary = ", ".join([f"{k}={v}" for k,v in tp['exit_reason_counts'].items()])
+                perf_rows.append(("Saídas", reasons_summary))
+            f.write("<table class='table'><thead><tr><th>Métrica</th><th>Valor</th></tr></thead><tbody>")
+            for k,v in perf_rows:
+                f.write(f"<tr><td>{k}</td><td>{v}</td></tr>")
+            f.write("</tbody></table>")
+            f.write("</div>")
+
+            # Trades detalhados por dia
+            f.write("<div class='section'><h2>Trades Simulados (Day Trade)</h2>")
+            if trades_table_html:
+                f.write(trades_table_html)
+            else:
+                f.write("<p>Nenhum trade registrado.</p>")
+            f.write("</div>")
+
+            # Observações
+            f.write("<div class='section'><h2>Observações</h2>")
+            f.write("<p>Este relatório resume o processo de backtest da estratégia LSTM de volatilidade. Os sinais são gerados a partir de probabilidades acima do threshold definido. Os parâmetros de trade refletem configurações em <code>configs/main.yaml</code>. Ajuste o período, threshold e regras de trade para refinar resultados.</p>")
+            f.write("<p>Importante: Os ganhos/perdas em R (risk units) são calculados usando payoff estimado. Resultados monetários dependem da relação entre o stop_loss_pct e capital inicial.</p>")
+            f.write("</div>")
+
+            f.write("<div class='footer'>Relatório gerado em " + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " | Engine LSTMVolatility Backtest</div>")
+            f.write("</body></html>")
+
+        logger.info(f"Relatório HTML detalhado salvo em: {html_file}")
+        return str(html_file)
+
 
 def main():
-    """
-    Função principal para executar backtest standalone.
-    """
-    import importlib
-    from src.data_handler import provider as data_provider_module
+
+    # Função principal para executar backtest standalone.
+
+
     config_path = 'configs/main.yaml'
     with open(config_path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
+
     asset_config = None
+
     for asset in config.get('assets', []):
         if asset.get('enabled', False) and asset.get('backtesting', {}).get('enabled', False):
             asset_config = asset
             break
+
     if not asset_config:
         logger.error("Nenhum ativo com backtesting habilitado encontrado no config.")
         sys.exit(1)
+
     ticker = asset_config['ticker']
     backtest_cfg = asset_config['backtesting']
+
     strategy_name = backtest_cfg.get('strategy_name') or backtest_cfg.get('strategie_name')
     if not strategy_name:
         logger.error("Campo 'strategy_name'/'strategie_name' ausente na seção backtesting do config.")
         sys.exit(1)
+
     logger.info(f"Executando backtest para {ticker} com estratégia {strategy_name}")
+
     strategy_config = None
     for strat in asset_config.get('strategies', []):
         if strat['name'] == strategy_name:
             strategy_config = strat
             break
+
     if not strategy_config:
         logger.error(f"Estratégia {strategy_name} não encontrada para {ticker}.")
         sys.exit(1)
+
+    provider_name = strategy_config.get('provider', 'MetaTrader5')
+    data_provider = data_provider_module.get_provider_instance(provider_name)
+
+    timeframe_str = backtest_cfg['timeframe_str']
+    mt5_timeframe = data_provider._get_mt5_timeframe(timeframe_str)
+
+    logger.info(f"Buscando dados de {backtest_cfg['start_date']} a {backtest_cfg['end_date']}...")
+    
+    market_data = data_provider.get_data(
+        ticker=ticker,
+        start_date=backtest_cfg['start_date'],
+        end_date=backtest_cfg['end_date'],
+        timeframe=mt5_timeframe
+    )
+
+    if market_data.empty:
+        logger.error("Nenhum dado obtido para backtest.")
+        sys.exit(1)
+
+    logger.info(f"Dados obtidos: {len(market_data)} candles")
+
+
+
     strategy_module_name = strategy_config.get('module')
     strategy_class_name = strategy_config.get('name')
+    timeframe_str = backtest_cfg.get('timeframe_str', '')
+
     try:
         strategy_module = importlib.import_module(f"src.strategies.{strategy_module_name}")
         StrategyClass = getattr(strategy_module, strategy_class_name)
@@ -501,45 +947,33 @@ def main():
     except Exception as e:
         logger.error(f"Erro ao carregar estratégia: {e}")
         sys.exit(1)
+
     models_dir = Path(config.get('global_settings', {}).get('model_directory', 'models'))
-    model_prefix = str(models_dir / f"{ticker}_{strategy_class_name}_prod")
+    model_prefix = str(models_dir / f"{ticker}_{strategy_class_name}_{timeframe_str}_prod")
     logger.info(f"Carregando modelo de {model_prefix}...")
+
     try:
         model = strategy_instance.load(model_prefix)
     except Exception as e:
         logger.error(f"Erro ao carregar modelo: {e}")
         sys.exit(1)
-    provider_name = strategy_config.get('provider', 'MetaTrader5')
-    data_provider = data_provider_module.get_provider_instance(provider_name)
-    import MetaTrader5 as mt5
-    tf_map = {
-        "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
-        "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
-        "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1, "MN1": mt5.TIMEFRAME_MN1
-    }
-    timeframe_str = backtest_cfg['timeframe_str']
-    mt5_timeframe = tf_map.get(timeframe_str.upper())
-    logger.info(f"Buscando dados de {backtest_cfg['start_date']} a {backtest_cfg['end_date']}...")
-    market_data = data_provider.get_data(
-        ticker=ticker,
-        start_date=backtest_cfg['start_date'],
-        end_date=backtest_cfg['end_date'],
-        timeframe=mt5_timeframe
-    )
-    if market_data.empty:
-        logger.error("Nenhum dado obtido para backtest.")
-        sys.exit(1)
-    logger.info(f"Dados obtidos: {len(market_data)} candles")
+
+
+
+
     df_features = strategy_instance.define_features(market_data)
     target = strategy_instance.define_target(df_features)
     feature_names = strategy_instance.get_feature_names()
     X = df_features[feature_names].iloc[:len(target)]
     y = target.values
     logger.info("Executando predições...")
+
     predictions = model.predict(X)
+
     if predictions.size == 0:
         logger.error("Modelo retornou predições vazias. Verifique se há dados suficientes após o lookback.")
         sys.exit(1)
+
     X_scaled = model.scaler.transform(X.values)
     from src.strategies.lstm_volatility import create_sequences
     X_seq, _ = create_sequences(X_scaled, np.zeros(len(X_scaled)), model.lookback)
@@ -578,18 +1012,31 @@ def main():
         configured_threshold = best_threshold
     else:
         logger.info(f"Usando threshold definido em config: {configured_threshold:.2f}")
+
+    min_signals = backtest_cfg.get('min_signals')
+    max_holding_candles = backtest_cfg.get('max_holding_candles')
+    market_close_hour = backtest_cfg.get('market_close_hour', 17)
+
     results = engine.run_backtest(
-        ticker,
-        predictions,
-        probabilities,
-        y_aligned,
-        prices_aligned,
+        ticker=ticker,
+        predictions=predictions,
+        probabilities=probabilities,
+        actual_targets=y_aligned,
+        prices=prices_aligned,
         threshold=configured_threshold,
-        trade_params=trade_params_cfg if trade_params_cfg else None
+        trade_params=trade_params_cfg if trade_params_cfg else None,
+        min_signals=min_signals,
+        market_close_hour=market_close_hour,
+        max_holding_candles=max_holding_candles
     )
+
     report_path = engine.generate_report()
+    html_report_path = engine.generate_html_report()
+
     logger.info(f"=== Backtest Concluído ===")
-    logger.info(f"Relatório salvo em: {report_path}")
+    logger.info(f"Relatório TXT/JSON salvo em: {report_path}")
+    logger.info(f"Relatório HTML salvo em: {html_report_path}")
+    
     if df_opt is not None:
         print("\n" + "="*80)
         print("OTIMIZAÇÃO DE THRESHOLD")

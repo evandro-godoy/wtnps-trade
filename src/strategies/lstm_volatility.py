@@ -205,7 +205,7 @@ class LSTMVolatilityWrapper(BaseEstimator, ClassifierMixin):
         rebuild = False
         for param, value in params.items():
             setattr(self, param, value)
-            if param in ['lookback', 'lstm_units', 'dropout_rate', 'n_features']:
+            if param in ['lookback', 'lstm_units', 'dropout_rate', 'epochs', 'batch_size', 'n_features']:
                 rebuild = True
         
         if rebuild:
@@ -251,10 +251,12 @@ class LSTMVolatilityStrategy(BaseStrategy):
     Estratégia de trading que utiliza LSTM para prever explosões de volatilidade.
     Usa features avançadas de dinâmica de preço, morfologia de candles e time embeddings.
     """
-    def __init__(self, lookback=96, lstm_units=64, dropout_rate=0.2, target_period=5, volatility_multiplier=3.0):
+    def __init__(self, lookback=96, lstm_units=64, dropout_rate=0.2, epochs=30, batch_size=128, target_period=5, volatility_multiplier=3.0):
         self.lookback = lookback
         self.lstm_units = lstm_units
         self.dropout_rate = dropout_rate
+        self.epochs = epochs
+        self.batch_size = batch_size
         self.target_period = target_period
         self.volatility_multiplier = volatility_multiplier
         
@@ -361,9 +363,12 @@ class LSTMVolatilityStrategy(BaseStrategy):
 
     def define_target(self, data: pd.DataFrame) -> pd.Series:
         """
-        Define o target como explosão de volatilidade.
+        Define o target como explosão de volatilidade com filtro Day Trade.
         1 = Amplitude futura > threshold (ATR * multiplier)
         0 = Mercado normal/travado
+        
+        Filtro Day Trade: Zera o target para candles após as 17:00 (horário limite)
+        para evitar sinais próximos ao fechamento do pregão.
         """
         df = data.copy()
         
@@ -380,19 +385,35 @@ class LSTMVolatilityStrategy(BaseStrategy):
         
         dynamic_threshold = df['atr'] * self.volatility_multiplier
         
-        # Target binário
+        # Target binário inicial
         target = (future_range > dynamic_threshold).astype(int)
         
-        # Remove últimas linhas (sem dados futuros completos)
-        target = target.iloc[:-self.target_period]
+        # --- FILTRO DAY TRADE ---
+        # Zera o target se o horário >= 17:00 para evitar segurar posição no fim do dia
+        # Ajuste HORA_LIMITE_SINAL conforme o fuso horário dos seus dados
+        HORA_LIMITE_SINAL = 17
         
-        return target
+        mask_fim_dia = df.index.hour >= HORA_LIMITE_SINAL
+        count_filtro = mask_fim_dia.sum()
+        
+        if count_filtro > 0:
+            target_series = pd.Series(target, index=df.index)
+            target_series.loc[mask_fim_dia] = 0
+            target = target_series.values
+            logging.info(f"Filtro DayTrade: {count_filtro} candles final do dia zerados (Target=0).")
+        
+        # Remove últimas linhas (sem dados futuros completos)
+        target = target[:-self.target_period]
+        
+        return pd.Series(target, index=df.index[:-self.target_period])
 
     def define_model(self) -> BaseEstimator:
         """Retorna uma instância do wrapper do modelo LSTM Volatility."""
         return LSTMVolatilityWrapper(
             lookback=self.lookback,
             lstm_units=self.lstm_units,
+            epochs=self.epochs,
+            batch_size=self.batch_size,
             dropout_rate=self.dropout_rate,
             n_features=len(self.feature_names)
         )

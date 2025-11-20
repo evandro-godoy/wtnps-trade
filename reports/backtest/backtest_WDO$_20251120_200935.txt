@@ -1,0 +1,52 @@
+================================================================================
+RELATÓRIO DE BACKTEST - WDO$
+================================================================================
+
+Período: 2025-11-03 15:00 até 2025-11-19 14:25
+Total de Candles: 1362
+Threshold Utilizado: 0.70
+Data do Backtest: 2025-11-20 20:09:35
+
+--------------------------------------------------------------------------------
+MÉTRICAS DE CLASSIFICAÇÃO
+--------------------------------------------------------------------------------
+Acurácia: 39.35%
+Precisão (Win Rate): 66.85%
+Recall (Cobertura): 13.64%
+F1-Score: 0.2266
+
+Matriz de Confusão:
+  True Negatives (Calmo corretamente identificado): 415
+  False Positives (Falso alarme de explosão): 60
+  False Negatives (Explosão não detectada): 766
+  True Positives (Explosão corretamente identificada): 121
+
+Distribuição de Classes:
+  Classe calm_actual: 475
+  Classe explosion_actual: 887
+  Classe calm_predicted: 1181
+  Classe explosion_predicted: 181
+
+--------------------------------------------------------------------------------
+PERFORMANCE DE TRADING (DAY TRADE)
+--------------------------------------------------------------------------------
+Total Trades: 2
+Winning Trades: 1
+Losing Trades: 1
+Win Rate: 50.00%
+Retorno Total (R): -0.52R
+Expectativa por Trade (R): -0.26R
+Profit Factor: 0.48
+Payoff Médio: Win = 0.48R | Loss = -1.00R
+Capital Inicial: 2000.00
+Capital Final: 1979.07
+Retorno Monetário: -20.93
+Stop Loss %: 0.0200 | Take Profit %: 0.0500
+
+Amostra de Trades:
+  Entry: 2025-11-04 09:50 | Exit: 2025-11-11 06:00 | Reason: STOP | EP: 5414.00 | XP: 5305.72 | PnL(R): -1.00 | Result: LOSS
+  Entry: 2025-11-11 10:35 | Exit: 2025-11-19 14:25 | Reason: DATA_END | EP: 5295.50 | XP: 5346.00 | PnL(R): 0.48 | Result: WIN
+
+================================================================================
+FIM DO RELATÓRIO
+================================================================================

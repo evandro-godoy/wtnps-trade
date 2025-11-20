@@ -1,0 +1,63 @@
+================================================================================
+RELATÓRIO DE BACKTEST - WDO$
+================================================================================
+
+Período: 2025-01-02 15:00 até 2025-11-19 14:25
+Total de Candles: 25368
+Threshold Utilizado: 0.70
+Data do Backtest: 2025-11-20 19:41:38
+
+--------------------------------------------------------------------------------
+MÉTRICAS DE CLASSIFICAÇÃO
+--------------------------------------------------------------------------------
+Acurácia: 45.18%
+Precisão (Win Rate): 75.10%
+Recall (Cobertura): 28.39%
+F1-Score: 0.4121
+
+Matriz de Confusão:
+  True Negatives (Calmo corretamente identificado): 6589
+  False Positives (Falso alarme de explosão): 1616
+  False Negatives (Explosão não detectada): 12290
+  True Positives (Explosão corretamente identificada): 4873
+
+Distribuição de Classes:
+  Real: Calmo = 8205, Explosão = 17163
+  Predito: Calmo = 18879, Explosão = 6489
+
+--------------------------------------------------------------------------------
+PERFORMANCE DE TRADING (Simulação)
+--------------------------------------------------------------------------------
+Total de Sinais de Entrada: 6489
+Trades Vencedores: 4873
+Trades Perdedores: 1616
+Win Rate: 75.10%
+
+Retorno Total: 10566.50R
+Expectativa por Trade: 1.63R
+Profit Factor: 7.54
+
+Payoff Médio: Win = 2.50R, Loss = -1.00R
+
+Capital Inicial: 5000.00
+Capital Final: 1061650.00
+Retorno Monetário: 1056650.00
+Stop Loss %: 0.0200 | Take Profit %: 0.0500
+
+--------------------------------------------------------------------------------
+AMOSTRA DE TRADES (Primeiros 10)
+--------------------------------------------------------------------------------
+  2025-01-03 08:55 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-03 09:00 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-03 09:05 | EXPLOSION_ENTRY | LOSS | PnL: -1.00R
+  2025-01-03 09:10 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-03 09:15 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-03 09:20 | EXPLOSION_ENTRY | LOSS | PnL: -1.00R
+  2025-01-03 09:25 | EXPLOSION_ENTRY | LOSS | PnL: -1.00R
+  2025-01-03 09:30 | EXPLOSION_ENTRY | LOSS | PnL: -1.00R
+  2025-01-03 09:35 | EXPLOSION_ENTRY | LOSS | PnL: -1.00R
+  2025-01-03 09:45 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+
+================================================================================
+FIM DO RELATÓRIO
+================================================================================

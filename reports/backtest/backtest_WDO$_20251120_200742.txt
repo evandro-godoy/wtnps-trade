@@ -1,0 +1,49 @@
+================================================================================
+RELATÓRIO DE BACKTEST - WDO$
+================================================================================
+
+Período: 2025-11-03 15:00 até 2025-11-19 14:25
+Total de Candles: 1362
+Threshold Utilizado: 0.70
+Data do Backtest: 2025-11-20 20:07:42
+
+--------------------------------------------------------------------------------
+MÉTRICAS DE CLASSIFICAÇÃO
+--------------------------------------------------------------------------------
+Acurácia: 39.35%
+Precisão (Win Rate): 66.85%
+Recall (Cobertura): 13.64%
+F1-Score: 0.2266
+
+Matriz de Confusão:
+  True Negatives (Calmo corretamente identificado): 415
+  False Positives (Falso alarme de explosão): 60
+  False Negatives (Explosão não detectada): 766
+  True Positives (Explosão corretamente identificada): 121
+
+Distribuição de Classes:
+  Real: Calmo = 475, Explosão = 887
+  Predito: Calmo = 1181, Explosão = 181
+
+--------------------------------------------------------------------------------
+PERFORMANCE DE TRADING (Simulação)
+--------------------------------------------------------------------------------
+Total de Sinais de Entrada: 2
+Trades Vencedores: 1
+Trades Perdedores: 1
+Win Rate: 50.00%
+
+Retorno Total: -0.52R
+Expectativa por Trade: -0.26R
+Profit Factor: 0.48
+
+Payoff Médio: Win = 0.48R, Loss = -1.00R
+
+Capital Inicial: 2000.00
+Capital Final: 1979.07
+Retorno Monetário: -20.93
+Stop Loss %: 0.0200 | Take Profit %: 0.0500
+
+--------------------------------------------------------------------------------
+AMOSTRA DE TRADES (Primeiros 10)
+--------------------------------------------------------------------------------

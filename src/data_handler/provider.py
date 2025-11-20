@@ -88,7 +88,7 @@ class MetaTraderProvider(BaseDataProvider):
             logger.warning(f"Timeframe '{tf_str}' não mapeado no MT5.")
         return tf_constant
 
-    def _download_rates_in_chunks(self, ticker: str, timeframe: int, start_dt: datetime, end_dt: datetime, chunk_size_days: int = 365) -> pd.DataFrame:
+    def _download_rates_in_chunks(self, ticker: str, timeframe: int, start_dt: datetime, end_dt: datetime, chunk_size_days: int = 183) -> pd.DataFrame:
         """
         Baixa dados do MT5 em pedaços (chunks) para evitar limites de API.
         Útil para períodos longos de dados.

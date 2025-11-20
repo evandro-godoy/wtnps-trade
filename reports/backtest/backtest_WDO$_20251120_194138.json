@@ -1,0 +1,124 @@
+{
+  "ticker": "WDO$",
+  "threshold": 0.7,
+  "period": {
+    "start": "2025-01-02 15:00",
+    "end": "2025-11-19 14:25",
+    "total_candles": 25368
+  },
+  "classification_metrics": {
+    "accuracy": 0.45182907600126143,
+    "precision": 0.7509631684388965,
+    "recall": 0.2839247217852357,
+    "f1_score": 0.41205817689835955,
+    "confusion_matrix": {
+      "true_negatives": 6589,
+      "false_positives": 1616,
+      "false_negatives": 12290,
+      "true_positives": 4873
+    },
+    "class_distribution": {
+      "calm_actual": 8205,
+      "explosion_actual": 17163,
+      "calm_predicted": 18879,
+      "explosion_predicted": 6489
+    },
+    "total_samples": 25368
+  },
+  "trading_performance": {
+    "total_signals": 6489,
+    "winning_trades": 4873,
+    "losing_trades": 1616,
+    "win_rate": 0.7509631684388965,
+    "total_return_r": 10566.5,
+    "expectancy_r": 1.628371089536138,
+    "profit_factor": 7.538675742574258,
+    "avg_win_r": 2.5,
+    "avg_loss_r": -1.0,
+    "initial_capital": 5000.0,
+    "final_capital": 1061650.0,
+    "monetary_return": 1056650.0,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.05,
+    "trades_log": [
+      {
+        "index": 41,
+        "timestamp": "2025-01-03 08:55",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "WIN",
+        "pnl_r": 2.5
+      },
+      {
+        "index": 42,
+        "timestamp": "2025-01-03 09:00",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "WIN",
+        "pnl_r": 2.5
+      },
+      {
+        "index": 43,
+        "timestamp": "2025-01-03 09:05",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 44,
+        "timestamp": "2025-01-03 09:10",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "WIN",
+        "pnl_r": 2.5
+      },
+      {
+        "index": 45,
+        "timestamp": "2025-01-03 09:15",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "WIN",
+        "pnl_r": 2.5
+      },
+      {
+        "index": 46,
+        "timestamp": "2025-01-03 09:20",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 47,
+        "timestamp": "2025-01-03 09:25",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 48,
+        "timestamp": "2025-01-03 09:30",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 49,
+        "timestamp": "2025-01-03 09:35",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 51,
+        "timestamp": "2025-01-03 09:45",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "WIN",
+        "pnl_r": 2.5
+      }
+    ]
+  },
+  "trade_params": {
+    "initial_capital": 5000,
+    "avg_win_r": 2.5,
+    "avg_loss_r": -1.0,
+    "stop_loss_pct": 0.02,
+    "take_profit_pct": 0.05
+  },
+  "timestamp": "2025-11-20 19:41:38"
+}
