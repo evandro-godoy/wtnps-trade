@@ -19,7 +19,7 @@ global_settings:
 
 assets:
   - ticker: "WDO$"
-    enabled: true  # Habilita ou desabilita este ativo para treino e live trading.
+    enabled: false  # Habilita ou desabilita este ativo para treino e live trading.
     
     strategies:
       # Estratégia LSTM com foco em predição de volatilidade (explosões)
@@ -81,7 +81,7 @@ assets:
         period: 20        # Período da MA
 
   - ticker: "WIN$"
-    enabled: false
+    enabled: true
     
     strategies:
       - name: "LSTMVolatilityStrategy"
@@ -118,9 +118,9 @@ assets:
       enabled: true
       strategie_name: "LSTMVolatilityStrategy"
       start_date: "2025-01-01"
-      end_date: "2025-11-18"
+      end_date: "2025-11-19"
       timeframe_str: "M15"    # Timeframe para backtesting (M1, M5, H1, D1, etc.)
-      threshold: 0.60        # Limiar de volatilidade para gerar sinais
+      threshold: 0.65        # Limiar de volatilidade para gerar sinais
       trading_initial_capital: 5000
       stop_loss_pct: 0.02
       take_profit_pct: 0.05      
