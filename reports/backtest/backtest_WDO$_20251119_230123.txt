@@ -1,0 +1,63 @@
+================================================================================
+RELATÓRIO DE BACKTEST - WDO$
+================================================================================
+
+Período: 2025-01-06 11:00 até 2025-11-19 14:00
+Total de Candles: 8396
+Threshold Utilizado: 0.65
+Data do Backtest: 2025-11-19 23:01:23
+
+--------------------------------------------------------------------------------
+MÉTRICAS DE CLASSIFICAÇÃO
+--------------------------------------------------------------------------------
+Acurácia: 87.15%
+Precisão (Win Rate): 72.84%
+Recall (Cobertura): 73.31%
+F1-Score: 0.7307
+
+Matriz de Confusão:
+  True Negatives (Calmo corretamente identificado): 5853
+  False Positives (Falso alarme de explosão): 546
+  False Negatives (Explosão não detectada): 533
+  True Positives (Explosão corretamente identificada): 1464
+
+Distribuição de Classes:
+  Real: Calmo = 6399, Explosão = 1997
+  Predito: Calmo = 6386, Explosão = 2010
+
+--------------------------------------------------------------------------------
+PERFORMANCE DE TRADING (Simulação)
+--------------------------------------------------------------------------------
+Total de Sinais de Entrada: 2010
+Trades Vencedores: 1464
+Trades Perdedores: 546
+Win Rate: 72.84%
+
+Retorno Total: 3114.00R
+Expectativa por Trade: 1.55R
+Profit Factor: 6.70
+
+Payoff Médio: Win = 2.50R, Loss = -1.00R
+
+Capital Inicial: 5000.00
+Capital Final: 316400.00
+Retorno Monetário: 311400.00
+Stop Loss %: 0.0200 | Take Profit %: 0.0500
+
+--------------------------------------------------------------------------------
+AMOSTRA DE TRADES (Primeiros 10)
+--------------------------------------------------------------------------------
+  2025-01-06 14:15 | EXPLOSION_ENTRY | LOSS | PnL: -1.00R
+  2025-01-06 14:30 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-06 14:45 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-06 15:00 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-06 15:15 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-07 06:00 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-07 06:15 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-07 06:30 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-07 06:45 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+  2025-01-07 07:00 | EXPLOSION_ENTRY | WIN | PnL: 2.50R
+
+================================================================================
+FIM DO RELATÓRIO
+================================================================================

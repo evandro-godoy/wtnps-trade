@@ -1,0 +1,23 @@
+Relatório de Treino - WIN$/LSTMVolatilityStrategy - 20251119_221613
+================================================================================
+Métricas Treino:
+  Acurácia: 79.18%
+  Precisão: 54.29%
+  Recall: 69.76%
+  F1: 0.6106
+Métricas Teste:
+  Acurácia: 79.58%
+  Precisão: 55.87%
+  Recall: 86.65%
+  F1: 0.6794
+
+Distribuição Classes (Treino): {'counts': {0: 22478, 1: 6866}, 'percents': {0: 76.60169029443838, 1: 23.398309705561616}, 'total': 29344}
+Distribuição Classes (Teste): {'counts': {0: 5450, 1: 1813}, 'percents': {0: 75.03786314195237, 1: 24.96213685804764}, 'total': 7263}
+Features Stats (amostra):
+  retorno: train_mean=-0.00001 test_mean=-0.00002
+  gap: train_mean=-0.00000 test_mean=0.00000
+  roc_3: train_mean=-0.00002 test_mean=-0.00005
+  roc_8: train_mean=-0.00004 test_mean=-0.00013
+  retorno_relativo: train_mean=-0.00108 test_mean=-0.00429
+================================================================================
+Fim do Relatório TXT

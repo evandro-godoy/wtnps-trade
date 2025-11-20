@@ -64,6 +64,8 @@ class LSTMVolatilityWrapper(BaseEstimator, ClassifierMixin):
         self.n_features = n_features
         self.model = self._build_model()
         self.scaler = MinMaxScaler(feature_range=(0, 1))
+        # Armazena histórico do último treino (dicionário de listas)
+        self.last_history = None
 
     def _build_model(self):
         """Define a arquitetura da rede LSTM para detecção de volatilidade."""
@@ -132,8 +134,9 @@ class LSTMVolatilityWrapper(BaseEstimator, ClassifierMixin):
         val_size = max(1, int(n_samples * 0.1)) if n_samples > 1 else 0
         validation_split = 0.1 if val_size > 0 and n_samples >= 10 else 0.0
 
+        history_obj = None
         if validation_split > 0:
-            self.model.fit(
+            history_obj = self.model.fit(
                 X_seq, y_seq,
                 epochs=self.epochs,
                 batch_size=self.batch_size,
@@ -143,7 +146,7 @@ class LSTMVolatilityWrapper(BaseEstimator, ClassifierMixin):
                 class_weight=class_weights
             )
         elif n_samples > 0:
-            self.model.fit(
+            history_obj = self.model.fit(
                 X_seq, y_seq,
                 epochs=self.epochs,
                 batch_size=self.batch_size,
@@ -152,6 +155,10 @@ class LSTMVolatilityWrapper(BaseEstimator, ClassifierMixin):
             )
         else:
             logging.warning("Sem dados para treinar após criar sequências.")
+
+        if history_obj is not None:
+            self.last_history = history_obj.history
+            logging.info(f"Histórico de treino capturado: chaves -> {list(self.last_history.keys())}")
 
         return self
 

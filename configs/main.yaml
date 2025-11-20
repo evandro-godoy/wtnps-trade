@@ -29,7 +29,7 @@ assets:
 
         data:
           start_date: "2021-01-01"
-          end_date: "2025-10-31"
+          end_date: "2024-12-31"
           timeframe_model: "M15"  # Timeframe usado para treinar o modelo (M15 = ~96 períodos por dia)
 
         strategy_params:
@@ -51,6 +51,17 @@ assets:
       stop_loss_pct: 0.02
       take_profit_pct: 0.05          
     
+    backtesting:
+      enabled: true
+      strategie_name: "LSTMVolatilityStrategy"
+      start_date: "2025-01-01"
+      end_date: "2025-11-19"
+      timeframe_str: "M15"    # Timeframe para backtesting (M1, M5, H1, D1, etc.)
+      threshold: 0.65        # Limiar de volatilidade para gerar sinais
+      trading_initial_capital: 5000
+      stop_loss_pct: 0.02
+      take_profit_pct: 0.05      
+
     live_trading:
       enabled: true
       ticker_order: "WDOX25"
@@ -73,43 +84,21 @@ assets:
     enabled: false
     
     strategies:
-      - name: "LSTMStrategy"
-        module: "lstm"
-        provider: "MetaTrader5"
-
-        data:
-          start_date: "2023-01-01"
-          end_date: "2025-10-31"
-          timeframe_model: "D1"  # Timeframe usado para treinar o modelo (M1, M5, H1, D1, etc.)
-
-        training_trading_rules:
-          initial_capital: 5000
-          stop_loss_ticks: 20 # Stop loss em ticks
-          stop_loss_pct: 0.01
-          take_profit_pct: 0.03
-      
-      # Estratégia LSTM com foco em predição de volatilidade (explosões)
       - name: "LSTMVolatilityStrategy"
         module: "lstm_volatility"
         provider: "MetaTrader5"
 
         data:
-          start_date: "2023-01-01"
-          end_date: "2025-10-31"
-          timeframe_model: "D1"  # Timeframe usado para treinar o modelo
+          start_date: "2021-01-01"
+          end_date: "2024-12-31"
+          timeframe_model: "M15"  # Timeframe usado para treinar o modelo (M15 = ~96 períodos por dia)
 
         strategy_params:
-          lookback: 20              # Janela de lookback para D1
+          lookback: 96              # Janela de lookback (~1 dia de dados em M15)
           lstm_units: 64            # Unidades LSTM
           dropout_rate: 0.2         # Taxa de dropout
-          target_period: 3          # Horizonte de previsão (3 dias à frente)
-          volatility_multiplier: 2.5 # Multiplicador do ATR para definir explosão
-
-        training_trading_rules:
-          initial_capital: 5000
-          stop_loss_ticks: 20 # Stop loss em ticks
-          stop_loss_pct: 0.01
-          take_profit_pct: 0.03
+          target_period: 5          # Horizonte de previsão (5 períodos à frente)
+          volatility_multiplier: 3.0 # Multiplicador do ATR para definir explosão
 
       - name: "DRLStrategy"
         module: "drl_strategy"
@@ -125,12 +114,23 @@ assets:
           stop_loss_pct: 0.01  # Usado pelo ambiente para custos de transação
           take_profit_pct: 0.03
 
+    backtesting:
+      enabled: true
+      strategie_name: "LSTMVolatilityStrategy"
+      start_date: "2025-01-01"
+      end_date: "2025-11-18"
+      timeframe_str: "M15"    # Timeframe para backtesting (M1, M5, H1, D1, etc.)
+      threshold: 0.60        # Limiar de volatilidade para gerar sinais
+      trading_initial_capital: 5000
+      stop_loss_pct: 0.02
+      take_profit_pct: 0.05      
+
     trading_rules:
       initial_capital: 5000
       stop_loss_ticks: 20 # Stop loss em ticks
       stop_loss_pct: 0.01
       take_profit_pct: 0.03
-    
+
     live_trading:
       enabled: false
       ticker_order: "WINZ25"

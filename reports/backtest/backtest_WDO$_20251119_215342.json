@@ -1,0 +1,112 @@
+{
+  "ticker": "WDO$",
+  "threshold": 0.55,
+  "period": {
+    "start": "2025-01-06 14:00",
+    "end": "2025-11-18 17:00",
+    "total_candles": 8358
+  },
+  "classification_metrics": {
+    "accuracy": 0.7033979420914094,
+    "precision": 0.429801894918174,
+    "recall": 0.7522613065326633,
+    "f1_score": 0.547049150374566,
+    "confusion_matrix": {
+      "true_negatives": 4382,
+      "false_positives": 1986,
+      "false_negatives": 493,
+      "true_positives": 1497
+    },
+    "class_distribution": {
+      "calm_actual": 6368,
+      "explosion_actual": 1990,
+      "calm_predicted": 4875,
+      "explosion_predicted": 3483
+    },
+    "total_samples": 8358
+  },
+  "trading_performance": {
+    "total_signals": 3483,
+    "winning_trades": 1497,
+    "losing_trades": 1986,
+    "win_rate": 0.429801894918174,
+    "total_return_r": 1008.0,
+    "expectancy_r": 0.28940568475452194,
+    "profit_factor": 1.5075528700906344,
+    "avg_win_r": 2.0,
+    "avg_loss_r": -1.0,
+    "trades_log": [
+      {
+        "index": 7,
+        "timestamp": "2025-01-06 15:45",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 8,
+        "timestamp": "2025-01-06 16:00",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 9,
+        "timestamp": "2025-01-06 16:15",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 10,
+        "timestamp": "2025-01-06 16:30",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 11,
+        "timestamp": "2025-01-06 16:45",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 12,
+        "timestamp": "2025-01-06 17:00",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 13,
+        "timestamp": "2025-01-06 17:15",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "LOSS",
+        "pnl_r": -1.0
+      },
+      {
+        "index": 14,
+        "timestamp": "2025-01-06 17:30",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "WIN",
+        "pnl_r": 2.0
+      },
+      {
+        "index": 15,
+        "timestamp": "2025-01-06 17:45",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "WIN",
+        "pnl_r": 2.0
+      },
+      {
+        "index": 16,
+        "timestamp": "2025-01-06 18:00",
+        "signal": "EXPLOSION_ENTRY",
+        "result": "WIN",
+        "pnl_r": 2.0
+      }
+    ]
+  },
+  "timestamp": "2025-11-19 21:53:42"
+}
