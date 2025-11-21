@@ -1,0 +1,23 @@
+Relatório de Treino - WDO$/LSTMVolatilityStrategy - 20251121_080204
+================================================================================
+Métricas Treino:
+  Acurácia: 71.70%
+  Precisão: 71.69%
+  Recall: 80.09%
+  F1: 0.7566
+Métricas Teste:
+  Acurácia: 70.11%
+  Precisão: 68.80%
+  Recall: 79.81%
+  F1: 0.7390
+
+Distribuição Classes (Treino): {'counts': {0: 35919, 1: 43776}, 'percents': {0: 45.07058159232072, 1: 54.92941840767928}, 'total': 79695}
+Distribuição Classes (Teste): {'counts': {0: 9324, 1: 10518}, 'percents': {0: 46.9912307227094, 1: 53.00876927729059}, 'total': 19842}
+Features Stats (amostra):
+  retorno: train_mean=0.00000 test_mean=-0.00001
+  gap: train_mean=-0.00000 test_mean=0.00000
+  roc_3: train_mean=0.00000 test_mean=-0.00002
+  roc_8: train_mean=0.00000 test_mean=-0.00005
+  retorno_relativo: train_mean=0.00212 test_mean=-0.00595
+================================================================================
+Fim do Relatório TXT
