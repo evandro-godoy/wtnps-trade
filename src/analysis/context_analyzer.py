@@ -33,28 +33,36 @@ class MarketContextAnalyzer:
     def __init__(
         self,
         ema_fast: int = 9,
+        sma_fast: int = 20,
         sma_slow: int = 50,
+        sma_lookback: int = 200,
         rsi_period: int = 14,
-        lookback_levels: int = 20,
-        strong_candle_threshold: float = 0.7
+        lookback_levels: int = 30,
+        strong_candle_threshold: float = 0.65
     ):
         """
         Inicializa o analisador de contexto.
         
         Args:
             ema_fast: Período da EMA rápida (padrão: 9)
+            sma_fast: Período da SMA rápida (padrão: 20)    
             sma_slow: Período da SMA lenta (padrão: 50)
             rsi_period: Período do RSI (padrão: 14)
             lookback_levels: Períodos para níveis de suporte/resistência (padrão: 20)
             strong_candle_threshold: % mínimo do corpo para candle forte (padrão: 0.7)
         """
         self.ema_fast = ema_fast
+        self.sma_fast = sma_fast
         self.sma_slow = sma_slow
+        self.sma_lookback = sma_lookback
         self.rsi_period = rsi_period
         self.lookback_levels = lookback_levels
         self.strong_candle_threshold = strong_candle_threshold
         
-        logger.info(f"MarketContextAnalyzer inicializado: EMA{ema_fast}, SMA{sma_slow}, RSI{rsi_period}")
+        logger.info(
+            f"MarketContextAnalyzer inicializado: EMA{ema_fast}, SMA_FAST{sma_fast}, "
+            f"SMA_SLOW{sma_slow}, SLOPE_LOOKBACK={sma_lookback}, RSI{rsi_period}, LEVELS={lookback_levels}"
+        )
     
     def analyze(self, df: pd.DataFrame) -> Dict:
         """
@@ -124,6 +132,7 @@ class MarketContextAnalyzer:
                 'distance_to_resistance': round(distance_to_resistance, 2),
                 'pattern': pattern,
                 'ema_fast': round(last['ema_fast'], 2),
+                'sma_fast': round(last.get('sma_fast', np.nan), 2),
                 'sma_slow': round(last['sma_slow'], 2),
                 'current_price': round(current_price, 2)
             }
@@ -139,6 +148,9 @@ class MarketContextAnalyzer:
         """Calcula todos os indicadores técnicos necessários."""
         # EMA rápida
         df['ema_fast'] = df['close'].ewm(span=self.ema_fast, adjust=False).mean()
+        
+        # SMA rápida adicional
+        df['sma_fast'] = df['close'].rolling(window=self.sma_fast).mean()
         
         # SMA lenta
         df['sma_slow'] = df['close'].rolling(window=self.sma_slow).mean()
@@ -191,9 +203,16 @@ class MarketContextAnalyzer:
         ema_above_sma = ema_fast > sma_slow
         price_above_ema = close > ema_fast
         
-        # Calcula inclinação da SMA (últimos 5 períodos)
-        if len(df) >= 5:
-            sma_slope = (df['sma_slow'].iloc[-1] - df['sma_slow'].iloc[-5]) / df['sma_slow'].iloc[-5] * 100
+        # Calcula inclinação da SMA lenta usando janela configurável
+        valid_sma = df['sma_slow'].dropna()
+        if len(valid_sma) >= self.sma_lookback:
+            start_val = valid_sma.iloc[-self.sma_lookback]
+            end_val = valid_sma.iloc[-1]
+            sma_slope = (end_val - start_val) / start_val * 100 if start_val else 0
+        elif len(valid_sma) >= 5:
+            start_val = valid_sma.iloc[-5]
+            end_val = valid_sma.iloc[-1]
+            sma_slope = (end_val - start_val) / start_val * 100 if start_val else 0
         else:
             sma_slope = 0
         
@@ -335,6 +354,7 @@ class MarketContextAnalyzer:
             'distance_to_resistance': 0.0,
             'pattern': 'INDEFINIDO',
             'ema_fast': 0.0,
+            'sma_fast': 0.0,
             'sma_slow': 0.0,
             'current_price': 0.0
         }

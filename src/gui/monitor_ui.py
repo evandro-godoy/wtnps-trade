@@ -79,6 +79,9 @@ class MonitorApp:
         # Janela de buffer (inicialmente None)
         self.buffer_window = None
         
+        # Estado do grid de análise (inicialmente oculto)
+        self.analysis_grid_visible = False
+        
         # Configura estilos
         self._setup_styles()
         
@@ -98,7 +101,7 @@ class MonitorApp:
         # Estilo para botão Start
         style.configure(
             'Start.TButton',
-            font=('Segoe UI', 12, 'bold'),
+            font=('Segoe UI', 10, 'bold'),
             padding=10,
             background='#28a745',
             foreground='white'
@@ -107,7 +110,7 @@ class MonitorApp:
         # Estilo para botão Stop
         style.configure(
             'Stop.TButton',
-            font=('Segoe UI', 12, 'bold'),
+            font=('Segoe UI', 10, 'bold'),
             padding=10,
             background='#dc3545',
             foreground='white'
@@ -136,15 +139,16 @@ class MonitorApp:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_container.columnconfigure(0, weight=1)
-        main_container.rowconfigure(2, weight=1)
+        main_container.columnconfigure(1, weight=0)  # Controles à direita
+        main_container.rowconfigure(1, weight=1)  # Logs ocupam espaço vertical
         
-        # === HEADER ===
+        # === HEADER (lado esquerdo) ===
         self._build_header(main_container)
         
-        # === CONTROLES ===
+        # === CONTROLES (lado direito, mesma linha do header) ===
         self._build_controls(main_container)
         
-        # === ÁREA DE LOGS/ALERTAS ===
+        # === ÁREA DE LOGS/ALERTAS (ocupa largura total) ===
         self._build_logs_area(main_container)
     
     def _build_header(self, parent):
@@ -167,14 +171,14 @@ class MonitorApp:
         ttk.Label(
             ticker_frame,
             text="Ticker:",
-            font=('Segoe UI', 10)
+            font=('Segoe UI', 12)
         ).pack(anchor=tk.W)
         
         self.ticker_label = ttk.Label(
             ticker_frame,
             text=self.ticker,
-            font=('Segoe UI', 18, 'bold'),
-            foreground='#007bff'
+            font=('Segoe UI', 10, 'bold'),
+            foreground='#000000'
         )
         self.ticker_label.pack(anchor=tk.W)
         
@@ -191,7 +195,7 @@ class MonitorApp:
         self.timeframe_label = ttk.Label(
             tf_frame,
             text=self.timeframe,
-            font=('Segoe UI', 18, 'bold'),
+            font=('Segoe UI', 8, 'bold'),
             foreground='#6c757d'
         )
         self.timeframe_label.pack(anchor=tk.W)
@@ -235,132 +239,203 @@ class MonitorApp:
         """
         Constrói área de controles.
         
-        Botão Start/Stop com indicador de status (semáforo) ao lado.
+        Botão Iniciar/Parar com indicador de status (semáforo) ao lado.
+        Posicionado à direita do header.
         """
-        controls_frame = ttk.Frame(parent, padding="10")
-        controls_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        controls_container = ttk.LabelFrame(parent, text="Controles do Monitor", padding="10")
+        controls_container.grid(row=0, column=1, sticky=(tk.E, tk.N), pady=(0, 10))
         
-        # Container esquerdo para botão Start/Stop e Status
-        left_controls = ttk.Frame(controls_frame)
-        left_controls.pack(side=tk.LEFT)
-        
-        # Botão Start/Stop
+        # Botão Iniciar/Parar
         self.start_stop_btn = ttk.Button(
-            left_controls,
-            text="▶ INICIAR MONITORAMENTO",
+            controls_container,
+            text="▶ Iniciar",
             command=self._toggle_monitor,
             style='Start.TButton',
-            width=30
+            width=10
         )
-        self.start_stop_btn.pack(side=tk.LEFT, padx=(0, 10))
+        self.start_stop_btn.pack(pady=(0, 8))
+        
+        # Container para semáforo
+        status_frame = ttk.Frame(controls_container)
+        status_frame.pack()
+        
+        ttk.Label(
+            status_frame,
+            text="Status:",
+            font=('Segoe UI', 8)
+        ).pack(side=tk.LEFT, padx=(0, 5))
         
         # Canvas para círculo do semáforo
         self.status_canvas = tk.Canvas(
-            left_controls,
-            width=30,
-            height=30,
+            status_frame,
+            width=25,
+            height=25,
             bg='#f0f0f0',
             highlightthickness=0
         )
-        self.status_canvas.pack(side=tk.LEFT, padx=5)
+        self.status_canvas.pack(side=tk.LEFT)
         
         # Desenha círculo vermelho (parado)
         self.status_indicator = self.status_canvas.create_oval(
-            5, 5, 25, 25,
+            3, 3, 22, 22,
             fill='#dc3545',
             outline='#6c757d',
             width=2
         )
-        
-        # Botão de Ver Buffer (lado direito)
-        right_controls = ttk.Frame(controls_frame)
-        right_controls.pack(side=tk.RIGHT)
-        
-        buffer_btn = ttk.Button(
-            right_controls,
-            text="📊 Ver Buffer",
-            command=self._show_buffer_window,
-            width=15
-        )
-        buffer_btn.pack(side=tk.RIGHT, padx=5)
     
     def _build_logs_area(self, parent):
         """
-        Constrói área de logs/alertas com Treeview.
+        Constrói área de logs/alertas com dois Treeviews:
+        - Grid ML (principal): datetime, type, price, prob, message
+        - Grid Análise (oculto): trend, rsi, ema9, sma20, sma50
         
-        Colunas: Data/Hora (UTC), Tipo, Preço, Probabilidade, Mensagem
-        Botão Limpar Logs no canto inferior direito.
+        Botão Ver Buffer e Toggle Análise no header.
         """
         logs_frame = ttk.LabelFrame(parent, text="Logs e Alertas", padding="10")
-        logs_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        logs_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
         
         # Configura grid
-        logs_frame.columnconfigure(0, weight=1)
-        logs_frame.rowconfigure(0, weight=1)
+        logs_frame.columnconfigure(0, weight=1)  # Grid ML
+        logs_frame.columnconfigure(1, weight=0)  # Grid Análise (oculto)
+        logs_frame.rowconfigure(1, weight=1)     # Treeviews
         
-        # Container com scrollbars
-        tree_container = ttk.Frame(logs_frame)
-        tree_container.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        tree_container.columnconfigure(0, weight=1)
-        tree_container.rowconfigure(0, weight=1)
+        # === HEADER DOS GRIDS ===
+        header_controls = ttk.Frame(logs_frame)
+        header_controls.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 5))
         
-        # Scrollbars
-        vsb = ttk.Scrollbar(tree_container, orient="vertical")
-        hsb = ttk.Scrollbar(tree_container, orient="horizontal")
+        # Botão Toggle Análise (à esquerda)
+        self.toggle_analysis_btn = ttk.Button(
+            header_controls,
+            text="▶ Exibir Análise Técnica",
+            command=self._toggle_analysis_grid,
+            width=22
+        )
+        self.toggle_analysis_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        # Treeview
+        # Botão Ver Buffer (à direita, ícone only)
+        self.buffer_btn = ttk.Button(
+            header_controls,
+            text="📊",
+            command=self._show_buffer_window,
+            width=3
+        )
+        self.buffer_btn.pack(side=tk.RIGHT)
+        
+        # Botão Limpar Logs (à direita)
+        clear_btn = ttk.Button(
+            header_controls,
+            text="🗑 Limpar",
+            command=self._clear_logs,
+            width=10
+        )
+        clear_btn.pack(side=tk.RIGHT, padx=(0, 5))
+        
+        # === GRID ML (PRINCIPAL) ===
+        ml_container = ttk.Frame(logs_frame)
+        ml_container.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5))
+        ml_container.columnconfigure(0, weight=1)
+        ml_container.rowconfigure(0, weight=1)
+        
+        # Scrollbars ML
+        ml_vsb = ttk.Scrollbar(ml_container, orient="vertical")
+        ml_hsb = ttk.Scrollbar(ml_container, orient="horizontal")
+        
+        # Treeview ML
         self.logs_tree = ttk.Treeview(
-            tree_container,
-            columns=('datetime', 'type', 'price', 'probability', 'trend', 'rsi', 'message'),
+            ml_container,
+            columns=('datetime', 'type', 'price', 'probability', 'message'),
             show='headings',
-            yscrollcommand=vsb.set,
-            xscrollcommand=hsb.set,
+            yscrollcommand=ml_vsb.set,
+            xscrollcommand=ml_hsb.set,
             style='Monitor.Treeview'
         )
         
-        # Configura scrollbars
-        vsb.config(command=self.logs_tree.yview)
-        hsb.config(command=self.logs_tree.xview)
+        ml_vsb.config(command=self.logs_tree.yview)
+        ml_hsb.config(command=self.logs_tree.xview)
         
-        # Grid do Treeview
         self.logs_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        vsb.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        hsb.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        ml_vsb.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        ml_hsb.grid(row=1, column=0, sticky=(tk.W, tk.E))
         
-        # Configura colunas
+        # Configura colunas ML
         self.logs_tree.heading('datetime', text='Data/Hora (UTC)')
         self.logs_tree.heading('type', text='Tipo')
         self.logs_tree.heading('price', text='Preço')
-        self.logs_tree.heading('probability', text='Prob. ML')
-        self.logs_tree.heading('trend', text='Tendência')
-        self.logs_tree.heading('rsi', text='RSI')
+        self.logs_tree.heading('probability', text='Prob. ML (%)')
         self.logs_tree.heading('message', text='Mensagem')
         
-        # Larguras das colunas
         self.logs_tree.column('datetime', width=180, anchor=tk.W)
         self.logs_tree.column('type', width=80, anchor=tk.CENTER)
-        self.logs_tree.column('price', width=100, anchor=tk.E)
-        self.logs_tree.column('probability', width=80, anchor=tk.E)
-        self.logs_tree.column('trend', width=120, anchor=tk.CENTER)
-        self.logs_tree.column('rsi', width=80, anchor=tk.CENTER)
-        self.logs_tree.column('message', width=450, anchor=tk.W)
+        self.logs_tree.column('price', width=120, anchor=tk.E)
+        self.logs_tree.column('probability', width=100, anchor=tk.E)
+        self.logs_tree.column('message', width=500, anchor=tk.W)
         
-        # Tags para formatação de linhas
+        # Tags ML
         self.logs_tree.tag_configure('ALERT', background='#fff3cd', foreground='#856404')
         self.logs_tree.tag_configure('INFO', background='#d1ecf1', foreground='#0c5460')
         self.logs_tree.tag_configure('TICK', background='#ffffff', foreground='#6c757d')
         
-        # Botão Limpar Logs no canto inferior direito
-        clear_logs_frame = ttk.Frame(logs_frame)
-        clear_logs_frame.grid(row=1, column=0, sticky=tk.E, pady=(5, 0))
+        # === GRID ANÁLISE (OCULTO INICIALMENTE) ===
+        self.analysis_container = ttk.Frame(logs_frame)
+        # Não faz grid inicialmente (oculto)
+        self.analysis_container.columnconfigure(0, weight=1)
+        self.analysis_container.rowconfigure(0, weight=1)
         
-        clear_btn = ttk.Button(
-            clear_logs_frame,
-            text="🗑 Limpar Logs",
-            command=self._clear_logs,
-            width=15
+        # Scrollbars Análise
+        analysis_vsb = ttk.Scrollbar(self.analysis_container, orient="vertical")
+        analysis_hsb = ttk.Scrollbar(self.analysis_container, orient="horizontal")
+        
+        # Treeview Análise
+        self.analysis_tree = ttk.Treeview(
+            self.analysis_container,
+            columns=('datetime', 'trend', 'rsi', 'ema9', 'sma20', 'sma50'),
+            show='headings',
+            yscrollcommand=analysis_vsb.set,
+            xscrollcommand=analysis_hsb.set,
+            style='Monitor.Treeview'
         )
-        clear_btn.pack(side=tk.RIGHT)
+        
+        analysis_vsb.config(command=self.analysis_tree.yview)
+        analysis_hsb.config(command=self.analysis_tree.xview)
+        
+        self.analysis_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        analysis_vsb.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        analysis_hsb.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        
+        # Configura colunas Análise
+        self.analysis_tree.heading('datetime', text='Data/Hora (UTC)')
+        self.analysis_tree.heading('trend', text='Tendência')
+        self.analysis_tree.heading('rsi', text='RSI')
+        self.analysis_tree.heading('ema9', text='EMA9')
+        self.analysis_tree.heading('sma20', text='SMA20')
+        self.analysis_tree.heading('sma50', text='SMA50')
+        
+        self.analysis_tree.column('datetime', width=180, anchor=tk.W)
+        self.analysis_tree.column('trend', width=120, anchor=tk.CENTER)
+        self.analysis_tree.column('rsi', width=100, anchor=tk.CENTER)
+        self.analysis_tree.column('ema9', width=100, anchor=tk.E)
+        self.analysis_tree.column('sma20', width=100, anchor=tk.E)
+        self.analysis_tree.column('sma50', width=100, anchor=tk.E)
+        
+        # Tags Análise
+        self.analysis_tree.tag_configure('ALERT', background='#fff3cd')
+        self.analysis_tree.tag_configure('INFO', background='#d1ecf1')
+        self.analysis_tree.tag_configure('TICK', background='#ffffff')
+    
+    def _toggle_analysis_grid(self):
+        """
+        Alterna visibilidade do grid de análise técnica.
+        """
+        if self.analysis_grid_visible:
+            # Ocultar grid de análise
+            self.analysis_container.grid_remove()
+            self.toggle_analysis_btn.config(text="▶ Exibir Análise Técnica")
+            self.analysis_grid_visible = False
+        else:
+            # Exibir grid de análise
+            self.analysis_container.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+            self.toggle_analysis_btn.config(text="◀ Ocultar Análise Técnica")
+            self.analysis_grid_visible = True
     
     def _toggle_monitor(self):
         """
@@ -383,7 +458,7 @@ class MonitorApp:
             # Atualiza UI
             self.is_running = True
             self.start_stop_btn.config(
-                text="■ PARAR MONITORAMENTO",
+                text="■ Parar",
                 style='Stop.TButton'
             )
             # Atualiza semáforo para verde
@@ -453,7 +528,7 @@ class MonitorApp:
         """Reseta estado da UI para parado."""
         self.is_running = False
         self.start_stop_btn.config(
-            text="▶ INICIAR MONITORAMENTO",
+            text="▶ Iniciar",
             style='Start.TButton'
         )
         # Atualiza semáforo para vermelho
@@ -558,13 +633,25 @@ class MonitorApp:
             
             # Formata probabilidade
             probability = data.get('probability', 0.0)
-            prob_str = f"{probability:.1f}%"
+            prob_str = f"{probability:.1f}"
             
+            # Mensagem
+            message = data.get('message', '')
+            
+            # === ADICIONA AO GRID ML (PRINCIPAL) ===
+            self.logs_tree.insert(
+                '',
+                0,
+                values=(datetime_str, event_type, price_str, prob_str, message),
+                tags=(event_type,)
+            )
+            
+            # === ADICIONA AO GRID ANÁLISE ===
             # Formata tendência
             trend = data.get('trend', 'N/A')
             trend_strength = data.get('trend_strength', '')
             if trend_strength and trend != 'N/A':
-                trend_str = f"{trend} ({trend_strength[0]})"  # Ex: ALTA (F)
+                trend_str = f"{trend} ({trend_strength[0]})"
             else:
                 trend_str = trend
             
@@ -573,31 +660,35 @@ class MonitorApp:
             rsi_condition = data.get('rsi_condition', '')
             if rsi > 0:
                 rsi_str = f"{rsi:.0f}"
-                # Adiciona emoji para condição
                 if rsi_condition == 'SOBRECOMPRADO':
-                    rsi_str += " 🔺"  # Vermelho
+                    rsi_str += " 🔺"
                 elif rsi_condition == 'SOBREVENDIDO':
-                    rsi_str += " 🔻"  # Azul
+                    rsi_str += " 🔻"
             else:
                 rsi_str = "N/A"
             
-            # Mensagem
-            message = data.get('message', '')
+            # Formata EMAs/SMAs
+            ema9 = data.get('ema_fast', 0.0)
+            sma20 = data.get('sma_fast', 0.0)
+            sma50 = data.get('sma_slow', 0.0)
             
-            # Adiciona ao Treeview (no topo - índice 0)
-            self.logs_tree.insert(
+            ema9_str = f"{ema9:.0f}" if ema9 > 0 else "N/A"
+            sma20_str = f"{sma20:.0f}" if sma20 > 0 else "N/A"
+            sma50_str = f"{sma50:.0f}" if sma50 > 0 else "N/A"
+            
+            self.analysis_tree.insert(
                 '',
-                0,  # Índice 0 = topo
-                values=(datetime_str, event_type, price_str, prob_str, trend_str, rsi_str, message),
+                0,
+                values=(datetime_str, trend_str, rsi_str, ema9_str, sma20_str, sma50_str),
                 tags=(event_type,)
             )
             
-            # Limita número de linhas (máximo 1000)
-            children = self.logs_tree.get_children()
-            if len(children) > 1000:
-                # Remove linhas antigas (do final)
-                for item in children[1000:]:
-                    self.logs_tree.delete(item)
+            # Limita número de linhas em ambos os grids (máximo 1000)
+            for tree in [self.logs_tree, self.analysis_tree]:
+                children = tree.get_children()
+                if len(children) > 1000:
+                    for item in children[1000:]:
+                        tree.delete(item)
             
             # Auto-scroll para o topo (mostra evento mais recente)
             if children:
@@ -607,9 +698,11 @@ class MonitorApp:
             logger.error(f"Erro ao processar atualização: {e}", exc_info=True)
     
     def _clear_logs(self):
-        """Limpa todos os logs do Treeview."""
+        """Limpa todos os logs de ambos os Treeviews."""
         for item in self.logs_tree.get_children():
             self.logs_tree.delete(item)
+        for item in self.analysis_tree.get_children():
+            self.analysis_tree.delete(item)
         logger.info("Logs limpos")
     
     def _show_buffer_window(self):

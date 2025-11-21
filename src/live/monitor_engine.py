@@ -82,9 +82,12 @@ class RealTimeMonitor:
         logger.info("Inicializando MarketContextAnalyzer...")
         self.context_analyzer = MarketContextAnalyzer(
             ema_fast=9,
+            sma_fast=20,
             sma_slow=50,
+            sma_lookback=200,
             rsi_period=14,
-            lookback_levels=20
+            lookback_levels=20,
+            strong_candle_threshold=0.65
         )
         logger.info("✓ Analisador de contexto inicializado")
         
@@ -306,6 +309,7 @@ Configurações do Monitor:
                     'probability': prob_pct,
                     'direction': direction,
                     'ema_20': ema_20,
+                    'sma_fast': context.get('sma_fast'),
                     # Contexto técnico
                     'trend': context['trend'],
                     'trend_strength': context['trend_strength'],
@@ -359,6 +363,7 @@ Configurações do Monitor:
                     f"Tendência: {context['trend']} ({context['trend_strength']}) | "
                     f"RSI: {context['rsi']:.0f} ({context['rsi_condition']}) | "
                     f"Padrão: {context['pattern']} | "
+                    f"EMA9: {context['ema_fast']:.2f} | SMA20: {context.get('sma_fast', 0):.2f} | SMA50: {context['sma_slow']:.2f} | "
                     f"Suporte: {context['support']:.2f} | "
                     f"Resistência: {context['resistance']:.2f} | "
                     f"Alvo: {target:.2f} | "
@@ -374,7 +379,7 @@ Configurações do Monitor:
                     f"Probabilidade: {prob_pct:.2f}% | "
                     f"Preço: {current_price:.2f} | "
                     f"Tendência: {context['trend']} | "
-                    f"RSI: {context['rsi']:.0f}"
+                    f"RSI: {context['rsi']:.0f} | EMA9: {context['ema_fast']:.2f} | SMA20: {context.get('sma_fast', 0):.2f} | SMA50: {context['sma_slow']:.2f}"
                 )
             
         except Exception as e:
