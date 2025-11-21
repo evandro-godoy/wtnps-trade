@@ -48,7 +48,8 @@ class RealTimeMonitor:
         threshold_alert: float = 0.65,
         threshold_log: float = 0.55,
         buffer_size: int = 500,
-        config_path: str = "configs/main.yaml"
+        config_path: str = "configs/main.yaml",
+        ui_callback: Optional[callable] = None
     ):
         """
         Inicializa o monitor em tempo real.
@@ -60,6 +61,7 @@ class RealTimeMonitor:
             threshold_log: Probabilidade para gerar log (default: 0.55)
             buffer_size: Quantidade de velas no buffer histórico
             config_path: Caminho para o arquivo de configuração
+            ui_callback: Função de callback para atualização de UI (opcional)
         """
         logger.info("=" * 80)
         logger.info("INICIALIZANDO REAL-TIME MONITOR")
@@ -72,6 +74,8 @@ class RealTimeMonitor:
         self.threshold_log = threshold_log
         self.buffer_size = buffer_size
         self.buffer_df: Optional[pd.DataFrame] = None
+        self.ui_callback = ui_callback
+        self.running = False
         
         # Carrega configuração
         logger.info(f"Carregando configuração de: {config_path}")
@@ -268,6 +272,43 @@ Configurações do Monitor:
             # 7. Gera logs/alertas conforme probabilidade
             prob_pct = prob_class1 * 100
             
+            # Prepara dados para callback de UI
+            if self.ui_callback:
+                if prob_class1 > self.threshold_alert:
+                    # ALERTA CRÍTICO
+                    self.ui_callback({
+                        'type': 'ALERT',
+                        'timestamp': current_time,
+                        'price': current_price,
+                        'probability': prob_pct,
+                        'direction': direction,
+                        'ema_20': ema_20,
+                        'message': f"🚨 ALERTA DE VOLATILIDADE - {direction}"
+                    })
+                elif prob_class1 > self.threshold_log:
+                    # LOG INFORMATIVO
+                    self.ui_callback({
+                        'type': 'INFO',
+                        'timestamp': current_time,
+                        'price': current_price,
+                        'probability': prob_pct,
+                        'direction': direction,
+                        'ema_20': ema_20,
+                        'message': f"📊 Probabilidade Moderada"
+                    })
+                else:
+                    # TICK normal (sem alerta)
+                    self.ui_callback({
+                        'type': 'TICK',
+                        'timestamp': current_time,
+                        'price': current_price,
+                        'probability': prob_pct,
+                        'direction': direction,
+                        'ema_20': ema_20,
+                        'message': 'Candle processado'
+                    })
+            
+            # Logs no console
             if prob_class1 > self.threshold_alert:
                 # ALERTA CRÍTICO (>65%)
                 logger.critical(
@@ -351,21 +392,32 @@ Configurações do Monitor:
             logger.info(f"Aguardando próximo candle... ({wait_seconds:.0f}s até {next_time.strftime('%H:%M:%S')})")
             time.sleep(wait_seconds)
     
+    def stop(self):
+        """
+        Para o loop de monitoramento.
+        Define self.running = False para sair do loop graciosamente.
+        """
+        logger.info("Solicitação de parada recebida...")
+        self.running = False
+    
     def start(self):
         """
         Inicia o loop de monitoramento em tempo real.
         
-        Loop infinito que:
+        Loop controlado por self.running que:
         1. Aguarda fechamento do próximo candle
         2. Busca novo candle do MT5
         3. Atualiza buffer (append + drop old)
         4. Processa candle e gera alertas
         
-        Interrompível via Ctrl+C (KeyboardInterrupt).
+        Interrompível via stop() ou Ctrl+C (KeyboardInterrupt).
         """
         logger.info("=" * 80)
         logger.info("INICIANDO MONITORAMENTO EM TEMPO REAL")
         logger.info("=" * 80)
+        
+        # Define flag de execução
+        self.running = True
         
         # Warm-up inicial
         self._warm_up()
@@ -380,7 +432,7 @@ Pressione Ctrl+C para interromper.
         max_consecutive_errors = 5
         
         try:
-            while True:
+            while self.running:
                 try:
                     # 1. Sincroniza com próximo candle
                     self._wait_for_next_candle()
@@ -446,6 +498,7 @@ Pressione Ctrl+C para interromper.
         
         finally:
             # Cleanup
+            self.running = False
             logger.info("Fechando conexão MT5...")
             self.provider.close_connection()
             mt5.shutdown()
