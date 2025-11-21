@@ -22,8 +22,8 @@ CACHE_DIR = Path(__file__).parent.parent.parent / '.cache_data'
 os.makedirs(CACHE_DIR, exist_ok=True)
 logger.info(f"Diretório de cache de dados inicializado em: {CACHE_DIR.resolve()}")
 
-# Define o timezone desejado (ex: Brazil/East para B3)
-desired_timezone = pytz.timezone('America/Sao_Paulo')
+# Define o timezone desejado (UTC para consistência)
+desired_timezone = pytz.UTC
 
 class BaseDataProvider(ABC):
     """Classe base abstrata para provedores de dados."""
@@ -177,7 +177,8 @@ class MetaTraderProvider(BaseDataProvider):
                 data = pd.read_parquet(cache_filepath)
                 if isinstance(data.index, pd.DatetimeIndex):
                      if data.index.tz is None: data = data.tz_localize('UTC')
-                     data = data.tz_convert(desired_timezone)
+                     # Mantém em UTC (sem conversão)
+                     # data = data.tz_convert(desired_timezone)
                      logger.info(f"Dados carregados do cache ({len(data)} registros).")
                      return data
                 else: logger.warning("Cache corrompido.")
@@ -229,8 +230,8 @@ class MetaTraderProvider(BaseDataProvider):
              if not self._initialize_mt5(): return pd.DataFrame()
 
         try:
-            # Posição 0 é o candle mais recente *fechado*
-            rates = mt5.copy_rates_from_pos(ticker, timeframe, 0, count)
+            # Posição 1 é o último candle FECHADO (posição 0 está em formação)
+            rates = mt5.copy_rates_from_pos(ticker, timeframe, 1, count)
         except Exception as e:
              logger.error(f"Erro ao chamar mt5.copy_rates_from_pos para {ticker}: {e}")
              return pd.DataFrame()
@@ -249,7 +250,8 @@ class MetaTraderProvider(BaseDataProvider):
         data = data[[col for col in required_cols if col in data.columns]]
         if 'volume' not in data.columns: data['volume'] = 0
 
-        data = data.tz_convert(desired_timezone)
+        # Mantém dados em UTC (sem conversão de timezone)
+        # data = data.tz_convert(desired_timezone)
         return data
 
     def close_connection(self):
@@ -399,10 +401,11 @@ class YFinanceProvider(BaseDataProvider):
                 logger.info(f"Carregando dados de {ticker} do cache YF: {cache_filepath}")
                 data = pd.read_parquet(cache_filepath)
                 if isinstance(data.index, pd.DatetimeIndex):
-                    # Tenta converter para timezone desejado
+                    # Tenta converter para UTC
                     try:
                          if data.index.tz is None: data = data.tz_localize('UTC') # Assume UTC se não tiver
-                         data = data.tz_convert(desired_timezone)
+                         # Mantém em UTC (sem conversão)
+                         # data = data.tz_convert(desired_timezone)
                          logger.info(f"Dados YF carregados do cache ({len(data)} registros).")
                          return data
                     except Exception as e_tz:
@@ -435,15 +438,13 @@ class YFinanceProvider(BaseDataProvider):
 
         # Timezone Handling (Pode variar com yfinance)
         if data.index.tz is None:
-             try: data = data.tz_localize('America/Sao_Paulo', ambiguous='infer') # Tenta SP
-             except Exception:
-                  try: data = data.tz_localize('UTC', ambiguous='infer') # Tenta UTC
-                  except Exception as e_tz: logger.warning(f"Não foi possível localizar timezone YF para {ticker}: {e_tz}")
+             try: data = data.tz_localize('UTC', ambiguous='infer') # Assume UTC
+             except Exception as e_tz: logger.warning(f"Não foi possível localizar timezone YF para {ticker}: {e_tz}")
         
-        # Converte para o timezone desejado se tiver timezone
-        if data.index.tz is not None:
-             try: data = data.tz_convert(desired_timezone)
-             except Exception as e_tz_conv: logger.warning(f"Erro ao converter timezone YF para {ticker}: {e_tz_conv}")
+        # Mantém em UTC (sem conversão)
+        # if data.index.tz is not None:
+        #      try: data = data.tz_convert(desired_timezone)
+        #      except Exception as e_tz_conv: logger.warning(f"Erro ao converter timezone YF para {ticker}: {e_tz_conv}")
 
         data = data[['open', 'high', 'low', 'close', 'volume']]
 
@@ -480,14 +481,13 @@ class YFinanceProvider(BaseDataProvider):
             elif 'Date' in data.columns: data.index = pd.to_datetime(data['Date'])
         
         if data.index.tz is None:
-             try: data = data.tz_localize('America/Sao_Paulo', ambiguous='infer')
-             except Exception:
-                  try: data = data.tz_localize('UTC', ambiguous='infer')
-                  except Exception: logger.warning(f"Não localizou timezone YF recente para {ticker}.")
+             try: data = data.tz_localize('UTC', ambiguous='infer')
+             except Exception: logger.warning(f"Não localizou timezone YF recente para {ticker}.")
 
-        if data.index.tz is not None:
-            try: data = data.tz_convert(desired_timezone)
-            except Exception: logger.warning(f"Não converteu timezone YF recente para {ticker}.")
+        # Mantém em UTC (sem conversão)
+        # if data.index.tz is not None:
+        #     try: data = data.tz_convert(desired_timezone)
+        #     except Exception: logger.warning(f"Não converteu timezone YF recente para {ticker}.")
             
         return data[['open', 'high', 'low', 'close', 'volume']]
 

@@ -191,9 +191,9 @@ Configurações do Monitor:
         Aquece o buffer com dados históricos.
         Busca as últimas buffer_size velas do MT5 para inicializar o sistema.
         """
-        logger.info(f"WARM-UP: Buscando {self.buffer_size} velas históricas...")
+        logger.info(f"WARM-UP: Buscando {self.buffer_size} velas históricas (apenas fechadas)...")
         
-        # Busca dados históricos
+        # Busca dados históricos (provider já retorna apenas candles fechados)
         data = self.provider.get_latest_candles(
             ticker=self.ticker,
             timeframe=self.timeframe,
@@ -272,41 +272,36 @@ Configurações do Monitor:
             # 7. Gera logs/alertas conforme probabilidade
             prob_pct = prob_class1 * 100
             
-            # Prepara dados para callback de UI
+            # Prepara dados para callback de UI (sempre envia dados do último candle)
             if self.ui_callback:
+                # Dados completos do último candle para UI
+                candle_data = {
+                    'timestamp': current_time,
+                    'open': last_candle['open'],
+                    'high': last_candle['high'],
+                    'low': last_candle['low'],
+                    'close': current_price,
+                    'volume': last_candle['volume'],
+                    'probability': prob_pct,
+                    'direction': direction,
+                    'ema_20': ema_20,
+                }
+                
                 if prob_class1 > self.threshold_alert:
                     # ALERTA CRÍTICO
-                    self.ui_callback({
-                        'type': 'ALERT',
-                        'timestamp': current_time,
-                        'price': current_price,
-                        'probability': prob_pct,
-                        'direction': direction,
-                        'ema_20': ema_20,
-                        'message': f"🚨 ALERTA DE VOLATILIDADE - {direction}"
-                    })
+                    candle_data['type'] = 'ALERT'
+                    candle_data['message'] = f"🚨 ALERTA DE VOLATILIDADE - {direction}"
+                    self.ui_callback(candle_data)
                 elif prob_class1 > self.threshold_log:
                     # LOG INFORMATIVO
-                    self.ui_callback({
-                        'type': 'INFO',
-                        'timestamp': current_time,
-                        'price': current_price,
-                        'probability': prob_pct,
-                        'direction': direction,
-                        'ema_20': ema_20,
-                        'message': f"📊 Probabilidade Moderada"
-                    })
+                    candle_data['type'] = 'INFO'
+                    candle_data['message'] = f"📊 Probabilidade Moderada"
+                    self.ui_callback(candle_data)
                 else:
                     # TICK normal (sem alerta)
-                    self.ui_callback({
-                        'type': 'TICK',
-                        'timestamp': current_time,
-                        'price': current_price,
-                        'probability': prob_pct,
-                        'direction': direction,
-                        'ema_20': ema_20,
-                        'message': 'Candle processado'
-                    })
+                    candle_data['type'] = 'TICK'
+                    candle_data['message'] = 'Candle processado'
+                    self.ui_callback(candle_data)
             
             # Logs no console
             if prob_class1 > self.threshold_alert:
@@ -448,7 +443,7 @@ Pressione Ctrl+C para interromper.
                             time.sleep(10)
                             continue
                     
-                    # 3. Busca novo candle
+                    # 3. Busca último candle fechado (não o em formação)
                     new_data = self.provider.get_latest_candles(
                         ticker=self.ticker,
                         timeframe=self.timeframe,
