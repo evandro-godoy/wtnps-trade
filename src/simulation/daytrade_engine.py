@@ -47,6 +47,8 @@ class DayTradeEngine:
         profit_atr_multiplier: float = 4.0,
         eod_close_time: time = time(17, 30),
         last_entry_time: time = time(16, 30),
+        trading_start_hour: int = 9,
+        trading_end_hour: int = 17,
     ) -> None:
         self.initial_capital: float = initial_capital
         self.capital: float = initial_capital
@@ -59,6 +61,8 @@ class DayTradeEngine:
         self.profit_atr_multiplier: float = profit_atr_multiplier
         self.eod_close_time: time = eod_close_time
         self.last_entry_time: time = last_entry_time
+        self.trading_start_hour: int = trading_start_hour
+        self.trading_end_hour: int = trading_end_hour  # Limite superior (ex: 17 -> até 16:59:59)
 
         # Estado da posição
         self.position: int = 0  # 0: Flat, 1: Long, -1: Short
@@ -114,7 +118,7 @@ class DayTradeEngine:
 
         # 3. Lógica de entrada (apenas se flat e antes do limite de novas entradas)
         if self.position == 0 and self._can_open_new_position(timestamp):
-            self._attempt_entry(timestamp, close, signal_prob, atr, ema_trend)
+            self._check_entry(timestamp, close, signal_prob, atr, ema_trend)
 
         # 4. Registrar equity (após potenciais mudanças)
         self._append_equity(timestamp)
@@ -122,7 +126,7 @@ class DayTradeEngine:
     # -------------------------------------------------
     # LÓGICA DE ENTRADA
     # -------------------------------------------------
-    def _attempt_entry(
+    def _check_entry(
         self,
         timestamp: datetime,
         price: float,
@@ -130,6 +134,10 @@ class DayTradeEngine:
         atr: float,
         ema_trend: float,
     ) -> None:
+        # Verifica janela de horário operacional antes de qualquer lógica de sinal
+        if not self._is_within_trading_hours(timestamp):
+            return
+
         if signal_prob <= self.threshold:
             return
 
@@ -246,9 +254,13 @@ class DayTradeEngine:
         return (timestamp.hour, timestamp.minute) >= (self.eod_close_time.hour, self.eod_close_time.minute)
 
     def _can_open_new_position(self, timestamp: datetime) -> bool:
-        return (timestamp.hour, timestamp.minute) <= (self.last_entry_time.hour, self.last_entry_time.minute) and (
-            timestamp.hour >= 9  # Horário mínimo de operação
-        )
+        # Verifica limite para novas entradas (last_entry_time) e janela operacional básica
+        within_last_entry = (timestamp.hour, timestamp.minute) <= (self.last_entry_time.hour, self.last_entry_time.minute)
+        return within_last_entry and self._is_within_trading_hours(timestamp)
+
+    def _is_within_trading_hours(self, timestamp: datetime) -> bool:
+        # trading_end_hour é exclusivo para abertura (ex: 17 -> não abre às 17:00)
+        return self.trading_start_hour <= timestamp.hour < self.trading_end_hour
 
     # -------------------------------------------------
     # RELATÓRIOS

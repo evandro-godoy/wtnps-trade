@@ -1,361 +1,368 @@
-"""Tkinter GUI for running Day Trade simulations using existing strategies.
+"""Interface gráfica profissional para simulação Day Trade.
 
-Separation of Concerns:
- - Esta interface apenas orquestra carregamento de config, dados, modelo e engine.
- - Lógica de trading permanece em DayTradeEngine e Strategy classes.
+Organizada em dois painéis: Configuração (esquerda) e Resultados (direita).
+Inclui threading, barra de progresso, métricas, curva de equity e exportação.
 """
 from __future__ import annotations
 
 import sys
 import os
+import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
+# Ajuste de path antes dos imports do pacote interno
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # src directory
+PROJECT_DIR = os.path.dirname(ROOT_DIR)  # project root
+if PROJECT_DIR not in sys.path:
+    sys.path.insert(0, PROJECT_DIR)
+
 import yaml
 import pandas as pd
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-import threading
-
-# Ajustar path para permitir `import src.*` quando executado diretamente
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROJECT_DIR = os.path.dirname(ROOT_DIR)
-if PROJECT_DIR not in sys.path:
-    sys.path.append(PROJECT_DIR)
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from src.utils.logger import logger
 from src.simulation.daytrade_engine import DayTradeEngine
 from src.strategies.lstm_volatility import LSTMVolatilityStrategy
-from src.data_handler.provider import get_provider_instance  # Factory de provedores
-import importlib
+from src.data_handler.provider import get_provider_instance
 
 CONFIG_PATH = os.path.join(PROJECT_DIR, "configs", "main.yaml")
+
 
 class SimulationApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("WTNPS DayTrade Simulation")
-        self.geometry("760x560")
-        self.resizable(True, True)
+        self.geometry("1180x720")
+        self.minsize(1100, 680)
 
-        self.assets_config: Dict[str, Any] = {}
-        self.selected_asset: tk.StringVar = tk.StringVar()
-        self.selected_strategy: tk.StringVar = tk.StringVar()
-        self.initial_capital_var: tk.StringVar = tk.StringVar(value="1000.0")
-        self.cost_per_trade_var: tk.StringVar = tk.StringVar(value="1.0")
-        self.threshold_var: tk.StringVar = tk.StringVar(value="0.70")
-        self.stop_atr_var: tk.StringVar = tk.StringVar(value="2.0")
-        self.profit_atr_var: tk.StringVar = tk.StringVar(value="4.0")
-        self.start_date_var: tk.StringVar = tk.StringVar(value="2024-01-01")
-        self.end_date_var: tk.StringVar = tk.StringVar(value="2024-03-01")
+        # Dados de config
+        self.assets_config: Dict[str, Dict[str, Any]] = {}
+        self.asset_var = tk.StringVar()
+        self.timeframe_var = tk.StringVar(value="M5")
+        self.single_day_var = tk.BooleanVar(value=False)
+        self.start_date_var = tk.StringVar(value="2025-11-01")
+        self.end_date_var = tk.StringVar(value="2025-11-02")
+        self.start_hour_var = tk.IntVar(value=9)
+        self.end_hour_var = tk.IntVar(value=17)
+        self.lookback_days_var = tk.IntVar(value=30)  # mínimo 30 dias para features
 
-        self.run_button: Optional[ttk.Button] = None
-        self.save_button: Optional[ttk.Button] = None
-        self.cancel_button: Optional[ttk.Button] = None
-        self.asset_combo: Optional[ttk.Combobox] = None
-        self.strategy_combo: Optional[ttk.Combobox] = None
+        # Estratégia / Parâmetros
+        self.threshold_var = tk.DoubleVar(value=0.70)
+        self.vol_mult_var = tk.DoubleVar(value=2.5)
+        self.initial_capital_var = tk.DoubleVar(value=10000.0)
+
+        # Estado de simulação
+        self.trades: List[Dict[str, Any]] = []
+        self.equity_curve: List[Dict[str, Any]] = []
+        self.cancel_flag: bool = False
+
+        # Widgets principais
         self.progress_bar: Optional[ttk.Progressbar] = None
         self.progress_label: Optional[ttk.Label] = None
+        self.btn_run: Optional[ttk.Button] = None
+        self.btn_cancel: Optional[ttk.Button] = None
+        self.btn_export: Optional[ttk.Button] = None
+        self.trade_tree: Optional[ttk.Treeview] = None
+        self.metric_labels: Dict[str, ttk.Label] = {}
+        self.canvas_equity: Optional[FigureCanvasTkAgg] = None
 
-        self.trades: List[Dict[str, Any]] = []
-        self.summary_text: Optional[tk.Text] = None
-        self.equity_curve: List[Dict[str, Any]] = []
-        self.cancel_simulation: bool = False
-        self.canvas_widget: Optional[FigureCanvasTkAgg] = None
-
-        self._build_ui()
+        self._build_layout()
         self._load_config()
+        self._wire_events()
 
-    # -------------------------------------------------
-    # UI BUILD
-    # -------------------------------------------------
-    def _build_ui(self) -> None:
-        frame = ttk.Frame(self)
-        frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
+    # ---------------- Layout -----------------
+    def _build_layout(self) -> None:
+        container = ttk.Frame(self)
+        container.pack(fill=tk.BOTH, expand=True)
 
-        # Asset selection
-        ttk.Label(frame, text="Ativo:").grid(row=0, column=0, sticky=tk.W)
-        self.asset_combo = ttk.Combobox(frame, textvariable=self.selected_asset, state="readonly")
-        self.asset_combo.grid(row=0, column=1, sticky=tk.W, pady=3)
-        self.asset_combo.bind("<<ComboboxSelected>>", self._on_asset_changed)
+        left = ttk.Frame(container)
+        right = ttk.Frame(container)
+        left.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=10)
+        right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # Strategy selection
-        ttk.Label(frame, text="Estratégia:").grid(row=0, column=2, sticky=tk.W, padx=(10, 0))
-        self.strategy_combo = ttk.Combobox(frame, textvariable=self.selected_strategy, state="readonly", width=20)
-        self.strategy_combo.grid(row=0, column=3, sticky=tk.W, pady=3)
+        # --- Left Panel (Config) ---
+        lf_data = ttk.LabelFrame(left, text="Dados")
+        lf_data.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(lf_data, text="Ativo:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.asset_combo = ttk.Combobox(lf_data, textvariable=self.asset_var, state="readonly", width=14)
+        self.asset_combo.grid(row=0, column=1, sticky=tk.W, pady=2)
+        ttk.Label(lf_data, text="Timeframe:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.timeframe_combo = ttk.Combobox(lf_data, textvariable=self.timeframe_var, state="readonly", width=14,
+                                            values=["M1", "M5", "M15", "M30", "H1", "H4"])
+        self.timeframe_combo.grid(row=1, column=1, sticky=tk.W, pady=2)
+        for i in range(2):
+            lf_data.columnconfigure(i, weight=1)
 
-        # Parameters grid
-        params = [
-            ("Capital Inicial", self.initial_capital_var),
-            ("Custo por Trade", self.cost_per_trade_var),
-            ("Threshold Prob.", self.threshold_var),
-            ("Stop ATR Mult.", self.stop_atr_var),
-            ("Profit ATR Mult.", self.profit_atr_var),
-            ("Data Início", self.start_date_var),
-            ("Data Fim", self.end_date_var),
+        lf_period = ttk.LabelFrame(left, text="Período")
+        lf_period.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(lf_period, text="Início (YYYY-MM-DD)").grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(lf_period, textvariable=self.start_date_var, width=14).grid(row=0, column=1, sticky=tk.W, pady=2)
+        ttk.Label(lf_period, text="Fim (YYYY-MM-DD)").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.end_entry = ttk.Entry(lf_period, textvariable=self.end_date_var, width=14)
+        self.end_entry.grid(row=1, column=1, sticky=tk.W, pady=2)
+        self.single_day_cb = ttk.Checkbutton(lf_period, text="Dia Único", variable=self.single_day_var, command=self._on_single_day_toggle)
+        self.single_day_cb.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=2)
+        ttk.Label(lf_period, text="Hora Início").grid(row=3, column=0, sticky=tk.W, pady=2)
+        self.start_hour_spin = ttk.Spinbox(lf_period, from_=0, to=23, textvariable=self.start_hour_var, width=5)
+        self.start_hour_spin.grid(row=3, column=1, sticky=tk.W, pady=2)
+        ttk.Label(lf_period, text="Hora Fim").grid(row=4, column=0, sticky=tk.W, pady=2)
+        self.end_hour_spin = ttk.Spinbox(lf_period, from_=0, to=23, textvariable=self.end_hour_var, width=5)
+        self.end_hour_spin.grid(row=4, column=1, sticky=tk.W, pady=2)
+        ttk.Label(lf_period, text="Dias Lookback").grid(row=5, column=0, sticky=tk.W, pady=2)
+        self.lookback_spin = ttk.Spinbox(lf_period, from_=30, to=240, increment=5, textvariable=self.lookback_days_var, width=6)
+        self.lookback_spin.grid(row=5, column=1, sticky=tk.W, pady=2)
+        for i in range(2):
+            lf_period.columnconfigure(i, weight=1)
+
+        lf_strategy = ttk.LabelFrame(left, text="Estratégia")
+        lf_strategy.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(lf_strategy, text="Threshold (0-1)").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.threshold_scale = ttk.Scale(lf_strategy, from_=0.0, to=1.0, orient="horizontal", variable=self.threshold_var,
+                                         command=lambda v: self.threshold_entry_var.set(f"{float(v):.2f}"))
+        self.threshold_scale.grid(row=0, column=1, sticky=tk.EW, padx=4, pady=2)
+        self.threshold_entry_var = tk.StringVar(value=f"{self.threshold_var.get():.2f}")
+        ttk.Entry(lf_strategy, textvariable=self.threshold_entry_var, width=6).grid(row=0, column=2, sticky=tk.W, pady=2)
+        ttk.Label(lf_strategy, text="Vol Mult.").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(lf_strategy, textvariable=self.vol_mult_var, width=8).grid(row=1, column=1, sticky=tk.W, pady=2)
+        ttk.Label(lf_strategy, text="Capital Inicial").grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(lf_strategy, textvariable=self.initial_capital_var, width=10).grid(row=2, column=1, sticky=tk.W, pady=2)
+        for i in range(3):
+            lf_strategy.columnconfigure(i, weight=1)
+
+        lf_actions = ttk.LabelFrame(left, text="Ações")
+        lf_actions.pack(fill=tk.X, padx=5, pady=5)
+        self.btn_run = ttk.Button(lf_actions, text="Executar Simulação", command=self._on_run)
+        self.btn_run.pack(side=tk.LEFT, padx=4, pady=4)
+        self.btn_cancel = ttk.Button(lf_actions, text="Cancelar", command=self._on_cancel, state=tk.DISABLED)
+        self.btn_cancel.pack(side=tk.LEFT, padx=4, pady=4)
+        self.btn_export = ttk.Button(lf_actions, text="Salvar Relatório", command=self._on_export, state=tk.DISABLED)
+        self.btn_export.pack(side=tk.LEFT, padx=4, pady=4)
+
+        lf_progress = ttk.LabelFrame(left, text="Progresso")
+        lf_progress.pack(fill=tk.X, padx=5, pady=5)
+        self.progress_bar = ttk.Progressbar(lf_progress, mode="determinate")
+        self.progress_bar.pack(fill=tk.X, padx=4, pady=4)
+        self.progress_label = ttk.Label(lf_progress, text="Idle")
+        self.progress_label.pack(fill=tk.X, padx=4)
+
+        # --- Right Panel (Results) ---
+        right_top = ttk.Frame(right)
+        right_top.pack(fill=tk.X)
+
+        metric_names = [
+            ("total_pnl", "Resultado Total (R$)"),
+            ("win_rate", "Win Rate %"),
+            ("total_trades", "Total Trades"),
+            ("profit_factor", "Fator de Lucro"),
         ]
-        for i, (label, var) in enumerate(params, start=1):
-            ttk.Label(frame, text=f"{label}:").grid(row=i, column=0, sticky=tk.W)
-            ttk.Entry(frame, textvariable=var, width=16).grid(row=i, column=1, sticky=tk.W, pady=3)
+        for i, (key, title) in enumerate(metric_names):
+            card = ttk.LabelFrame(right_top, text=title)
+            card.grid(row=0, column=i, padx=5, pady=5, sticky=tk.NSEW)
+            lbl = ttk.Label(card, text="--", font=("Segoe UI", 14, "bold"))
+            lbl.pack(padx=10, pady=10)
+            self.metric_labels[key] = lbl
+            right_top.columnconfigure(i, weight=1)
 
-        # Buttons
-        btn_frame = ttk.Frame(frame)
-        btn_frame.grid(row=8, column=0, columnspan=4, pady=8, sticky=tk.EW)
-        
-        self.run_button = ttk.Button(btn_frame, text="Executar Simulação", command=self._on_run)
-        self.run_button.pack(side=tk.LEFT, padx=2)
+        right_mid = ttk.Frame(right)
+        right_mid.pack(fill=tk.BOTH, expand=True)
 
-        self.cancel_button = ttk.Button(btn_frame, text="Cancelar", command=self._on_cancel, state=tk.DISABLED)
-        self.cancel_button.pack(side=tk.LEFT, padx=2)
+        # Treeview para trades
+        tv_frame = ttk.LabelFrame(right_mid, text="Log de Trades")
+        tv_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        columns = ("data", "tipo", "entrada", "saida", "pnl", "motivo")
+        self.trade_tree = ttk.Treeview(tv_frame, columns=columns, show="headings", height=12)
+        for col, width in zip(columns, [120, 70, 80, 80, 80, 140]):
+            self.trade_tree.heading(col, text=col.capitalize())
+            self.trade_tree.column(col, width=width, anchor=tk.CENTER)
+        vsb = ttk.Scrollbar(tv_frame, orient="vertical", command=self.trade_tree.yview)
+        self.trade_tree.configure(yscroll=vsb.set)
+        self.trade_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.save_button = ttk.Button(btn_frame, text="Salvar Relatório", command=self._on_save, state=tk.DISABLED)
-        self.save_button.pack(side=tk.LEFT, padx=2)
+        # Equity Curve
+        eq_frame = ttk.LabelFrame(right, text="Curva de Equity")
+        eq_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.eq_frame = eq_frame
 
-        # Progress bar
-        self.progress_label = ttk.Label(frame, text="")
-        self.progress_label.grid(row=9, column=0, columnspan=4, sticky=tk.W)
-        self.progress_bar = ttk.Progressbar(frame, mode="determinate", length=400)
-        self.progress_bar.grid(row=10, column=0, columnspan=4, sticky=tk.EW, pady=(0, 5))
-
-        # Summary box
-        ttk.Label(frame, text="Resumo da Simulação:").grid(row=11, column=0, columnspan=2, sticky=tk.W, pady=(10, 2))
-        self.summary_text = tk.Text(frame, height=8, wrap=tk.WORD)
-        self.summary_text.grid(row=12, column=0, columnspan=4, sticky="nsew")
-
-        # Chart area
-        ttk.Label(frame, text="Curva de Equity:").grid(row=13, column=0, columnspan=2, sticky=tk.W, pady=(10, 2))
-        chart_frame = ttk.Frame(frame)
-        chart_frame.grid(row=14, column=0, columnspan=4, sticky="nsew")
-
-        frame.columnconfigure(3, weight=1)
-        frame.rowconfigure(12, weight=1)
-        frame.rowconfigure(14, weight=2)
-
-    # -------------------------------------------------
-    # CONFIG
-    # -------------------------------------------------
+    # ---------------- Config Load -----------------
     def _load_config(self) -> None:
-        """Carrega e normaliza o arquivo de configuração principal.
-
-        Estrutura esperada: assets é uma lista de dicionários com chave 'ticker'.
-        Converte para dict: ticker -> asset_cfg.
-        """
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 cfg = yaml.safe_load(f) or {}
             raw_assets = cfg.get("assets", [])
-            if not isinstance(raw_assets, list):
-                raise ValueError("Campo 'assets' deve ser uma lista no YAML.")
             normalized: Dict[str, Dict[str, Any]] = {}
-            for asset_cfg in raw_assets:
-                ticker = asset_cfg.get("ticker")
+            for item in raw_assets:
+                ticker = item.get("ticker")
                 if not ticker:
                     continue
-                normalized[ticker] = asset_cfg
+                normalized[ticker] = item
             self.assets_config = normalized
-            asset_list = list(self.assets_config.keys())
+            asset_list = list(normalized.keys())
             self.asset_combo["values"] = asset_list
             if asset_list:
-                self.selected_asset.set(asset_list[0])
-                self._update_strategy_list(asset_list[0])
-            logger.info(f"Config carregada. Ativos: {asset_list}")
-        except FileNotFoundError:
-            messagebox.showerror("Erro", f"Arquivo de configuração não encontrado: {CONFIG_PATH}")
+                self.asset_var.set(asset_list[0])
+            logger.info(f"Ativos carregados: {asset_list}")
         except Exception as exc:
-            messagebox.showerror("Erro", f"Falha ao carregar config: {exc}")
-            logger.exception("Erro ao carregar configuração")
+            messagebox.showerror("Erro", f"Falha ao carregar configuração: {exc}")
+            logger.exception("Erro config")
 
-    def _on_asset_changed(self, event=None) -> None:
-        """Handler when asset selection changes - updates strategy dropdown."""
-        asset = self.selected_asset.get()
-        if asset:
-            self._update_strategy_list(asset)
+    # ---------------- Events -----------------
+    def _wire_events(self) -> None:
+        self.asset_combo.bind("<<ComboboxSelected>>", lambda e: None)  # placeholder if future logic needed
 
-    def _update_strategy_list(self, asset: str) -> None:
-        """Populates strategy dropdown based on selected asset."""
-        asset_cfg = self.assets_config.get(asset)
-        if not asset_cfg:
-            return
-        strategies = asset_cfg.get("strategies", [])
-        strategy_names = [s.get("name", "Unknown") for s in strategies if s.get("name")]
-        self.strategy_combo["values"] = strategy_names
-        if strategy_names:
-            self.selected_strategy.set(strategy_names[0])
+    def _on_single_day_toggle(self) -> None:
+        if self.single_day_var.get():
+            self.end_date_var.set(self.start_date_var.get())
+            self.end_entry.configure(state=tk.DISABLED)
         else:
-            self.selected_strategy.set("")
+            self.end_entry.configure(state=tk.NORMAL)
 
-    def _on_cancel(self) -> None:
-        """Cancels running simulation."""
-        self.cancel_simulation = True
-        logger.info("Cancelamento solicitado pelo usuário.")
-
-    # -------------------------------------------------
-    # RUN SIMULATION
-    # -------------------------------------------------
+    # ---------------- Simulation Thread -----------------
     def _on_run(self) -> None:
-        """Runs simulation in separate thread to avoid freezing UI."""
-        self.cancel_simulation = False
-        self.run_button.configure(state=tk.DISABLED)
-        self.cancel_button.configure(state=tk.NORMAL)
-        self.save_button.configure(state=tk.DISABLED)
+        self.cancel_flag = False
+        self.btn_run.configure(state=tk.DISABLED)
+        self.btn_cancel.configure(state=tk.NORMAL)
+        self.btn_export.configure(state=tk.DISABLED)
+        self.progress_label.configure(text="Iniciando...")
         self.progress_bar["value"] = 0
-        self.progress_label.config(text="Iniciando...")
-        
-        # Run in thread
-        thread = threading.Thread(target=self._run_simulation_thread, daemon=True)
+        thread = threading.Thread(target=self._run_simulation, daemon=True)
         thread.start()
 
-    def _run_simulation_thread(self) -> None:
-        """Actual simulation logic running in background thread."""
+    def _on_cancel(self) -> None:
+        self.cancel_flag = True
+        self.progress_label.configure(text="Cancelando...")
+
+    def _run_simulation(self) -> None:
         try:
-            asset = self.selected_asset.get()
-            if not asset:
-                self.after(0, lambda: messagebox.showwarning("Aviso", "Selecione um ativo."))
-                self._reset_ui_after_run()
-                return
-
-            strategy_name = self.selected_strategy.get()
-            if not strategy_name:
-                self.after(0, lambda: messagebox.showwarning("Aviso", "Selecione uma estratégia."))
-                self._reset_ui_after_run()
-                return
-
-            initial_capital = float(self.initial_capital_var.get())
-            cost_per_trade = float(self.cost_per_trade_var.get())
-            threshold = float(self.threshold_var.get())
-            stop_mult = float(self.stop_atr_var.get())
-            profit_mult = float(self.profit_atr_var.get())
+            asset = self.asset_var.get()
+            timeframe = self.timeframe_var.get()
             start_date = self.start_date_var.get()
             end_date = self.end_date_var.get()
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-            if end_dt <= start_dt:
-                messagebox.showerror("Erro", "Data fim deve ser posterior à data início.")
+            lookback_days = int(self.lookback_days_var.get())
+            threshold = float(self.threshold_var.get())
+            vol_mult = float(self.vol_mult_var.get())
+            initial_capital = float(self.initial_capital_var.get())
+            start_hour = int(self.start_hour_var.get())
+            end_hour = int(self.end_hour_var.get())
+
+            if not asset:
+                self._fail("Selecione um ativo.")
+                return
+            if not timeframe:
+                self._fail("Selecione um timeframe.")
                 return
 
-            asset_cfg = self.assets_config.get(asset)
-            if asset_cfg is None:
-                self.after(0, lambda: messagebox.showerror("Erro", f"Ativo {asset} não encontrado na config."))
-                self._reset_ui_after_run()
-                return
-
-            # Localiza estratégia selecionada
-            strategies = asset_cfg.get("strategies", [])
-            strategy_cfg = None
-            for s in strategies:
-                if s.get("name") == strategy_name:
-                    strategy_cfg = s
-                    break
-            if strategy_cfg is None:
-                self.after(0, lambda: messagebox.showerror("Erro", f"Estratégia {strategy_name} não encontrada."))
-                self._reset_ui_after_run()
-                return
-
-            provider_name = strategy_cfg.get("provider", "MetaTrader5")
-            strategy_module = strategy_cfg.get("module", "lstm_volatility")
-            # Timeframe preferencial: usar data.timeframe_model se existir, senão fallback M15
-            data_cfg = strategy_cfg.get("data", {}) if isinstance(strategy_cfg.get("data"), dict) else {}
-            timeframe_model = data_cfg.get("timeframe_model", "M15")
-            timeframe = timeframe_model  # String timeframe para provider
-
-            # Carregar provider (factory aceita apenas nome)
-            provider = get_provider_instance(provider_name)
-            logger.info(f"Provider '{provider_name}' carregado para ativo {asset} (timeframe={timeframe}).")
-
-            # Obter dados
-            self._update_progress(5, "Baixando dados...")
-            # Para MetaTrader5 precisamos de constante; aproveita método interno se existir
-            if provider_name.lower() == "metatrader5" and hasattr(provider, "_get_mt5_timeframe"):
-                mt5_tf = provider._get_mt5_timeframe(timeframe)
-                data_df = provider.get_data(ticker=asset, start_date=start_date, end_date=end_date, timeframe=mt5_tf)
-            else:
-                # YFinance provider espera string
-                data_df = provider.get_data(ticker=asset, start_date=start_date, end_date=end_date, timeframe=timeframe)
-            if data_df is None or data_df.empty:
-                self.after(0, lambda: messagebox.showerror("Erro", "Nenhum dado retornado para o período."))
-                self._reset_ui_after_run()
-                return
-            if not isinstance(data_df.index, pd.DatetimeIndex):
-                self.after(0, lambda: messagebox.showerror("Erro", "Dados não possuem índice datetime."))
-                self._reset_ui_after_run()
-                return
-
-            # Instanciar estratégia dinamicamente e carregar modelo
-            self._update_progress(10, f"Carregando estratégia {strategy_name}...")
+            # Validação e normalização de datas
             try:
-                strategy_class = self._load_strategy_class(strategy_module, strategy_name)
-                strategy = strategy_class()
-            except Exception as exc:
-                self.after(0, lambda e=exc: messagebox.showerror("Erro", f"Falha ao instanciar estratégia: {e}"))
-                logger.exception(f"Erro ao carregar estratégia {strategy_name}")
-                self._reset_ui_after_run()
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+            except ValueError:
+                self._fail("Formato de data inválido. Use YYYY-MM-DD.")
+                return
+            if start_dt > end_dt:
+                logger.warning("Data início > fim; invertendo automaticamente.")
+                start_dt, end_dt = end_dt, start_dt
+                start_date, end_date = start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d")
+            # Aplicar lookback mínimo (garante >=30)
+            if lookback_days < 30:
+                lookback_days = 30
+            extended_start_dt = start_dt - pd.Timedelta(days=lookback_days)
+            extended_start_date = extended_start_dt.strftime("%Y-%m-%d")
+
+            # Provider e dados (carrega período estendido para cálculo de features)
+            provider = get_provider_instance("MetaTrader5")  # default; poderia ser dinâmico
+            self._update_progress(5, f"Buscando dados (lookback {lookback_days}d)...")
+            if hasattr(provider, "_get_mt5_timeframe"):
+                mt5_tf = provider._get_mt5_timeframe(timeframe)
+                data_df = provider.get_data(ticker=asset, start_date=extended_start_date, end_date=end_date, timeframe=mt5_tf)
+            else:
+                data_df = provider.get_data(ticker=asset, start_date=extended_start_date, end_date=end_date, timeframe=timeframe)
+            if data_df is None or data_df.empty:
+                self._fail("Dados vazios para o período.")
                 return
 
-            model_prefix = os.path.join(PROJECT_DIR, "models", f"{asset}_{strategy_name}_{timeframe}_prod")
+            # Carregar modelo (mapeamento timeframe→modelo; exemplo M5 usa M15)
+            model_tf_map = {"M5": "M15", "M15": "M15", "M1": "M5", "M30": "M15", "H1": "H1", "H4": "H1"}
+            model_tf = model_tf_map.get(timeframe, timeframe)
+            model_prefix = os.path.join(PROJECT_DIR, "models", f"{asset}_LSTMVolatilityStrategy_{model_tf}_prod")
+            strategy = LSTMVolatilityStrategy()
             try:
                 model_wrapper = strategy.load(model_prefix)
-            except FileNotFoundError:
-                self.after(0, lambda: messagebox.showerror("Erro", f"Modelo não encontrado: {model_prefix}"))
-                self._reset_ui_after_run()
-                return
             except Exception as exc:
-                self.after(0, lambda e=exc: messagebox.showerror("Erro", f"Falha ao carregar modelo: {e}"))
-                logger.exception("Erro carregando modelo")
-                self._reset_ui_after_run()
+                self._fail(f"Falha ao carregar modelo: {exc}")
                 return
 
-            # Gerar features
-            self._update_progress(20, "Gerando features...")
+            self._update_progress(15, "Gerando features...")
             features_df = strategy.define_features(data_df)
             feature_cols = strategy.get_feature_names()
-            missing_cols = [c for c in feature_cols if c not in features_df.columns]
-            if missing_cols:
-                self.after(0, lambda m=missing_cols: messagebox.showerror("Erro", f"Features ausentes: {m}"))
-                self._reset_ui_after_run()
+            missing = [c for c in feature_cols if c not in features_df.columns]
+            if missing:
+                self._fail(f"Features ausentes: {missing}")
                 return
 
-            # Engine
+            # Filtra janela de simulação (mantém lookback apenas para cálculo anterior)
+            idx_tz = getattr(features_df.index, "tz", None)
+            if idx_tz is not None:
+                sim_start_ts = pd.Timestamp(start_dt, tz=idx_tz)
+                sim_end_ts = pd.Timestamp(end_dt, tz=idx_tz) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+            else:
+                sim_start_ts = pd.Timestamp(start_dt)
+                sim_end_ts = pd.Timestamp(end_dt) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+            try:
+                simulation_df = features_df[(features_df.index >= sim_start_ts) & (features_df.index <= sim_end_ts)]
+            except Exception as f_exc:
+                logger.warning(f"Falha em comparação timezone; removendo tz para filtro: {f_exc}")
+                # fallback: remove tz e usa timestamps ingênuos
+                try:
+                    features_df_no_tz = features_df.copy()
+                    features_df_no_tz.index = features_df_no_tz.index.tz_convert(None)
+                    simulation_df = features_df_no_tz[(features_df_no_tz.index >= pd.Timestamp(start_dt)) & (features_df_no_tz.index <= pd.Timestamp(end_dt) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1))]
+                except Exception as f2_exc:
+                    self._fail(f"Erro ao aplicar filtro de datas: {f2_exc}")
+                    return
+            if simulation_df.empty:
+                self._fail("Sem dados suficientes após aplicar lookback e filtro de datas.")
+                return
+
             self._update_progress(25, "Inicializando engine...")
             engine = DayTradeEngine(
                 initial_capital=initial_capital,
-                cost_per_trade=cost_per_trade,
                 threshold=threshold,
-                stop_atr_multiplier=stop_mult,
-                profit_atr_multiplier=profit_mult,
+                stop_atr_multiplier=2.0,
+                profit_atr_multiplier=4.0,
+                trading_start_hour=start_hour,
+                trading_end_hour=end_hour,
             )
 
-            # Loop de simulação
-            self._update_progress(30, "Executando simulação...")
-            probs_cache = []
-            total_candles = len(features_df)
-            for idx in range(total_candles):
-                if self.cancel_simulation:
-                    logger.info("Simulação cancelada pelo usuário.")
-                    self.after(0, lambda: messagebox.showinfo("Cancelado", "Simulação cancelada."))
-                    self._reset_ui_after_run()
-                    return
+            self.trades.clear()
+            self.equity_curve.clear()
+            probs_cache: List[float] = []
 
-                # Update progress every 100 candles
-                if idx % 100 == 0:
-                    progress = 30 + int((idx / total_candles) * 60)
-                    self._update_progress(progress, f"Processando candle {idx}/{total_candles}...")
-                # Recorta até o índice atual para formar janela
-                window_df = features_df.iloc[: idx + 1]
-                # Probabilidade (usa apenas classe positiva)
+            total = len(simulation_df)
+            for idx in range(total):
+                if self.cancel_flag:
+                    self._update_progress(100, "Cancelado")
+                    self._finish(cancelled=True)
+                    return
+                if idx % max(1, total // 50) == 0:
+                    pct = int((idx / total) * 60) + 30
+                    self._update_progress(pct, f"Processando {idx}/{total}")
+
+                # Usa todo histórico até o ponto (inclui período anterior para manter contexto)
+                window_df = features_df.iloc[: features_df.index.get_indexer([simulation_df.index[idx]])[0] + 1]
                 proba_arr = model_wrapper.predict_proba(window_df[feature_cols])
                 if len(proba_arr) == 0:
                     continue
-                signal_prob = float(proba_arr[-1, 1])  # último ponto
+                signal_prob = float(proba_arr[-1, 1])
                 probs_cache.append(signal_prob)
-
                 row = window_df.iloc[-1]
                 atr = float(row.get("atr", 0.0))
                 ema_trend = float(row.get("ema_9", row.get("close")))
                 ts = window_df.index[-1].to_pydatetime()
-
                 engine.update(
                     timestamp=ts,
                     open_p=float(row.get("open")),
@@ -367,131 +374,110 @@ class SimulationApp(tk.Tk):
                     ema_trend=ema_trend,
                 )
 
-            self._update_progress(95, "Finalizando...")
             self.trades = engine.trades
             self.equity_curve = engine.equity_curve
+            self._update_progress(95, "Finalizando...")
             summary = engine.get_summary()
-            
-            # Update UI in main thread
-            self.after(0, lambda: self._display_summary(summary, probs_cache))
-            self.after(0, lambda: self._plot_equity_curve())
-            self._update_progress(100, "Concluído!")
-            self.after(0, lambda: self.save_button.configure(state=tk.NORMAL))
-            self.after(0, lambda: messagebox.showinfo("Concluído", "Simulação finalizada."))
-            self._reset_ui_after_run()
-
-        except ValueError as ve:
-            self.after(0, lambda e=ve: messagebox.showerror("Erro de Valor", str(e)))
-            logger.exception("Erro de valor na simulação")
-            self._reset_ui_after_run()
+            self._finish(summary=summary, probs=probs_cache)
         except Exception as exc:
-            self.after(0, lambda e=exc: messagebox.showerror("Erro", f"Falha na simulação: {e}"))
-            logger.exception("Falha inesperada na simulação")
-            self._reset_ui_after_run()
+            self._fail(f"Erro inesperado: {exc}")
 
-    def _load_strategy_class(self, module_name: str, class_name: str):
-        """Dynamically loads strategy class from module name."""
-        try:
-            module = importlib.import_module(f"src.strategies.{module_name}")
-            strategy_class = getattr(module, class_name)
-            return strategy_class
-        except (ImportError, AttributeError) as e:
-            logger.error(f"Não foi possível carregar {class_name} de {module_name}: {e}")
-            raise
-
+    # ---------------- Helpers -----------------
     def _update_progress(self, value: int, text: str) -> None:
-        """Updates progress bar and label in main thread."""
-        def update():
+        def cb():
             self.progress_bar["value"] = value
-            self.progress_label.config(text=text)
-        self.after(0, update)
+            self.progress_label.configure(text=text)
+        self.after(0, cb)
 
-    def _reset_ui_after_run(self) -> None:
-        """Resets UI state after simulation completes or is cancelled."""
-        def reset():
-            self.run_button.configure(state=tk.NORMAL)
-            self.cancel_button.configure(state=tk.DISABLED)
-        self.after(0, reset)
+    def _fail(self, msg: str) -> None:
+        logger.error(msg)
+        def cb():
+            messagebox.showerror("Erro", msg)
+            self.btn_run.configure(state=tk.NORMAL)
+            self.btn_cancel.configure(state=tk.DISABLED)
+            self.progress_label.configure(text="Falha")
+        self.after(0, cb)
 
-    # -------------------------------------------------
-    # DISPLAY SUMMARY
-    # -------------------------------------------------
-    def _display_summary(self, summary: Dict[str, Any], probs_cache: List[float]) -> None:
-        self.summary_text.delete("1.0", tk.END)
-        lines = [
-            f"Total Trades: {summary['total_trades']}",
-            f"Wins: {summary['wins']}",
-            f"Losses: {summary['losses']}",
-            f"Win Rate (%): {summary['win_rate_pct']:.2f}",
-            f"Gross PnL: {summary['gross_pnl']:.2f}",
-            f"Initial Capital: {summary['initial_capital']:.2f}",
-            f"Final Capital: {summary['final_capital']:.2f}",
-            f"Avg Prob (últimos sinais): { (sum(probs_cache)/len(probs_cache)) if probs_cache else 0.0:.3f}",
-        ]
-        self.summary_text.insert(tk.END, "\n".join(lines))
+    def _finish(self, summary: Dict[str, Any] | None = None, probs: List[float] | None = None, cancelled: bool = False) -> None:
+        def cb():
+            if cancelled:
+                messagebox.showinfo("Cancelado", "Simulação cancelada.")
+            else:
+                self._update_metrics(summary or {})
+                self._populate_trades()
+                self._plot_equity()
+                self.btn_export.configure(state=tk.NORMAL)
+                self.progress_label.configure(text="Concluído")
+                self.progress_bar["value"] = 100
+                messagebox.showinfo("Concluído", "Simulação finalizada.")
+            self.btn_run.configure(state=tk.NORMAL)
+            self.btn_cancel.configure(state=tk.DISABLED)
+        self.after(0, cb)
 
-    # -------------------------------------------------
-    # SAVE REPORT
-    # -------------------------------------------------
-    def _plot_equity_curve(self) -> None:
-        """Plots equity curve using matplotlib."""
+    def _update_metrics(self, summary: Dict[str, Any]) -> None:
+        total_trades = summary.get("total_trades", 0)
+        gross_pnl = summary.get("gross_pnl", 0.0)
+        win_rate = summary.get("win_rate_pct", 0.0)
+        wins = sum(1 for t in self.trades if t["pnl"] > 0)
+        losses = sum(1 for t in self.trades if t["pnl"] <= 0)
+        sum_pos = sum(t["pnl"] for t in self.trades if t["pnl"] > 0)
+        sum_neg = sum(t["pnl"] for t in self.trades if t["pnl"] < 0)
+        profit_factor = sum_pos / abs(sum_neg) if sum_neg < 0 else 0.0
+        self.metric_labels["total_pnl"].configure(text=f"{gross_pnl:.2f}")
+        self.metric_labels["win_rate"].configure(text=f"{win_rate:.2f}%")
+        self.metric_labels["total_trades"].configure(text=str(total_trades))
+        self.metric_labels["profit_factor"].configure(text=f"{profit_factor:.2f}")
+
+    def _populate_trades(self) -> None:
+        for row in self.trade_tree.get_children():
+            self.trade_tree.delete(row)
+        for t in self.trades:
+            self.trade_tree.insert("", tk.END, values=(
+                t["exit_time"].strftime("%Y-%m-%d %H:%M"),
+                t["type"],
+                f"{t['entry_price']:.2f}",
+                f"{t['exit_price']:.2f}",
+                f"{t['pnl']:.2f}",
+                t["reason"],
+            ))
+
+    def _plot_equity(self) -> None:
+        if self.canvas_equity:
+            self.canvas_equity.get_tk_widget().destroy()
         if not self.equity_curve:
-            logger.warning("Nenhuma curva de equity para plotar.")
             return
-
-        # Clear previous chart
-        if self.canvas_widget:
-            self.canvas_widget.get_tk_widget().destroy()
-
-        # Create figure
-        fig = Figure(figsize=(8, 3), dpi=80)
+        fig = Figure(figsize=(6, 3), dpi=100)
         ax = fig.add_subplot(111)
-
-        # Extract data
         times = [e["time"] for e in self.equity_curve]
         equity = [e["equity"] for e in self.equity_curve]
-
-        # Plot
-        ax.plot(times, equity, linewidth=1.5, color="#2E86AB")
+        ax.plot(times, equity, color="#1f5c99", linewidth=1.6)
         ax.set_xlabel("Tempo")
         ax.set_ylabel("Capital")
-        ax.set_title("Evolução do Capital")
-        ax.grid(True, alpha=0.3)
-        fig.autofmt_xdate(rotation=45)
+        ax.grid(alpha=0.3)
         fig.tight_layout()
+        self.canvas_equity = FigureCanvasTkAgg(fig, master=self.eq_frame)
+        self.canvas_equity.draw()
+        self.canvas_equity.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-        # Embed in tkinter
-        chart_frame = self.summary_text.master.nametowidget(self.summary_text.master.winfo_children()[-1].winfo_name())
-        # Find chart_frame by row 14
-        for widget in self.summary_text.master.winfo_children():
-            info = widget.grid_info()
-            if info.get("row") == 14:
-                chart_frame = widget
-                break
-
-        self.canvas_widget = FigureCanvasTkAgg(fig, master=chart_frame)
-        self.canvas_widget.draw()
-        self.canvas_widget.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-    def _on_save(self) -> None:
+    def _on_export(self) -> None:
         if not self.trades:
-            messagebox.showwarning("Aviso", "Nenhum trade para salvar.")
+            messagebox.showwarning("Aviso", "Sem trades para exportar.")
             return
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".csv", filetypes=[("CSV", "*.csv"), ("Texto", "*.txt")]
-        )
+        file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")])
         if not file_path:
             return
         try:
-            df = pd.DataFrame(self.trades)
-            df.to_csv(file_path, index=False)
+            pd.DataFrame(self.trades).to_csv(file_path, index=False)
             messagebox.showinfo("Sucesso", f"Relatório salvo em {file_path}")
-            logger.info(f"Relatório de trades salvo em {file_path}")
         except Exception as exc:
-            messagebox.showerror("Erro", f"Falha ao salvar relatório: {exc}")
-            logger.exception("Erro salvando relatório")
+            messagebox.showerror("Erro", f"Falha ao salvar: {exc}")
+            logger.exception("Erro export")
+
+
+def main() -> None:
+    app = SimulationApp()
+    app.mainloop()
 
 
 if __name__ == "__main__":
-    app = SimulationApp()
-    app.mainloop()
+    main()

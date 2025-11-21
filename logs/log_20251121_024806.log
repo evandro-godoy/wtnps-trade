@@ -1,0 +1,10 @@
+2025-11-21 02:48:06,032 - INFO - [root] Logging configurado. Salvando em: logs\log_20251121_024806.log
+2025-11-21 02:48:16,385 - INFO - [src.data_handler.provider] Diretório de cache de dados inicializado em: C:\projects\wtnps-trade\.cache_data
+2025-11-21 02:48:16,950 - INFO - [wtnps] Ativos carregados: ['WDO$', 'WIN$']
+2025-11-21 02:49:44,288 - WARNING - [wtnps] Data início > fim; invertendo automaticamente.
+2025-11-21 02:49:44,302 - INFO - [src.data_handler.provider] MetaTrader 5 Conectado: Clear Investimentos MT5 Terminal
+2025-11-21 02:49:44,308 - INFO - [src.data_handler.provider] Carregando dados de WDO$ do cache: C:\projects\wtnps-trade\.cache_data\MT5_WDO_M5_20251002_20251117.parquet
+2025-11-21 02:49:44,522 - INFO - [src.data_handler.provider] Dados carregados do cache (3762 registros).
+2025-11-21 02:49:44,524 - INFO - [root] LSTMVolatilityStrategy: Carregando modelo de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M15_prod
+2025-11-21 02:49:44,740 - INFO - [root] Modelo carregado de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M15_prod_lstm.keras, scaler de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M15_prod_scaler.joblib, params de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M15_prod_params.joblib
+2025-11-21 02:49:44,781 - INFO - [wtnps] DayTradeEngine inicializada: capital=1000.0, threshold=0.7, stopATR=2.0, profitATR=4.0

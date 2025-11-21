@@ -1,0 +1,13 @@
+2025-11-21 02:43:43,821 - INFO - [root] Logging configurado. Salvando em: logs\log_20251121_024343.log
+2025-11-21 02:43:56,190 - INFO - [src.data_handler.provider] Diretório de cache de dados inicializado em: C:\projects\wtnps-trade\.cache_data
+2025-11-21 02:43:56,740 - INFO - [wtnps] Ativos carregados: ['WDO$', 'WIN$']
+2025-11-21 02:45:53,050 - WARNING - [wtnps] Data início > fim; invertendo automaticamente.
+2025-11-21 02:45:53,067 - INFO - [src.data_handler.provider] MetaTrader 5 Conectado: Clear Investimentos MT5 Terminal
+2025-11-21 02:45:53,073 - INFO - [src.data_handler.provider] Buscando dados de WDO$ do MT5 (2025-10-02 a 2025-11-17 @ M5)...
+2025-11-21 02:45:53,078 - INFO - [src.data_handler.provider] Iniciando download em chunks de 183 dias para WDO$...
+2025-11-21 02:45:53,119 - INFO - [src.data_handler.provider] Download em chunks concluído: 3762 candles consolidados de 1 chunks.
+2025-11-21 02:45:53,153 - INFO - [src.data_handler.provider] Salvando dados de WDO$ (3762 registros) em cache: C:\projects\wtnps-trade\.cache_data\MT5_WDO_M5_20251002_20251117.parquet
+2025-11-21 02:45:53,255 - INFO - [src.data_handler.provider] Dados buscados do MT5 e convertidos para America/Sao_Paulo.
+2025-11-21 02:45:53,257 - INFO - [root] LSTMVolatilityStrategy: Carregando modelo de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M15_prod
+2025-11-21 02:45:53,690 - INFO - [root] Modelo carregado de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M15_prod_lstm.keras, scaler de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M15_prod_scaler.joblib, params de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M15_prod_params.joblib
+2025-11-21 02:45:53,732 - ERROR - [wtnps] Erro inesperado: Invalid comparison between dtype=datetime64[ns, UTC] and Timestamp

@@ -1,0 +1,9 @@
+2025-11-21 02:34:17,715 - INFO - [root] Logging configurado. Salvando em: logs\log_20251121_023417.log
+2025-11-21 02:34:37,178 - INFO - [src.data_handler.provider] Diretório de cache de dados inicializado em: C:\projects\wtnps-trade\.cache_data
+2025-11-21 02:34:38,090 - INFO - [wtnps] Ativos carregados: ['WDO$', 'WIN$']
+2025-11-21 02:37:04,214 - INFO - [src.data_handler.provider] MetaTrader 5 Conectado: Clear Investimentos MT5 Terminal
+2025-11-21 02:37:04,219 - INFO - [src.data_handler.provider] Buscando dados de WDO$ do MT5 (2025-11-17 a 2025-11-01 @ M5)...
+2025-11-21 02:37:04,221 - INFO - [src.data_handler.provider] Iniciando download em chunks de 183 dias para WDO$...
+2025-11-21 02:37:04,223 - WARNING - [src.data_handler.provider] Nenhum dado retornado do MT5 em 0 chunks para WDO$.
+2025-11-21 02:37:04,230 - WARNING - [src.data_handler.provider] Nenhum dado retornado do MT5 para WDO$ no período.
+2025-11-21 02:37:04,357 - ERROR - [wtnps] Dados vazios para o período.
