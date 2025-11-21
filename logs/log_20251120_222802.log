@@ -1,0 +1,8 @@
+2025-11-20 22:28:02,438 - INFO - [root] Logging configurado. Salvando em: logs\log_20251120_222802.log
+2025-11-20 22:28:08,039 - INFO - [src.data_handler.provider] Diretório de cache de dados inicializado em: C:\projects\wtnps-trade\.cache_data
+2025-11-20 22:28:13,373 - ERROR - [wtnps] Erro ao carregar configuração
+Traceback (most recent call last):
+  File "C:\projects\wtnps-trade\src\gui\simulation_ui.py", line 108, in _load_config
+    asset_list = list(self.assets_config.keys())
+                      ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'keys'

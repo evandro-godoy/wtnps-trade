@@ -186,8 +186,33 @@ class LSTMVolatilityWrapper(BaseEstimator, ClassifierMixin):
             
         predictions_proba = self.model.predict(X_seq)
         predictions = (predictions_proba > 0.5).astype(int)
-        
         return predictions.flatten()
+
+    def predict_proba(self, X):
+        """Retorna probabilidades da classe positiva (explosão de volatilidade).
+        Compatível com interface scikit-learn (n_samples, 2) onde a segunda coluna é a classe 1.
+        """
+        if isinstance(X, pd.DataFrame):
+            X_values = X.values
+        elif isinstance(X, np.ndarray):
+            X_values = X
+        else:
+            raise ValueError("X deve ser um DataFrame Pandas ou array NumPy")
+
+        if X_values.shape[1] != self.scaler.n_features_in_:
+            raise ValueError(f"X tem {X_values.shape[1]} features, mas o scaler espera {self.scaler.n_features_in_}")
+
+        X_scaled = self.scaler.transform(X_values)
+        y_dummy = np.zeros(len(X_scaled))
+        X_seq, _ = create_sequences(X_scaled, y_dummy, self.lookback)
+
+        if len(X_seq) == 0:
+            logging.warning("Nenhuma sequência criada para predição de probabilidade. Retornando vazio.")
+            return np.empty((0, 2))
+
+        proba_pos = self.model.predict(X_seq).flatten()
+        proba_neg = 1.0 - proba_pos
+        return np.vstack([proba_neg, proba_pos]).T
 
     def get_params(self, deep=True):
         """Retorna os parâmetros do wrapper."""

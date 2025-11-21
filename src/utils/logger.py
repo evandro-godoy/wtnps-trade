@@ -4,7 +4,7 @@ import os
 import sys
 from datetime import datetime
 
-def setup_logging(log_file_prefix='log'):
+def setup_logging(log_file_prefix: str = 'log') -> None:
     """
     Configura o sistema de logging para salvar em arquivo e exibir no console.
     
@@ -32,3 +32,20 @@ def setup_logging(log_file_prefix='log'):
         ]
     )
     logging.info(f"Logging configurado. Salvando em: {log_filepath}")
+
+
+def get_logger(name: str = 'wtnps') -> logging.Logger:
+    """Retorna um logger configurado. Garante configuração única.
+
+    Se nenhum handler estiver presente no root, invoca setup_logging.
+    """
+    if not logging.getLogger().handlers:
+        setup_logging('log')
+    return logging.getLogger(name)
+
+# Exporta instância padrão utilizada pelo projeto
+if not logging.getLogger().handlers:
+    setup_logging('log')
+logger: logging.Logger = logging.getLogger('wtnps')
+
+__all__ = ['setup_logging', 'get_logger', 'logger']

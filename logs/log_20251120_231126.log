@@ -1,0 +1,3 @@
+2025-11-20 23:11:26,685 - INFO - [root] Logging configurado. Salvando em: logs\log_20251120_231126.log
+2025-11-20 23:11:32,100 - INFO - [src.data_handler.provider] Diretório de cache de dados inicializado em: C:\projects\wtnps-trade\.cache_data
+2025-11-20 23:11:32,332 - INFO - [wtnps] Config carregada. Ativos: ['WDO$', 'WIN$']

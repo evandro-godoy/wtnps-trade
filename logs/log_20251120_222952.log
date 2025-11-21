@@ -1,0 +1,121 @@
+2025-11-20 22:29:52,153 - INFO - [root] Logging configurado. Salvando em: logs\log_20251120_222952.log
+2025-11-20 22:29:56,187 - INFO - [src.data_handler.provider] Diretório de cache de dados inicializado em: C:\projects\wtnps-trade\.cache_data
+2025-11-20 22:29:56,377 - INFO - [wtnps] Config carregada. Ativos: ['WDO$', 'WIN$']
+2025-11-20 22:31:14,443 - INFO - [src.data_handler.provider] MetaTrader 5 Conectado: Clear Investimentos MT5 Terminal
+2025-11-20 22:31:14,443 - INFO - [wtnps] Provider 'MetaTrader5' carregado para ativo WDO$ (timeframe=M5).
+2025-11-20 22:31:14,443 - INFO - [src.data_handler.provider] Buscando dados de WDO$ do MT5 (2025-11-17 a 2025-11-18 @ M5)...
+2025-11-20 22:31:14,445 - INFO - [src.data_handler.provider] Iniciando download em chunks de 183 dias para WDO$...
+2025-11-20 22:31:14,466 - INFO - [src.data_handler.provider] Download em chunks concluído: 228 candles consolidados de 1 chunks.
+2025-11-20 22:31:14,483 - INFO - [src.data_handler.provider] Salvando dados de WDO$ (228 registros) em cache: C:\projects\wtnps-trade\.cache_data\MT5_WDO_M5_20251117_20251118.parquet
+2025-11-20 22:31:14,579 - INFO - [src.data_handler.provider] Dados buscados do MT5 e convertidos para America/Sao_Paulo.
+2025-11-20 22:31:14,579 - INFO - [root] LSTMVolatilityStrategy: Carregando modelo de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod
+2025-11-20 22:31:14,851 - INFO - [root] Modelo carregado de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod_lstm.keras, scaler de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod_scaler.joblib, params de C:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod_params.joblib
+2025-11-20 22:31:14,873 - INFO - [wtnps] DayTradeEngine inicializada: capital=1000.0, threshold=0.7, stopATR=0.2, profitATR=4.0
+2025-11-20 22:31:14,878 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,880 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,885 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,886 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,887 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,888 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,889 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,890 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,892 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,893 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,903 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,904 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,906 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,907 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,908 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,910 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,920 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,922 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,922 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,923 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,925 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,926 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,928 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,935 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,936 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,937 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,938 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,939 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,940 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,942 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,943 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,954 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,958 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,959 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,961 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,967 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,968 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,970 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,973 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,975 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,976 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,977 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,984 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,986 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,987 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,988 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,990 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,993 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:14,996 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,003 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,005 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,006 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,011 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,015 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,017 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,020 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,020 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,022 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,023 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,025 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,028 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,035 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,036 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,038 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,039 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,043 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,048 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,052 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,054 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,057 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,058 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,059 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,062 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,065 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,067 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,069 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,071 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,071 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,072 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,074 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,074 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,078 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,085 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,087 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,089 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,091 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,093 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,100 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,101 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,102 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,103 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,107 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,109 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,111 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,115 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,118 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,120 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,121 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,122 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,123 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,126 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,130 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,132 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,136 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,138 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,139 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,142 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
+2025-11-20 22:31:15,144 - WARNING - [root] Nenhuma sequência criada para predição de probabilidade. Retornando vazio.
