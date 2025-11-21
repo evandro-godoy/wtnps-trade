@@ -311,7 +311,7 @@ class MonitorApp:
         # Treeview
         self.logs_tree = ttk.Treeview(
             tree_container,
-            columns=('datetime', 'type', 'price', 'probability', 'message'),
+            columns=('datetime', 'type', 'price', 'probability', 'trend', 'rsi', 'message'),
             show='headings',
             yscrollcommand=vsb.set,
             xscrollcommand=hsb.set,
@@ -331,15 +331,19 @@ class MonitorApp:
         self.logs_tree.heading('datetime', text='Data/Hora (UTC)')
         self.logs_tree.heading('type', text='Tipo')
         self.logs_tree.heading('price', text='Preço')
-        self.logs_tree.heading('probability', text='Probabilidade ML')
+        self.logs_tree.heading('probability', text='Prob. ML')
+        self.logs_tree.heading('trend', text='Tendência')
+        self.logs_tree.heading('rsi', text='RSI')
         self.logs_tree.heading('message', text='Mensagem')
         
         # Larguras das colunas
         self.logs_tree.column('datetime', width=180, anchor=tk.W)
-        self.logs_tree.column('type', width=100, anchor=tk.CENTER)
-        self.logs_tree.column('price', width=120, anchor=tk.E)
-        self.logs_tree.column('probability', width=140, anchor=tk.E)
-        self.logs_tree.column('message', width=400, anchor=tk.W)
+        self.logs_tree.column('type', width=80, anchor=tk.CENTER)
+        self.logs_tree.column('price', width=100, anchor=tk.E)
+        self.logs_tree.column('probability', width=80, anchor=tk.E)
+        self.logs_tree.column('trend', width=120, anchor=tk.CENTER)
+        self.logs_tree.column('rsi', width=80, anchor=tk.CENTER)
+        self.logs_tree.column('message', width=450, anchor=tk.W)
         
         # Tags para formatação de linhas
         self.logs_tree.tag_configure('ALERT', background='#fff3cd', foreground='#856404')
@@ -554,7 +558,28 @@ class MonitorApp:
             
             # Formata probabilidade
             probability = data.get('probability', 0.0)
-            prob_str = f"{probability:.2f}%"
+            prob_str = f"{probability:.1f}%"
+            
+            # Formata tendência
+            trend = data.get('trend', 'N/A')
+            trend_strength = data.get('trend_strength', '')
+            if trend_strength and trend != 'N/A':
+                trend_str = f"{trend} ({trend_strength[0]})"  # Ex: ALTA (F)
+            else:
+                trend_str = trend
+            
+            # Formata RSI
+            rsi = data.get('rsi', 0.0)
+            rsi_condition = data.get('rsi_condition', '')
+            if rsi > 0:
+                rsi_str = f"{rsi:.0f}"
+                # Adiciona emoji para condição
+                if rsi_condition == 'SOBRECOMPRADO':
+                    rsi_str += " 🔺"  # Vermelho
+                elif rsi_condition == 'SOBREVENDIDO':
+                    rsi_str += " 🔻"  # Azul
+            else:
+                rsi_str = "N/A"
             
             # Mensagem
             message = data.get('message', '')
@@ -563,7 +588,7 @@ class MonitorApp:
             self.logs_tree.insert(
                 '',
                 0,  # Índice 0 = topo
-                values=(datetime_str, event_type, price_str, prob_str, message),
+                values=(datetime_str, event_type, price_str, prob_str, trend_str, rsi_str, message),
                 tags=(event_type,)
             )
             

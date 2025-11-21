@@ -12,6 +12,7 @@ from typing import Optional
 
 from src.data_handler.provider import MetaTraderProvider
 from src.strategies.lstm_volatility import LSTMVolatilityStrategy
+from src.analysis.context_analyzer import MarketContextAnalyzer
 
 # Configuração do logging
 logging.basicConfig(
@@ -76,6 +77,16 @@ class RealTimeMonitor:
         self.buffer_df: Optional[pd.DataFrame] = None
         self.ui_callback = ui_callback
         self.running = False
+        
+        # Inicializa analisador de contexto técnico
+        logger.info("Inicializando MarketContextAnalyzer...")
+        self.context_analyzer = MarketContextAnalyzer(
+            ema_fast=9,
+            sma_slow=50,
+            rsi_period=14,
+            lookback_levels=20
+        )
+        logger.info("✓ Analisador de contexto inicializado")
         
         # Carrega configuração
         logger.info(f"Carregando configuração de: {config_path}")
@@ -269,12 +280,22 @@ Configurações do Monitor:
             # 6. Determina direção baseada em tendência (EMA)
             direction = "CALL" if current_price > ema_20 else "PUT"
             
-            # 7. Gera logs/alertas conforme probabilidade
+            # 7. Análise de Contexto Técnico
+            context = self.context_analyzer.analyze(self.buffer_df)
+            
+            # 8. Validação do sinal com contexto técnico
+            signal_valid, validation_reason = self.context_analyzer.validate_signal(
+                ml_direction=direction,
+                context=context,
+                require_trend_alignment=False  # Não exige alinhamento estrito (apenas alerta)
+            )
+            
+            # 9. Gera logs/alertas conforme probabilidade
             prob_pct = prob_class1 * 100
             
             # Prepara dados para callback de UI (sempre envia dados do último candle)
             if self.ui_callback:
-                # Dados completos do último candle para UI
+                # Dados completos do último candle para UI (inclui contexto técnico)
                 candle_data = {
                     'timestamp': current_time,
                     'open': last_candle['open'],
@@ -285,42 +306,75 @@ Configurações do Monitor:
                     'probability': prob_pct,
                     'direction': direction,
                     'ema_20': ema_20,
+                    # Contexto técnico
+                    'trend': context['trend'],
+                    'trend_strength': context['trend_strength'],
+                    'rsi': context['rsi'],
+                    'rsi_condition': context['rsi_condition'],
+                    'support': context['support'],
+                    'resistance': context['resistance'],
+                    'pattern': context['pattern'],
+                    'signal_valid': signal_valid,
+                    'validation_reason': validation_reason,
                 }
                 
                 if prob_class1 > self.threshold_alert:
-                    # ALERTA CRÍTICO
+                    # ALERTA CRÍTICO - Mensagem enriquecida
                     candle_data['type'] = 'ALERT'
-                    candle_data['message'] = f"🚨 ALERTA DE VOLATILIDADE - {direction}"
+                    target = context['resistance'] if direction == 'CALL' else context['support']
+                    validation_icon = "✅" if signal_valid else "⚠️"
+                    candle_data['message'] = (
+                        f"{validation_icon} SINAL {direction} ({prob_pct:.1f}%) | "
+                        f"Tendência: {context['trend']} ({context['trend_strength']}) | "
+                        f"Padrão: {context['pattern']} | "
+                        f"Alvo: {target:.2f}"
+                    )
                     self.ui_callback(candle_data)
                 elif prob_class1 > self.threshold_log:
                     # LOG INFORMATIVO
                     candle_data['type'] = 'INFO'
-                    candle_data['message'] = f"📊 Probabilidade Moderada"
+                    candle_data['message'] = (
+                        f"📊 Prob. Moderada ({prob_pct:.1f}%) | "
+                        f"Tendência: {context['trend']} | "
+                        f"RSI: {context['rsi']:.0f} ({context['rsi_condition']})"
+                    )
                     self.ui_callback(candle_data)
                 else:
                     # TICK normal (sem alerta)
                     candle_data['type'] = 'TICK'
-                    candle_data['message'] = 'Candle processado'
+                    candle_data['message'] = f"Candle processado | Tendência: {context['trend']}"
                     self.ui_callback(candle_data)
             
-            # Logs no console
+            # Logs no console (enriquecidos com contexto)
             if prob_class1 > self.threshold_alert:
                 # ALERTA CRÍTICO (>65%)
+                target = context['resistance'] if direction == 'CALL' else context['support']
+                validation_status = "VALIDADO" if signal_valid else "NÃO VALIDADO"
                 logger.critical(
                     f"🚨 ALERTA DE VOLATILIDADE 🚨 | "
                     f"Hora: {current_time.strftime('%Y-%m-%d %H:%M:%S')} | "
                     f"Probabilidade: {prob_pct:.2f}% | "
                     f"Direção: {direction} | "
                     f"Preço: {current_price:.2f} | "
-                    f"EMA(20): {ema_20:.2f}"
+                    f"Tendência: {context['trend']} ({context['trend_strength']}) | "
+                    f"RSI: {context['rsi']:.0f} ({context['rsi_condition']}) | "
+                    f"Padrão: {context['pattern']} | "
+                    f"Suporte: {context['support']:.2f} | "
+                    f"Resistência: {context['resistance']:.2f} | "
+                    f"Alvo: {target:.2f} | "
+                    f"Status: {validation_status}"
                 )
+                if not signal_valid:
+                    logger.warning(f"⚠️ Motivo da não validação: {validation_reason}")
             elif prob_class1 > self.threshold_log:
                 # LOG INFORMATIVO (55-65%)
                 logger.info(
                     f"📊 Probabilidade Moderada | "
                     f"Hora: {current_time.strftime('%Y-%m-%d %H:%M:%S')} | "
                     f"Probabilidade: {prob_pct:.2f}% | "
-                    f"Preço: {current_price:.2f}"
+                    f"Preço: {current_price:.2f} | "
+                    f"Tendência: {context['trend']} | "
+                    f"RSI: {context['rsi']:.0f}"
                 )
             
         except Exception as e:

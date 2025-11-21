@@ -1,0 +1,57 @@
+PS C:\projects\wtnps-trade> poetry run python run_monitor_gui.py
+2025-11-21 09:56:53,387 - INFO - Diretório de cache de dados inicializado em: C:\projects\wtnps-trade\.cache_data
+2025-11-21 09:56:55.312459: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-11-21 09:56:58.768514: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-11-21 09:57:01,613 - INFO - Interface GUI inicializada
+2025-11-21 09:57:01,614 - INFO - Iniciando loop principal da GUI
+2025-11-21 09:57:09,119 - INFO - Iniciando monitor...
+2025-11-21 09:57:09,133 - INFO - ================================================================================
+2025-11-21 09:57:09,137 - INFO - INICIALIZANDO REAL-TIME MONITOR
+2025-11-21 09:57:09,137 - INFO - ================================================================================
+2025-11-21 09:57:09,137 - INFO - Carregando configuração de: configs/main.yaml
+2025-11-21 09:57:09,148 - INFO - Inicializando MetaTrader 5 Provider...
+2025-11-21 09:57:09,164 - INFO - MetaTrader 5 Conectado: Clear Investimentos MT5 Terminal
+2025-11-21 09:57:09,170 - INFO - ✓ MT5 conectado com sucesso
+2025-11-21 09:57:09,174 - INFO - Carregando estratégia LSTMVolatilityStrategy...
+2025-11-21 09:57:09,174 - INFO - ✓ Estratégia carregada com sucesso
+2025-11-21 09:57:09,186 - INFO - Carregando modelo ML treinado...
+2025-11-21 09:57:09,219 - INFO - LSTMVolatilityStrategy: Carregando modelo de c:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod
+2025-11-21 09:57:09.225337: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: SSE3 SSE4.1 SSE4.2 AVX AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+C:\Users\User\AppData\Local\pypoetry\Cache\virtualenvs\wtnps-trade-VyqtAXyS-py3.12\Lib\site-packages\keras\src\layers\rnn\rnn.py:199: UserWarning: Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead. 
+  super().__init__(**kwargs)
+2025-11-21 09:57:09,418 - INFO - Modelo carregado de c:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod_lstm.keras, scaler de c:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod_scaler.joblib, params de c:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod_params.joblib    
+2025-11-21 09:57:09,418 - INFO - ✓ Modelo carregado de: c:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod
+2025-11-21 09:57:09,418 - INFO -
+Configurações do Monitor:
+  - Ticker: WDO$
+  - Timeframe: M5
+  - Threshold Alerta: 65%
+  - Threshold Log: 55%
+  - Buffer Size: 500 candles
+  - Lookback LSTM: 108 períodos
+
+2025-11-21 09:57:09,420 - INFO - ================================================================================
+2025-11-21 09:57:09,425 - INFO - ================================================================================
+2025-11-21 09:57:09,431 - INFO - INICIANDO MONITORAMENTO EM TEMPO REAL
+2025-11-21 09:57:09,426 - INFO - Monitor iniciado com sucesso
+2025-11-21 09:57:09,432 - INFO - ================================================================================
+2025-11-21 09:57:09,432 - INFO - WARM-UP: Buscando 500 velas históricas (apenas fechadas)...
+2025-11-21 09:57:09,436 - INFO - ✓ Buffer inicializado com 500 candles
+2025-11-21 09:57:09,439 - INFO -   Período: 2025-11-13 15:45:00+00:00 até 2025-11-21 09:50:00+00:00
+2025-11-21 09:57:09,440 - INFO -
+Monitor configurado e pronto!
+Pressione Ctrl+C para interromper.
+
+2025-11-21 09:57:09,442 - INFO - ================================================================================
+2025-11-21 09:57:09,443 - INFO - Aguardando próximo candle... (176s até 10:00:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 343ms/step
+2025-11-21 10:00:05,432 - INFO - Aguardando próximo candle... (300s até 10:05:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 57ms/step
+2025-11-21 10:05:05,161 - INFO - Aguardando próximo candle... (300s até 10:10:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 161ms/step
+2025-11-21 10:10:05,445 - INFO - Aguardando próximo candle... (300s até 10:15:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 70ms/step
+2025-11-21 10:15:05,176 - INFO - Aguardando próximo candle... (300s até 10:20:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 47ms/step
+2025-11-21 10:20:05,169 - INFO - Aguardando próximo candle... (300s até 10:25:05)

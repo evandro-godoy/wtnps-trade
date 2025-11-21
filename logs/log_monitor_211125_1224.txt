@@ -1,0 +1,127 @@
+PS C:\projects\wtnps-trade> poetry run python run_monitor_gui.py
+2025-11-21 09:56:53,387 - INFO - Diretório de cache de dados inicializado em: C:\projects\wtnps-trade\.cache_data
+2025-11-21 09:56:55.312459: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-11-21 09:56:58.768514: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-11-21 09:57:01,613 - INFO - Interface GUI inicializada
+2025-11-21 09:57:01,614 - INFO - Iniciando loop principal da GUI
+2025-11-21 09:57:09,119 - INFO - Iniciando monitor...
+2025-11-21 09:57:09,133 - INFO - ================================================================================
+2025-11-21 09:57:09,137 - INFO - INICIALIZANDO REAL-TIME MONITOR
+2025-11-21 09:57:09,137 - INFO - ================================================================================
+2025-11-21 09:57:09,137 - INFO - Carregando configuração de: configs/main.yaml
+2025-11-21 09:57:09,148 - INFO - Inicializando MetaTrader 5 Provider...
+2025-11-21 09:57:09,164 - INFO - MetaTrader 5 Conectado: Clear Investimentos MT5 Terminal
+2025-11-21 09:57:09,170 - INFO - ✓ MT5 conectado com sucesso
+2025-11-21 09:57:09,174 - INFO - Carregando estratégia LSTMVolatilityStrategy...
+2025-11-21 09:57:09,174 - INFO - ✓ Estratégia carregada com sucesso
+2025-11-21 09:57:09,186 - INFO - Carregando modelo ML treinado...
+2025-11-21 09:57:09,219 - INFO - LSTMVolatilityStrategy: Carregando modelo de c:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod
+2025-11-21 09:57:09.225337: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: SSE3 SSE4.1 SSE4.2 AVX AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+C:\Users\User\AppData\Local\pypoetry\Cache\virtualenvs\wtnps-trade-VyqtAXyS-py3.12\Lib\site-packages\keras\src\layers\rnn\rnn.py:199: UserWarning: Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead. 
+  super().__init__(**kwargs)
+2025-11-21 09:57:09,418 - INFO - Modelo carregado de c:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod_lstm.keras, scaler de c:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod_scaler.joblib, params de c:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod_params.joblib    
+2025-11-21 09:57:09,418 - INFO - ✓ Modelo carregado de: c:\projects\wtnps-trade\models\WDO$_LSTMVolatilityStrategy_M5_prod
+2025-11-21 09:57:09,418 - INFO -
+Configurações do Monitor:
+  - Ticker: WDO$
+  - Timeframe: M5
+  - Threshold Alerta: 65%
+  - Threshold Log: 55%
+  - Buffer Size: 500 candles
+  - Lookback LSTM: 108 períodos
+
+2025-11-21 09:57:09,420 - INFO - ================================================================================
+2025-11-21 09:57:09,425 - INFO - ================================================================================
+2025-11-21 09:57:09,431 - INFO - INICIANDO MONITORAMENTO EM TEMPO REAL
+2025-11-21 09:57:09,426 - INFO - Monitor iniciado com sucesso
+2025-11-21 09:57:09,432 - INFO - ================================================================================
+2025-11-21 09:57:09,432 - INFO - WARM-UP: Buscando 500 velas históricas (apenas fechadas)...
+2025-11-21 09:57:09,436 - INFO - ✓ Buffer inicializado com 500 candles
+2025-11-21 09:57:09,439 - INFO -   Período: 2025-11-13 15:45:00+00:00 até 2025-11-21 09:50:00+00:00
+2025-11-21 09:57:09,440 - INFO -
+Monitor configurado e pronto!
+Pressione Ctrl+C para interromper.
+
+2025-11-21 09:57:09,442 - INFO - ================================================================================
+2025-11-21 09:57:09,443 - INFO - Aguardando próximo candle... (176s até 10:00:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 343ms/step
+2025-11-21 10:00:05,432 - INFO - Aguardando próximo candle... (300s até 10:05:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 57ms/step
+2025-11-21 10:05:05,161 - INFO - Aguardando próximo candle... (300s até 10:10:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 161ms/step
+2025-11-21 10:10:05,445 - INFO - Aguardando próximo candle... (300s até 10:15:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 70ms/step
+2025-11-21 10:15:05,176 - INFO - Aguardando próximo candle... (300s até 10:20:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 47ms/step
+2025-11-21 10:20:05,169 - INFO - Aguardando próximo candle... (300s até 10:25:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 74ms/step
+2025-11-21 10:25:05,190 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 10:20:00 | Probabilidade: 58.48% | Preço: 5382.00
+2025-11-21 10:25:05,195 - INFO - Aguardando próximo candle... (300s até 10:30:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 85ms/step
+2025-11-21 10:30:05,249 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 10:25:00 | Probabilidade: 60.47% | Preço: 5384.00
+2025-11-21 10:30:05,249 - INFO - Aguardando próximo candle... (300s até 10:35:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 99ms/step
+2025-11-21 10:35:05,287 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 10:30:00 | Probabilidade: 61.12% | Preço: 5384.00
+2025-11-21 10:35:05,287 - INFO - Aguardando próximo candle... (300s até 10:40:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 77ms/step
+2025-11-21 10:40:05,171 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 10:35:00 | Probabilidade: 62.25% | Preço: 5384.00
+2025-11-21 10:40:05,175 - INFO - Aguardando próximo candle... (300s até 10:45:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 80ms/step
+2025-11-21 10:45:05,253 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 10:40:00 | Probabilidade: 63.71% | Preço: 5385.00
+2025-11-21 10:45:05,253 - INFO - Aguardando próximo candle... (300s até 10:50:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 95ms/step
+2025-11-21 10:50:05,198 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 10:45:00 | Probabilidade: 64.80% | Preço: 5385.00
+2025-11-21 10:50:05,200 - INFO - Aguardando próximo candle... (300s até 10:55:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 184ms/step
+2025-11-21 10:55:05,528 - CRITICAL - 🚨 ALERTA DE VOLATILIDADE 🚨 | Hora: 2025-11-21 10:50:00 | Probabilidade: 66.08% | Direção: CALL | Preço: 5385.00 | EMA(20): 5377.03
+2025-11-21 10:55:05,532 - INFO - Aguardando próximo candle... (299s até 11:00:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 91ms/step
+2025-11-21 11:00:05,217 - CRITICAL - 🚨 ALERTA DE VOLATILIDADE 🚨 | Hora: 2025-11-21 10:55:00 | Probabilidade: 68.01% | Direção: CALL | Preço: 5384.00 | EMA(20): 5377.70
+2025-11-21 11:00:05,217 - INFO - Aguardando próximo candle... (300s até 11:05:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 52ms/step
+2025-11-21 11:05:05,151 - CRITICAL - 🚨 ALERTA DE VOLATILIDADE 🚨 | Hora: 2025-11-21 11:00:00 | Probabilidade: 67.26% | Direção: CALL | Preço: 5390.50 | EMA(20): 5378.92
+2025-11-21 11:05:05,152 - INFO - Aguardando próximo candle... (300s até 11:10:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 25ms/step
+2025-11-21 11:10:05,075 - CRITICAL - 🚨 ALERTA DE VOLATILIDADE 🚨 | Hora: 2025-11-21 11:05:00 | Probabilidade: 68.04% | Direção: CALL | Preço: 5394.50 | EMA(20): 5380.40
+2025-11-21 11:10:05,087 - INFO - Aguardando próximo candle... (300s até 11:15:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 34ms/step
+2025-11-21 11:15:05,076 - CRITICAL - 🚨 ALERTA DE VOLATILIDADE 🚨 | Hora: 2025-11-21 11:10:00 | Probabilidade: 66.33% | Direção: CALL | Preço: 5402.50 | EMA(20): 5382.50
+2025-11-21 11:15:05,077 - INFO - Aguardando próximo candle... (300s até 11:20:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 21ms/step
+2025-11-21 11:20:05,078 - CRITICAL - 🚨 ALERTA DE VOLATILIDADE 🚨 | Hora: 2025-11-21 11:15:00 | Probabilidade: 68.29% | Direção: CALL | Preço: 5402.50 | EMA(20): 5384.41
+2025-11-21 11:20:05,080 - INFO - Aguardando próximo candle... (300s até 11:25:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 39ms/step
+2025-11-21 11:25:05,079 - CRITICAL - 🚨 ALERTA DE VOLATILIDADE 🚨 | Hora: 2025-11-21 11:20:00 | Probabilidade: 67.29% | Direção: CALL | Preço: 5403.00 | EMA(20): 5386.18
+2025-11-21 11:25:05,084 - INFO - Aguardando próximo candle... (300s até 11:30:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 28ms/step
+2025-11-21 11:30:05,121 - CRITICAL - 🚨 ALERTA DE VOLATILIDADE 🚨 | Hora: 2025-11-21 11:25:00 | Probabilidade: 65.39% | Direção: CALL | Preço: 5405.00 | EMA(20): 5387.97
+2025-11-21 11:30:05,124 - INFO - Aguardando próximo candle... (300s até 11:35:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 33ms/step
+2025-11-21 11:35:05,081 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 11:30:00 | Probabilidade: 63.25% | Preço: 5403.00
+2025-11-21 11:35:05,089 - INFO - Aguardando próximo candle... (300s até 11:40:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 38ms/step
+2025-11-21 11:40:05,135 - CRITICAL - 🚨 ALERTA DE VOLATILIDADE 🚨 | Hora: 2025-11-21 11:35:00 | Probabilidade: 65.22% | Direção: CALL | Preço: 5404.50 | EMA(20): 5390.84
+2025-11-21 11:40:05,137 - INFO - Aguardando próximo candle... (300s até 11:45:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 31ms/step
+2025-11-21 11:45:05,080 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 11:40:00 | Probabilidade: 64.49% | Preço: 5400.50
+2025-11-21 11:45:05,082 - INFO - Aguardando próximo candle... (300s até 11:50:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 18ms/step
+2025-11-21 11:50:05,089 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 11:45:00 | Probabilidade: 63.98% | Preço: 5406.50
+2025-11-21 11:50:05,095 - INFO - Aguardando próximo candle... (300s até 11:55:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 31ms/step
+2025-11-21 11:55:05,089 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 11:50:00 | Probabilidade: 62.84% | Preço: 5403.00
+2025-11-21 11:55:05,089 - INFO - Aguardando próximo candle... (300s até 12:00:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 30ms/step
+2025-11-21 12:00:05,076 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 11:55:00 | Probabilidade: 60.10% | Preço: 5404.50
+2025-11-21 12:00:05,080 - INFO - Aguardando próximo candle... (300s até 12:05:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 37ms/step
+2025-11-21 12:05:05,135 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 12:00:00 | Probabilidade: 58.41% | Preço: 5404.50
+2025-11-21 12:05:05,136 - INFO - Aguardando próximo candle... (300s até 12:10:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 21ms/step
+2025-11-21 12:10:05,118 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 12:05:00 | Probabilidade: 57.12% | Preço: 5406.00
+2025-11-21 12:10:05,118 - INFO - Aguardando próximo candle... (300s até 12:15:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 36ms/step
+2025-11-21 12:15:05,092 - INFO - 📊 Probabilidade Moderada | Hora: 2025-11-21 12:10:00 | Probabilidade: 57.49% | Preço: 5408.50
+2025-11-21 12:15:05,094 - INFO - Aguardando próximo candle... (300s até 12:20:05)
+1/1 ━━━━━━━━━━━━━━━━━━━━ 0s 34ms/step
