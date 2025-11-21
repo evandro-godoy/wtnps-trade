@@ -41,3 +41,5 @@ venv.bak/
 
 # Poetry
 .poetry-virtualenvs/
+archive/tests/monitor_ui.html
+archive/tests/test_ui.py
