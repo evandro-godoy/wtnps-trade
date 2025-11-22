@@ -1,155 +1,177 @@
 """Standalone FastAPI web application providing a demonstrative
-interface for technical analysis results of WDO$ using existing data
+interface for technical analysis results of WDO$ using newapp data
 provider logic.
 
 Features:
 - GET / -> HTML page with latest OHLC (WDO$ M5) and candlestick chart (last 500 bars)
-- GET /api/ohlc -> JSON OHLC data service with fallback strategies
+- GET /api/ohlc -> JSON OHLC data service with intelligent fallback
 
-The application attempts to use MetaTrader5 provider; if unavailable it
-falls back to cached parquet or synthetic data generation.
+The application uses HybridProvider with automatic fallback:
+MT5 → Cache → Synthetic data generation.
 """
 from __future__ import annotations
 
 from typing import Any, Dict, List
-from datetime import datetime, timedelta
-import random
+import logging
 
 import pandas as pd
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
+from sqlalchemy.orm import Session
 
-try:
-    from src.data_handler.provider import MetaTraderProvider  # type: ignore
-    import MetaTrader5 as mt5  # type: ignore
-except Exception:  # MetaTrader might not be installed in cloud env
-    MetaTraderProvider = None  # type: ignore
-    mt5 = None  # type: ignore
+from newapp.src.data_handler.provider import get_default_provider
+from newapp.src.analysis.context_analyzer import MarketContextAnalyzer, analyze_market_context
+from newapp.plotting import create_dashboard_chart
+from newapp.src.database import (
+    init_database,
+    close_database,
+    get_db,
+)
+from newapp.src.database.repository import (
+    OHLCVRepository,
+    MarketAnalysisRepository,
+    DataProviderLogRepository,
+)
+from newapp.configs.config import (
+    APP_NAME,
+    APP_VERSION,
+    APP_ROOT,
+    STATIC_DIR,
+    TEMPLATES_DIR,
+    DEFAULT_SYMBOL,
+    DEFAULT_TIMEFRAME,
+    DEFAULT_LIMIT,
+    MAX_LIMIT,
+    LOG_LEVEL,
+    LOG_FORMAT,
+)
 
-from pathlib import Path
-from src.utils.logger import logger
+# Configure logging
+logging.basicConfig(level=getattr(logging, LOG_LEVEL), format=LOG_FORMAT)
+logger = logging.getLogger(__name__)
 
-APP_ROOT = Path(__file__).parent
-CACHE_DIR = Path(__file__).parent.parent / '.cache_data'
-
-app = FastAPI(title="WTNPS Trade Demo UI", version="0.1.0")
+app = FastAPI(title=APP_NAME, version=APP_VERSION)
 router = APIRouter()
 
-# Static & templates
-app.mount("/static", StaticFiles(directory=str(APP_ROOT / 'static')), name="static")
-templates = Jinja2Templates(directory=str(APP_ROOT / 'templates'))
-
-SYMBOL = "WDO$"
-TIMEFRAME_STR = "M5"
-LIMIT = 500
-
-# Mapping timeframe string to MT5 constant (local copy for decoupling)
-MT5_TIMEFRAME_MAP: Dict[str, Any] = {
-    "M1": getattr(mt5, 'TIMEFRAME_M1', None) if mt5 else None,
-    "M5": getattr(mt5, 'TIMEFRAME_M5', None) if mt5 else None,
-    "M15": getattr(mt5, 'TIMEFRAME_M15', None) if mt5 else None,
-    "M30": getattr(mt5, 'TIMEFRAME_M30', None) if mt5 else None,
-    "H1": getattr(mt5, 'TIMEFRAME_H1', None) if mt5 else None,
-    "H4": getattr(mt5, 'TIMEFRAME_H4', None) if mt5 else None,
-    "D1": getattr(mt5, 'TIMEFRAME_D1', None) if mt5 else None,
-}
-
-
-def _generate_synthetic(limit: int) -> pd.DataFrame:
-    """Generate synthetic OHLC data as final fallback (random walk)."""
-    base_price = 100000.0
-    rows: List[Dict[str, Any]] = []
-    current = base_price
-    now = datetime.utcnow()
-    for i in range(limit):
-        ts = now - timedelta(minutes=5 * (limit - i))
-        change = random.uniform(-50, 50)
-        open_price = current
-        close_price = max(10.0, open_price + change)
-        high_price = max(open_price, close_price) + random.uniform(0, 30)
-        low_price = min(open_price, close_price) - random.uniform(0, 30)
-        volume = random.randint(500, 5000)
-        rows.append({
-            'time': ts,
-            'open': round(open_price, 2),
-            'high': round(high_price, 2),
-            'low': round(low_price, 2),
-            'close': round(close_price, 2),
-            'volume': volume
-        })
-        current = close_price
-    df = pd.DataFrame(rows).set_index('time')
-    df.index = pd.to_datetime(df.index, utc=True)
-    return df
-
-
-def _load_cached(limit: int) -> pd.DataFrame | None:
-    """Attempt to load cached parquet for M5 WDO$ if available."""
-    if not CACHE_DIR.exists():
-        return None
-    # Pattern similar to provider naming: MT5_WDO__M5_* ; ticker '$' removed
-    candidates = sorted([p for p in CACHE_DIR.glob('MT5_WDO__M5_*.parquet')])
-    if not candidates:
-        return None
-    latest = candidates[-1]
+# Startup and shutdown events
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on application startup."""
+    logger.info("🚀 Starting NewApp...")
     try:
-        df = pd.read_parquet(latest)
-        if not isinstance(df.index, pd.DatetimeIndex):
-            return None
-        if df.index.tz is None:
-            df.index = df.index.tz_localize('UTC')
-        df = df.tail(limit)
+        init_database()
+        logger.info("✅ Database initialized")
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}")
+        # Continue without database (fallback to in-memory only)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close database connections on shutdown."""
+    logger.info("Shutting down NewApp...")
+    close_database()
+    logger.info("Database connections closed")
+
+# Static & templates with no-cache headers
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith('/static/'):
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+        return response
+
+app.add_middleware(NoCacheMiddleware)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+# Initialize data provider and analyzer (singletons)
+data_provider = get_default_provider()
+market_analyzer = MarketContextAnalyzer()
+
+def get_recent_ohlc(
+    symbol: str = DEFAULT_SYMBOL,
+    timeframe: str = DEFAULT_TIMEFRAME,
+    limit: int = DEFAULT_LIMIT
+) -> pd.DataFrame:
+    """Retrieve recent OHLC bars using HybridProvider.
+    
+    Automatically handles fallback chain: MT5 → Cache → Synthetic.
+    
+    Args:
+        symbol: Asset symbol (e.g., "WDO$")
+        timeframe: Timeframe string (e.g., "M5", "H1")
+        limit: Number of candles to retrieve
+        
+    Returns:
+        DataFrame with OHLCV data, timezone-aware index
+    """
+    try:
+        df = data_provider.get_latest_candles(symbol, timeframe, limit)
+        if df.empty:
+            logger.warning(f"Provider returned empty DataFrame for {symbol} {timeframe}")
         return df
     except Exception as exc:
-        logger.warning(f"Falha ao carregar cache {latest}: {exc}")
-        return None
-
-
-def _fetch_mt5(symbol: str, timeframe: str, limit: int) -> pd.DataFrame | None:
-    """Fetch data via MetaTraderProvider if available and connected."""
-    if MetaTraderProvider is None or mt5 is None:
-        return None
-    timeframe_const = MT5_TIMEFRAME_MAP.get(timeframe.upper())
-    if timeframe_const is None:
-        return None
-    try:
-        provider = MetaTraderProvider()
-        if not provider.is_connected():
-            return None
-        df = provider.get_latest_candles(symbol.replace('$',''), timeframe_const, limit)
-        if df is None or df.empty:
-            return None
-        return df.tail(limit)
-    except Exception as exc:
-        logger.warning(f"MT5 fetch falhou: {exc}")
-        return None
-
-
-def get_recent_ohlc(symbol: str = SYMBOL, timeframe: str = TIMEFRAME_STR, limit: int = LIMIT) -> pd.DataFrame:
-    """Retrieve recent OHLC bars using provider, cache or synthetic fallback."""
-    # Try MT5
-    df = _fetch_mt5(symbol, timeframe, limit)
-    if df is not None:
-        return df
-    # Try cache
-    cached = _load_cached(limit)
-    if cached is not None:
-        logger.info("Usando dados de cache para OHLC demonstrativo.")
-        return cached
-    # Synthetic
-    logger.info("Usando dados sintéticos (fallback) para OHLC demonstrativo.")
-    return _generate_synthetic(limit)
+        logger.error(f"Error fetching OHLC data: {exc}")
+        # Return empty DataFrame on error
+        return pd.DataFrame()
 
 
 @router.get('/api/ohlc', response_class=JSONResponse)
-async def api_ohlc(symbol: str = SYMBOL, timeframe: str = TIMEFRAME_STR, limit: int = LIMIT) -> Dict[str, Any]:
-    """Return OHLC data in JSON format for chart rendering."""
-    if limit <= 0 or limit > 5000:
-        raise HTTPException(status_code=400, detail='limit fora do intervalo permitido')
-    df = get_recent_ohlc(symbol, timeframe, limit)
+async def api_ohlc(
+    symbol: str = DEFAULT_SYMBOL,
+    timeframe: str = DEFAULT_TIMEFRAME,
+    limit: int = DEFAULT_LIMIT,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Return OHLC data in JSON format for chart rendering.
+    
+    Tries database first, falls back to provider if no data or insufficient records.
+    Saves fetched data to database for future queries.
+    
+    Args:
+        symbol: Asset symbol (default: WDO$)
+        timeframe: Timeframe string (default: M5)
+        limit: Number of candles (default: 500, max: 5000)
+        db: Database session (injected)
+        
+    Returns:
+        JSON response with OHLCV data and metadata
+        
+    Raises:
+        HTTPException: If limit is out of valid range
+    """
+    if limit <= 0 or limit > MAX_LIMIT:
+        raise HTTPException(
+            status_code=400,
+            detail=f'limit deve estar entre 1 e {MAX_LIMIT}'
+        )
+    
+    # Try database first
+    df = OHLCVRepository.get_latest_candles(db, symbol, timeframe, limit)
+    source = "Database"
+    
+    # Fallback to provider if insufficient data
+    if df.empty or len(df) < limit:
+        logger.info(f"Database has {len(df)} candles, fetching from provider...")
+        df = get_recent_ohlc(symbol, timeframe, limit)
+        source = "Provider"
+        
+        # Save to database
+        if not df.empty:
+            try:
+                OHLCVRepository.save_dataframe(db, df, symbol, timeframe)
+                logger.info(f"Saved {len(df)} candles to database")
+            except Exception as e:
+                logger.error(f"Failed to save to database: {e}")
+    
     records: List[Dict[str, Any]] = []
     for ts, row in df.iterrows():
         records.append({
@@ -161,17 +183,226 @@ async def api_ohlc(symbol: str = SYMBOL, timeframe: str = TIMEFRAME_STR, limit: 
             'volume': int(row['volume']) if 'volume' in row and not pd.isna(row['volume']) else 0
         })
     latest = records[-1] if records else None
-    return {'symbol': symbol, 'timeframe': timeframe, 'count': len(records), 'latest': latest, 'data': records}
+    return {
+        'symbol': symbol,
+        'timeframe': timeframe,
+        'count': len(records),
+        'latest': latest,
+        'data': records,
+        'source': source  # Indicate data source
+    }
+
+
+@router.get('/api/analysis', response_class=JSONResponse)
+async def api_analysis(
+    symbol: str = DEFAULT_SYMBOL,
+    timeframe: str = DEFAULT_TIMEFRAME,
+    limit: int = DEFAULT_LIMIT,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Return technical analysis of market context.
+    
+    Provides comprehensive technical analysis including:
+    - Trend direction and strength
+    - RSI condition (overbought/oversold/neutral)
+    - Support and resistance levels
+    - Price action patterns
+    - Moving averages
+    
+    Args:
+        symbol: Asset symbol (default: WDO$)
+        timeframe: Timeframe string (default: M5)
+        limit: Number of candles for analysis (default: 500)
+        
+    Returns:
+        JSON response with technical analysis data
+        
+    Raises:
+        HTTPException: If limit is out of valid range or no data available
+    """
+    if limit <= 0 or limit > MAX_LIMIT:
+        raise HTTPException(
+            status_code=400,
+            detail=f'limit deve estar entre 1 e {MAX_LIMIT}'
+        )
+    
+    # Get OHLC data (will use database when available)
+    df = OHLCVRepository.get_latest_candles(db, symbol, timeframe, limit)
+    
+    if df.empty or len(df) < limit:
+        # Fallback to provider
+        df = get_recent_ohlc(symbol, timeframe, limit)
+        
+        # Save to database
+        if not df.empty:
+            try:
+                OHLCVRepository.save_dataframe(db, df, symbol, timeframe)
+            except Exception as e:
+                logger.error(f"Failed to save to database: {e}")
+    
+    if df.empty:
+        raise HTTPException(
+            status_code=503,
+            detail='Dados de mercado não disponíveis no momento'
+        )
+    
+    # Perform technical analysis
+    try:
+        context = market_analyzer.analyze(df)
+        
+        # Save analysis to database
+        timestamp = df.index[-1]
+        try:
+            MarketAnalysisRepository.save_analysis(
+                db, symbol, timeframe, timestamp, context, len(df)
+            )
+        except Exception as e:
+            logger.error(f"Failed to save analysis to database: {e}")
+        
+        # Add metadata
+        response = {
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'candles_analyzed': len(df),
+            'timestamp': timestamp.isoformat(),
+            'analysis': context
+        }
+        
+        return response
+    
+    except Exception as exc:
+        logger.error(f"Error analyzing market: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail=f'Erro na análise técnica: {str(exc)}'
+        )
+
+
+@router.get('/api/combined', response_class=JSONResponse)
+async def api_combined(
+    symbol: str = DEFAULT_SYMBOL,
+    timeframe: str = DEFAULT_TIMEFRAME,
+    limit: int = DEFAULT_LIMIT
+) -> Dict[str, Any]:
+    """Return combined OHLC data and technical analysis.
+    
+    Convenience endpoint that combines /api/ohlc and /api/analysis
+    responses into a single request, reducing client-side calls.
+    
+    Args:
+        symbol: Asset symbol (default: WDO$)
+        timeframe: Timeframe string (default: M5)
+        limit: Number of candles (default: 500)
+        
+    Returns:
+        JSON response with both OHLC data and technical analysis
+        
+    Raises:
+        HTTPException: If limit is out of valid range or no data available
+    """
+    if limit <= 0 or limit > MAX_LIMIT:
+        raise HTTPException(
+            status_code=400,
+            detail=f'limit deve estar entre 1 e {MAX_LIMIT}'
+        )
+    
+    # Get OHLC data
+    df = get_recent_ohlc(symbol, timeframe, limit)
+    
+    if df.empty:
+        raise HTTPException(
+            status_code=503,
+            detail='Dados de mercado não disponíveis no momento'
+        )
+    
+    # Build OHLC records
+    records: List[Dict[str, Any]] = []
+    for ts, row in df.iterrows():
+        records.append({
+            'time': ts.isoformat(),
+            'open': float(row['open']),
+            'high': float(row['high']),
+            'low': float(row['low']),
+            'close': float(row['close']),
+            'volume': int(row['volume']) if 'volume' in row and not pd.isna(row['volume']) else 0
+        })
+    
+    # Perform technical analysis
+    try:
+        context = market_analyzer.analyze(df)
+        
+        # Combined response
+        response = {
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'count': len(records),
+            'timestamp': df.index[-1].isoformat() if not df.empty else None,
+            'latest': records[-1] if records else None,
+            'ohlc': records,
+            'analysis': context
+        }
+        
+        return response
+    
+    except Exception as exc:
+        logger.error(f"Error in combined endpoint: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail=f'Erro ao processar dados: {str(exc)}'
+        )
 
 
 @router.get('/', response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
-    """Serve main dashboard HTML page."""
-    return templates.TemplateResponse('index.html', {'request': request, 'symbol': SYMBOL, 'timeframe': TIMEFRAME_STR, 'limit': LIMIT})
+    """Serve main dashboard HTML page with embedded Bokeh chart.
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        Rendered HTML template with Bokeh chart components
+    """
+    import time
+    
+    # Fetch OHLC data
+    df = get_recent_ohlc(DEFAULT_SYMBOL, DEFAULT_TIMEFRAME, DEFAULT_LIMIT)
+    
+    # Convert to list of dicts for Bokeh
+    ohlc_data = []
+    for ts, row in df.iterrows():
+        ohlc_data.append({
+            'time': ts.isoformat(),
+            'open': float(row['open']),
+            'high': float(row['high']),
+            'low': float(row['low']),
+            'close': float(row['close']),
+            'volume': int(row['volume']) if 'volume' in row and not pd.isna(row['volume']) else 0
+        })
+    
+    # Generate Bokeh chart components
+    script, div = create_dashboard_chart(ohlc_data)
+    
+    return templates.TemplateResponse('index.html', {
+        'request': request,
+        'symbol': DEFAULT_SYMBOL,
+        'timeframe': DEFAULT_TIMEFRAME,
+        'limit': DEFAULT_LIMIT,
+        'version': int(time.time()),
+        'bokeh_script': script,
+        'bokeh_div': div
+    })
 
 
 app.include_router(router)
 
+
 if __name__ == '__main__':  # Dev convenience
     import uvicorn
-    uvicorn.run('newapp.main:app', host='0.0.0.0', port=8100, reload=True)
+    from newapp.configs.config import HOST, PORT, RELOAD
+    
+    uvicorn.run(
+        'newapp.main:app',
+        host=HOST,
+        port=PORT,
+        reload=RELOAD
+    )

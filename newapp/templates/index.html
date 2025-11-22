@@ -2,27 +2,73 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>WTNPS Trade - Demo WDO$</title>
+  <title>WTNPS Trade - Dashboard WDO$</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="/static/css/style.css" />
-  <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <link rel="stylesheet" href="/static/css/style.css?v={{ version }}" />
+  <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-3.8.1.min.css">
+  <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.8.1.min.js"></script>
 </head>
 <body>
   <header>
-    <h1>WTNPS Trade - Demonstrativo WDO$ ({{ timeframe }})</h1>
-    <div id="latest" class="latest-box">Carregando último candle...</div>
+    <div class="header-content">
+      <h1>🚀 WTNPS Trade - Dashboard WDO$</h1>
+      <div class="header-info">
+        <span class="timeframe-badge">{{ timeframe }}</span>
+        <span class="candles-badge">{{ limit }} candles</span>
+      </div>
+    </div>
   </header>
+  
   <main>
-    <section>
+    <!-- Latest Candle Info -->
+    <section class="info-section">
+      <div id="latest" class="latest-box">
+        <div class="loading-spinner">Carregando dados...</div>
+      </div>
+    </section>
+
+    <!-- Technical Analysis Panel -->
+    <section class="analysis-section">
+      <h2>📊 Análise Técnica</h2>
+      <div id="analysis" class="analysis-grid">
+        <div class="loading-spinner">Carregando análise...</div>
+      </div>
+    </section>
+
+    <!-- Bokeh Chart -->
+    <section class="chart-section">
+      <h2>📈 Gráfico de Candlestick + Volume</h2>
+      {{ bokeh_div | safe }}
+    </section>
+  </main>
+
+  <!-- Embed Bokeh Script -->
+  {{ bokeh_script | safe }}
+  
+  <!-- App Logic (fetch latest candle + analysis) -->
+  <script src="/static/js/app.js?v={{ version }}"></script>
+</body>
+</html>
+    <section class="chart-section">
+      <h2>📈 Gráfico de Candlestick</h2>
       <div id="chart" class="chart-container"></div>
     </section>
   </main>
+  
   <footer>
-    <small>&copy; 2025 WTNPS Trade Demo</small>
+    <small>&copy; 2025 WTNPS Trade | Powered by FastAPI + Plotly.js</small>
   </footer>
+  
   <script>
-    window.DEMO_CONFIG = {symbol: '{{ symbol }}', timeframe: '{{ timeframe }}', limit: {{ limit }} };
+    window.DEMO_CONFIG = {
+      symbol: '{{ symbol }}',
+      timeframe: '{{ timeframe }}',
+      limit: {{ limit }}
+    };
   </script>
-  <script src="/static/js/app.js"></script>
+  <script src="/static/js/app.js?v={{ version }}"></script>
 </body>
 </html>
