@@ -25,8 +25,8 @@ class MarketContextAnalyzer:
     Attributes:
         ema_fast (int): Período da EMA rápida para tendência
         sma_fast (int): Período da SMA rápida para tendência
-        sma_slow (int): Período da SMA lenta para tendência
-        sma_lookback (int): Períodos para calcular inclinação da SMA lenta
+        sma_slow (int): Período da SMA lenta para tendência 
+        sma_lookback (int): Períodos para calcular inclinação da SMA lenta       
         rsi_period (int): Período do RSI
         lookback_levels (int): Períodos para calcular suporte/resistência
         strong_candle_threshold (float): % do range para candle forte
@@ -37,6 +37,7 @@ class MarketContextAnalyzer:
         ema_fast: int = 9,
         sma_fast: int = 20,
         sma_slow: int = 50,
+        sma_lookback: int = 25,
         rsi_period: int = 14,
         lookback_levels: int = 30,
         strong_candle_threshold: float = 0.65
@@ -48,6 +49,7 @@ class MarketContextAnalyzer:
             ema_fast: Período da EMA rápida (padrão: 9)
             sma_fast: Período da SMA rápida (padrão: 20)    
             sma_slow: Período da SMA lenta (padrão: 50)
+            sma_lookback: Períodos para inclinação da SMA lenta (padrão: 25)
             rsi_period: Período do RSI (padrão: 14)
             lookback_levels: Períodos para níveis de suporte/resistência (padrão: 20)
             strong_candle_threshold: % mínimo do corpo para candle forte (padrão: 0.7)
@@ -55,13 +57,14 @@ class MarketContextAnalyzer:
         self.ema_fast = ema_fast
         self.sma_fast = sma_fast
         self.sma_slow = sma_slow
+        self.sma_lookback = sma_lookback
         self.rsi_period = rsi_period
         self.lookback_levels = lookback_levels
         self.strong_candle_threshold = strong_candle_threshold
         
         logger.info(
             f"MarketContextAnalyzer inicializado: EMA{ema_fast}, SMA_FAST{sma_fast}, "
-            f"SMA_SLOW{sma_slow}, RSI{rsi_period}, LEVELS={lookback_levels}"
+            f"SMA_SLOW{sma_slow}, SLOPE_LOOKBACK{sma_lookback}, RSI{rsi_period}, LEVELS={lookback_levels}"
         )
     
     def analyze(self, df: pd.DataFrame) -> Dict:
@@ -84,6 +87,7 @@ class MarketContextAnalyzer:
                 'distance_to_resistance': float,  # % de distância
                 'pattern': str,  # 'BARRA_FORTE_ALTA', 'BARRA_FORTE_BAIXA', 'REJEICAO_ALTA', 'REJEICAO_BAIXA', 'NEUTRO'
                 'ema_fast': float,
+                ,'sma_fast': float,
                 'sma_slow': float,
                 'current_price': float
             }
@@ -201,7 +205,7 @@ class MarketContextAnalyzer:
         close = last['close']
         
         # Verifica cruzamento de médias
-        ema_above_sma = ema_fast > sma_slow
+        ema_above_sma = ema_fast > sma_fast
         price_above_ema = close > ema_fast
         
         # Calcula inclinação da SMA lenta usando janela configurável
