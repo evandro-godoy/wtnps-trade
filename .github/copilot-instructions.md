@@ -3,6 +3,9 @@
 ## Project Overview
 WTNPS Trade is a modular Python framework for algorithmic trading with ML/DRL strategies and MetaTrader 5 integration. The architecture is config-driven, supports both supervised learning (LSTM, RandomForest) and Deep Reinforcement Learning (DDQN), and provides dual execution engines for simulation and live trading.
 
+**Tech Stack:** Python 3.12+, Poetry, MetaTrader5, TensorFlow/Keras, scikit-learn, pandas/numpy
+**Key Directories:** `src/` (active code), `configs/` (YAML config), `models/` (trained artifacts), `notebooks/` (analysis), `archive/` (deprecated - **ignore for examples**)
+
 ## Architecture Philosophy
 
 ### 1. Config-Driven Everything
@@ -79,47 +82,74 @@ Trained models saved with naming: `<TICKER>_<STRATEGY>_prod_<type>.<ext>`
 
 ## Developer Workflows
 
-### Setup
+### Environment Setup
 ```powershell
 poetry install
 ```
+**First-time setup:** Ensure MetaTrader 5 terminal is installed and running before data operations.
 
 ### Training Models
 
-**Supervised (LSTM/RF):**
+**Supervised Learning (LSTM/RandomForest):**
 ```powershell
 poetry run python train_model.py
 ```
-Reads `configs/main.yaml`, trains each enabled asset, saves models to `global_settings.model_directory`. Generates HTML reports in `reports/models/`.
+- Reads `configs/main.yaml`, processes each enabled asset
+- Downloads data via `MetaTraderProvider` or `YFinanceProvider` (auto-cached in `.cache_data/`)
+- Saves models to `global_settings.model_directory` with naming: `<TICKER>_<STRATEGY>_<TIMEFRAME>_prod_<type>.<ext>`
+- Generates HTML/JSON reports in `reports/models/` with metrics, confusion matrices, feature stats
 
-**Deep RL (DDQN):**
+**Deep Reinforcement Learning (DDQN):**
 ```powershell
 poetry run python train_drl_model.py
 ```
-Prompts for ticker, loads DRLStrategy config, trains DDQN agent in `TradingEnv`, saves `.keras` model. See `DRL_README.md` for details.
+- Interactive prompt for ticker selection
+- Trains DDQN agent in `TradingEnv` (see `DRL_README.md`)
+- Saves `.keras` model: `<TICKER>_DRLStrategy_prod_drl.keras`
+- Outputs episode rewards to console for monitoring convergence
 
-### Execution
+### Execution Modes
 
-**Live trading:**
+**Live Trading (Real-time):**
 ```powershell
 poetry run python src/live_trader.py
 ```
+- Monitors new candles, executes AI+Setup decision logic
+- Modes (in `configs/main.yaml`): `suggest` (logs only) or `execute` (sends MT5 orders)
+- Uses `ticker_order` for live trades (e.g., "WDOX25"), `ticker` for data (e.g., "WDO$")
+- Thread-based: Init in background, main loop monitors candle closes
 
-**Simulation (single cycle):**
+**GUI Dashboards:**
+```powershell
+# Monitor with real-time alerts (live or replay mode)
+poetry run python run_monitor_gui.py --mode live
+poetry run python run_monitor_gui.py --mode replay --ticker WDO$ --date 2025-11-20 --speed 2.0
+
+# LiveTrader testing dashboard
+poetry run python src/gui/live_trader_dashboard.py
+
+# Simulation engine testing
+poetry run python src/gui/dashboard.py
+```
+
+**Simulation (Point-in-time analysis):**
 ```powershell
 poetry run python src/simulation/engine.py
 ```
+- Entry point: `SimulationEngine.run_simulation_cycle(asset_symbol, timeframe_str, target_datetime_local)`
+- Returns dict: `{ai_signal, setup_valid, final_decision, price, stop, take, indicators}`
+- Used by notebooks (see `notebooks/simulation/`) and dashboards
 
 **Backtesting:**
 ```powershell
 poetry run python src/backtest_engine/backtest_lstm_volatility.py
 ```
-Configured via `assets[].backtesting` in `main.yaml`. Generates JSON/TXT/HTML reports in `reports/backtest/`.
-
-**Notebooks:** See `notebooks/simulation/` for interactive examples (e.g., `engine_simulation_single_cycle.ipynb`, `drl_inference_example.ipynb`)
+- Configured via `assets[].backtesting` in `main.yaml`
+- Simulates trades with Stop Loss/Take Profit tracking
+- Generates JSON/TXT/HTML reports in `reports/backtest/`
 
 ### Testing
-Tests live in `archive/tests/` (note: not actively maintained). Run with `pytest`:
+Tests in `archive/tests/` (not actively maintained). Run with:
 ```powershell
 poetry run pytest
 ```
@@ -144,14 +174,34 @@ AI signals are **always uppercase Portuguese:**
 - `"HOLD"`: No action (post-setup filter)
 
 ### Caching
-`.cache_data/` (auto-created) stores Parquet files: `<ticker>_<timeframe>_<start>_<end>.parquet`
+`.cache_data/` (auto-created) stores Parquet files: `<provider>_<ticker>_<timeframe>_<start>_<end>.parquet`
 
-Providers check cache before hitting API. Delete cache files to force re-download.
+**Examples:**
+- `MT5_WDO_M5_20220101_20251119.parquet` (MetaTrader5 data)
+- `YF_AAPL_1d_2022-01-01_2025-11-01.parquet` (Yahoo Finance)
+
+Providers check cache before API calls. Delete cache files to force fresh download. Chunking handles large date ranges (183-day chunks for MT5).
 
 ### Logging
 All modules use `logging` with format: `%(asctime)s - %(levelname)s - [%(name)s] %(message)s`
 
-Includes module name for traceability. File handlers added per-model in `train_model.py`.
+Includes module name for traceability. File handlers added per-model in `train_model.py`. Log levels:
+- `INFO`: Normal operations, model training progress
+- `WARNING`: Invalid timeframes, missing features (logged once)
+- `ERROR`: Provider failures, model loading errors
+- `CRITICAL`: Config not found, MT5 initialization failure
+
+### GUI Architecture
+All dashboards built with **tkinter**, follow thread separation pattern:
+- **Main thread:** GUI rendering (responsive)
+- **Background thread:** Engine/LiveTrader operations (blocking I/O)
+- **Communication:** `queue.Queue` for thread-safe data passing
+
+**Key files:**
+- `src/gui/monitor_ui.py`: Real-time monitor with live/replay modes
+- `src/gui/live_trader_dashboard.py`: LiveTrader testing interface
+- `src/gui/dashboard.py`: SimulationEngine testing
+- `src/gui/chart_widget.py`: Reusable candlestick chart component (mplfinance)
 
 ### Code Organization
 - **Active code:** `src/`, `train_model.py`, `train_drl_model.py`, `configs/`, `notebooks/`
@@ -178,14 +228,39 @@ Includes module name for traceability. File handlers added per-model in `train_m
 2. **Inherit from BaseStrategy:**
    ```python
    from src.strategies.base import BaseStrategy
+   import pandas as pd
+   
    class MyStrategy(BaseStrategy):
-       def define_features(self, data):
-           # Add indicators to DataFrame
-           return data
-       def get_feature_names(self):
-           return ['close', 'sma_20', 'rsi_14']
-       # Implement define_target(), define_model(), save(), load()
+       def define_features(self, data: pd.DataFrame) -> pd.DataFrame:
+           """Add technical indicators to DataFrame."""
+           data['sma_20'] = data['close'].rolling(window=20).mean()
+           data['rsi_14'] = self._calculate_rsi(data['close'], 14)
+           return data.dropna()
+       
+       def define_target(self, data: pd.DataFrame) -> pd.Series:
+           """Define binary classification target."""
+           # Example: predict if next close > current close
+           return (data['close'].shift(-1) > data['close']).astype(int)
+       
+       def get_feature_names(self) -> list[str]:
+           return ['close', 'sma_20', 'rsi_14', 'volume']
+       
+       def define_model(self):
+           """Return sklearn-compatible model wrapper."""
+           from sklearn.ensemble import RandomForestClassifier
+           return RandomForestClassifier(n_estimators=100)
+       
+       def save(self, model, model_path_prefix: str):
+           """Delegate to model wrapper's save method."""
+           model.save(model_path_prefix)
+       
+       @classmethod
+       def load(cls, model_path_prefix: str):
+           """Load trained model from disk."""
+           import joblib
+           return joblib.load(f"{model_path_prefix}_model.joblib")
    ```
+
 3. **Add to config:** In `configs/main.yaml` under `assets[].strategies[]`:
    ```yaml
    - name: "MyStrategy"
@@ -196,10 +271,12 @@ Includes module name for traceability. File handlers added per-model in `train_m
        end_date: "2025-11-01"
        timeframe_model: "H1"
      strategy_params:
-       param1: value1
+       lookback: 50
+       feature_threshold: 0.7
    ```
-4. **Train:** `poetry run python train_model.py`
-5. **Test:** Use `SimulationEngine` or notebooks
+
+4. **Train:** `poetry run python train_model.py` (processes all enabled assets)
+5. **Test:** Use `SimulationEngine` in notebook or `run_monitor_gui.py` for live validation
 
 ## Troubleshooting
 
