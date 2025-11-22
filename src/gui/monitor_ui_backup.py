@@ -20,7 +20,6 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.live.monitor_engine import RealTimeMonitor
-from src.live.replay_engine import ReplayEngine
 
 # Configuração do logging
 logging.basicConfig(
@@ -296,79 +295,66 @@ class MonitorApp:
             width=2
         )
     
-    def _build_chart_area(self, parent):
-        """
-        Constrói área do gráfico de candlestick.
-        
-        Args:
-            parent: PanedWindow pai
-        """
-        try:
-            from src.gui.chart_widget import CandlestickChartWidget
-            
-            chart_frame = ttk.LabelFrame(parent, text="Gráfico de Candles", padding="5")
-            
-            self.chart_widget = CandlestickChartWidget(
-                chart_frame,
-                max_candles=200
-            )
-            self.chart_widget.pack(fill=tk.BOTH, expand=True)
-            
-            parent.add(chart_frame, weight=1)
-            
-            logger.info("Área de gráfico construída")
-        except Exception as e:
-            logger.error(f"Erro ao construir chart widget: {e}", exc_info=True)
-            # Continua sem chart se houver erro
-            pass
-    
     def _build_logs_area(self, parent):
         """
-        Constrói área de logs/alertas com Notebook (tabs).
+        Constrói área de logs/alertas com dois Treeviews:
+        - Grid ML (principal): datetime, type, price, prob, message
+        - Grid Análise (oculto): trend, rsi, ema9, sma20, sma50
         
-        Tab 1: Sinais ML (datetime, type, price, prob, message)
-        Tab 2: Análise Técnica (datetime, trend, rsi, ema9, sma20, sma50)
+        Botão Ver Buffer e Toggle Análise no header.
         """
-        logs_frame = ttk.LabelFrame(parent, text="Logs e Alertas", padding="5")
+        logs_frame = ttk.LabelFrame(parent, text="Logs e Alertas", padding="10")
+        logs_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
         
-        # Botões de ação (topo)
-        btn_frame = ttk.Frame(logs_frame)
-        btn_frame.pack(fill=tk.X, pady=(0, 5))
+        # Configura grid
+        logs_frame.columnconfigure(0, weight=1)  # Grid ML
+        logs_frame.columnconfigure(1, weight=0)  # Grid Análise (oculto)
+        logs_frame.rowconfigure(1, weight=1)     # Treeviews
         
-        ttk.Button(btn_frame, text="🗑 Limpar Logs", command=self._clear_logs, width=12).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="📊 Ver Buffer", command=self._show_buffer_window, width=12).pack(side=tk.LEFT, padx=5)
+        # === HEADER DOS GRIDS ===
+        header_controls = ttk.Frame(logs_frame)
+        header_controls.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 5))
         
-        # Notebook com 2 tabs
-        notebook = ttk.Notebook(logs_frame)
-        notebook.pack(fill=tk.BOTH, expand=True)
+        # Botão Toggle Análise (à esquerda)
+        self.toggle_analysis_btn = ttk.Button(
+            header_controls,
+            text="▶ Exibir Análise Técnica",
+            command=self._toggle_analysis_grid,
+            width=22
+        )
+        self.toggle_analysis_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        # Tab 1: Sinais ML
-        self._build_ml_signals_tab(notebook)
+        # Botão Ver Buffer (à direita, ícone only)
+        self.buffer_btn = ttk.Button(
+            header_controls,
+            text="📊",
+            command=self._show_buffer_window,
+            width=3
+        )
+        self.buffer_btn.pack(side=tk.RIGHT)
         
-        # Tab 2: Análise Técnica
-        self._build_technical_tab(notebook)
+        # Botão Limpar Logs (à direita)
+        clear_btn = ttk.Button(
+            header_controls,
+            text="🗑 Limpar",
+            command=self._clear_logs,
+            width=10
+        )
+        clear_btn.pack(side=tk.RIGHT, padx=(0, 5))
         
-        # Adiciona ao PanedWindow
-        parent.add(logs_frame, weight=1)
-    
-    def _build_ml_signals_tab(self, notebook):
-        """Constrói tab de sinais ML."""
-        tab = ttk.Frame(notebook)
-        notebook.add(tab, text="Sinais ML")
+        # === GRID ML (PRINCIPAL) ===
+        ml_container = ttk.Frame(logs_frame)
+        ml_container.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5))
+        ml_container.columnconfigure(0, weight=1)
+        ml_container.rowconfigure(0, weight=1)
         
-        # Container com scrollbars
-        container = ttk.Frame(tab)
-        container.pack(fill=tk.BOTH, expand=True)
-        container.columnconfigure(0, weight=1)
-        container.rowconfigure(0, weight=1)
+        # Scrollbars ML
+        ml_vsb = ttk.Scrollbar(ml_container, orient="vertical")
+        ml_hsb = ttk.Scrollbar(ml_container, orient="horizontal")
         
-        # Scrollbars
-        ml_vsb = ttk.Scrollbar(container, orient="vertical")
-        ml_hsb = ttk.Scrollbar(container, orient="horizontal")
-        
-        # Treeview
+        # Treeview ML
         self.logs_tree = ttk.Treeview(
-            container,
+            ml_container,
             columns=('datetime', 'type', 'price', 'probability', 'message'),
             show='headings',
             yscrollcommand=ml_vsb.set,
@@ -379,11 +365,11 @@ class MonitorApp:
         ml_vsb.config(command=self.logs_tree.yview)
         ml_hsb.config(command=self.logs_tree.xview)
         
-        self.logs_tree.grid(row=0, column=0, sticky='nsew')
-        ml_vsb.grid(row=0, column=1, sticky='ns')
-        ml_hsb.grid(row=1, column=0, sticky='ew')
+        self.logs_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        ml_vsb.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        ml_hsb.grid(row=1, column=0, sticky=(tk.W, tk.E))
         
-        # Configura colunas
+        # Configura colunas ML
         self.logs_tree.heading('datetime', text='Data/Hora (UTC)')
         self.logs_tree.heading('type', text='Tipo')
         self.logs_tree.heading('price', text='Preço')
@@ -396,44 +382,39 @@ class MonitorApp:
         self.logs_tree.column('probability', width=100, anchor=tk.E)
         self.logs_tree.column('message', width=500, anchor=tk.W)
         
-        # Tags
+        # Tags ML
         self.logs_tree.tag_configure('ALERT', background='#fff3cd', foreground='#856404')
         self.logs_tree.tag_configure('INFO', background='#d1ecf1', foreground='#0c5460')
         self.logs_tree.tag_configure('TICK', background='#ffffff', foreground='#6c757d')
-    
-    def _build_technical_tab(self, notebook):
-        """Constrói tab de análise técnica."""
-        tab = ttk.Frame(notebook)
-        notebook.add(tab, text="Análise Técnica")
         
-        # Container com scrollbars
-        container = ttk.Frame(tab)
-        container.pack(fill=tk.BOTH, expand=True)
-        container.columnconfigure(0, weight=1)
-        container.rowconfigure(0, weight=1)
+        # === GRID ANÁLISE (OCULTO INICIALMENTE) ===
+        self.analysis_container = ttk.Frame(logs_frame)
+        # Não faz grid inicialmente (oculto)
+        self.analysis_container.columnconfigure(0, weight=1)
+        self.analysis_container.rowconfigure(0, weight=1)
         
-        # Scrollbars
-        tech_vsb = ttk.Scrollbar(container, orient="vertical")
-        tech_hsb = ttk.Scrollbar(container, orient="horizontal")
+        # Scrollbars Análise
+        analysis_vsb = ttk.Scrollbar(self.analysis_container, orient="vertical")
+        analysis_hsb = ttk.Scrollbar(self.analysis_container, orient="horizontal")
         
-        # Treeview
+        # Treeview Análise
         self.analysis_tree = ttk.Treeview(
-            container,
+            self.analysis_container,
             columns=('datetime', 'trend', 'rsi', 'ema9', 'sma20', 'sma50'),
             show='headings',
-            yscrollcommand=tech_vsb.set,
-            xscrollcommand=tech_hsb.set,
+            yscrollcommand=analysis_vsb.set,
+            xscrollcommand=analysis_hsb.set,
             style='Monitor.Treeview'
         )
         
-        tech_vsb.config(command=self.analysis_tree.yview)
-        tech_hsb.config(command=self.analysis_tree.xview)
+        analysis_vsb.config(command=self.analysis_tree.yview)
+        analysis_hsb.config(command=self.analysis_tree.xview)
         
-        self.analysis_tree.grid(row=0, column=0, sticky='nsew')
-        tech_vsb.grid(row=0, column=1, sticky='ns')
-        tech_hsb.grid(row=1, column=0, sticky='ew')
+        self.analysis_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        analysis_vsb.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        analysis_hsb.grid(row=1, column=0, sticky=(tk.W, tk.E))
         
-        # Configura colunas
+        # Configura colunas Análise
         self.analysis_tree.heading('datetime', text='Data/Hora (UTC)')
         self.analysis_tree.heading('trend', text='Tendência')
         self.analysis_tree.heading('rsi', text='RSI')
@@ -448,14 +429,25 @@ class MonitorApp:
         self.analysis_tree.column('sma20', width=100, anchor=tk.E)
         self.analysis_tree.column('sma50', width=100, anchor=tk.E)
         
-        # Tags
+        # Tags Análise
         self.analysis_tree.tag_configure('ALERT', background='#fff3cd')
         self.analysis_tree.tag_configure('INFO', background='#d1ecf1')
         self.analysis_tree.tag_configure('TICK', background='#ffffff')
     
     def _toggle_analysis_grid(self):
-        """Método obsoleto - mantido para compatibilidade."""
-        pass
+        """
+        Alterna visibilidade do grid de análise técnica.
+        """
+        if self.analysis_grid_visible:
+            # Ocultar grid de análise
+            self.analysis_container.grid_remove()
+            self.toggle_analysis_btn.config(text="▶ Exibir Análise Técnica")
+            self.analysis_grid_visible = False
+        else:
+            # Exibir grid de análise
+            self.analysis_container.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+            self.toggle_analysis_btn.config(text="◀ Ocultar Análise Técnica")
+            self.analysis_grid_visible = True
     
     def _toggle_monitor(self):
         """
@@ -471,9 +463,9 @@ class MonitorApp:
             self._stop_monitor()
     
     def _start_monitor(self):
-        """Inicia o monitor em thread separada (Live ou Replay conforme modo)."""
+        """Inicia o monitor em thread separada."""
         try:
-            logger.info(f"Iniciando monitor em modo {self.mode.upper()}...")
+            logger.info("Iniciando monitor...")
             
             # Atualiza UI
             self.is_running = True
@@ -484,41 +476,15 @@ class MonitorApp:
             # Atualiza semáforo para verde
             self.status_canvas.itemconfig(self.status_indicator, fill='#28a745')
             
-            # Cria instância do monitor conforme o modo
-            if self.mode == 'live':
-                # Modo Live - usa RealTimeMonitor
-                self.monitor = RealTimeMonitor(
-                    ticker=self.ticker,
-                    timeframe_str=self.timeframe,
-                    threshold_alert=self.threshold_alert,
-                    threshold_log=self.threshold_log,
-                    buffer_size=self.buffer_size,
-                    ui_callback=self._on_monitor_update
-                )
-            else:
-                # Modo Replay - usa ReplayEngine
-                from datetime import datetime, timedelta
-                
-                start_date = self.replay_config.get('start_date', '2025-11-20')
-                start_time = self.replay_config.get('start_time', '09:00')
-                speed = self.replay_config.get('speed', 1.0)
-                
-                # Calcula end_date (1 dia após start)
-                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-                end_dt = start_dt + timedelta(days=1)
-                
-                self.monitor = ReplayEngine(
-                    ticker=self.ticker,
-                    start_date=start_date,
-                    end_date=end_dt.strftime('%Y-%m-%d'),
-                    start_time=start_time,
-                    timeframe_str=self.timeframe,
-                    buffer_size=self.buffer_size,
-                    speed_multiplier=speed,
-                    config_path="configs/main.yaml",
-                    ui_callback=self._on_monitor_update,
-                    progress_callback=self._on_replay_progress
-                )
+            # Cria instância do monitor com callback
+            self.monitor = RealTimeMonitor(
+                ticker=self.ticker,
+                timeframe_str=self.timeframe,
+                threshold_alert=self.threshold_alert,
+                threshold_log=self.threshold_log,
+                buffer_size=self.buffer_size,
+                ui_callback=self._on_monitor_update
+            )
             
             # Inicia monitor em thread separada
             self.monitor_thread = threading.Thread(
@@ -536,13 +502,6 @@ class MonitorApp:
                 f"Falha ao iniciar monitor:\n{str(e)}\n\nVerifique se o MT5 está aberto e logado."
             )
             self._reset_ui_state()
-    
-    def _on_replay_progress(self, current: int, total: int):
-        """Callback de progresso do replay (se houver progressbar)."""
-        # Por enquanto apenas loga, pode ser expandido com progressbar no futuro
-        if total > 0 and current % 50 == 0:
-            progress_pct = (current / total) * 100
-            logger.info(f"Progresso do replay: {progress_pct:.1f}% ({current}/{total})")
     
     def _run_monitor(self):
         """Executa o loop do monitor (roda em thread separada)."""
@@ -746,47 +705,17 @@ class MonitorApp:
             # Auto-scroll para o topo (mostra evento mais recente)
             if children:
                 self.logs_tree.see(children[0])
-            
-            # === ATUALIZA GRÁFICO DE CANDLESTICK ===
-            if self.chart_widget:
-                try:
-                    # Monta dict de candle para o chart
-                    candle_dict = {
-                        'time': timestamp,
-                        'open': data.get('open', price),
-                        'high': data.get('high', price),
-                        'low': data.get('low', price),
-                        'close': price,
-                        'volume': data.get('volume', 0)
-                    }
-                    self.chart_widget.add_candle(candle_dict)
-                    
-                    # Atualiza indicadores se disponíveis
-                    self.chart_widget.update_indicators(
-                        ema9=data.get('ema_20', data.get('ema_fast')),
-                        sma20=data.get('sma_20', data.get('sma_fast')),
-                        sma50=data.get('sma_50', data.get('sma_slow')),
-                        support=data.get('support'),
-                        resistance=data.get('resistance')
-                    )
-                except Exception as chart_error:
-                    logger.warning(f"Erro ao atualizar gráfico: {chart_error}")
         
         except Exception as e:
             logger.error(f"Erro ao processar atualização: {e}", exc_info=True)
     
     def _clear_logs(self):
-        """Limpa todos os logs de ambos os Treeviews e o gráfico."""
+        """Limpa todos os logs de ambos os Treeviews."""
         for item in self.logs_tree.get_children():
             self.logs_tree.delete(item)
         for item in self.analysis_tree.get_children():
             self.analysis_tree.delete(item)
-        
-        # Limpa gráfico também
-        if self.chart_widget:
-            self.chart_widget.clear()
-        
-        logger.info("Logs e gráfico limpos")
+        logger.info("Logs limpos")
     
     def _show_buffer_window(self):
         """Abre janela modal para exibir o buffer de dados."""
@@ -918,16 +847,10 @@ class MonitorApp:
             self.root.destroy()
 
 
-def main(mode='live', replay_config=None):
-    """
-    Função principal para executar a GUI.
-    
-    Args:
-        mode: 'live' ou 'replay'
-        replay_config: dict com configurações de replay
-    """
+def main():
+    """Função principal para executar a GUI."""
     root = tk.Tk()
-    app = MonitorApp(root, mode=mode, replay_config=replay_config)
+    app = MonitorApp(root)
     app.run()
 
 
