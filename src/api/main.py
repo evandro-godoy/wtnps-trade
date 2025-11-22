@@ -12,7 +12,8 @@ logging via the existing logger utility.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, APIRouter
 from fastapi.responses import JSONResponse
@@ -20,7 +21,16 @@ from pydantic import BaseModel, Field, ValidationError
 
 from src.utils.logger import logger
 
-app: FastAPI = FastAPI(title="WTNPS Trade API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manage application lifecycle events."""
+    logger.info("FastAPI application startup complete")
+    yield
+    logger.info("FastAPI application shutdown complete")
+
+
+app: FastAPI = FastAPI(title="WTNPS Trade API", version="0.1.0", lifespan=lifespan)
 api_router: APIRouter = APIRouter()
 
 class HealthStatus(BaseModel):
@@ -114,15 +124,6 @@ app.include_router(api_router)
 async def root() -> Dict[str, str]:
     """Root endpoint simple description."""
     return {"message": "WTNPS Trade API running", "version": app.version}
-
-# Application lifecycle events
-@app.on_event("startup")
-async def on_startup() -> None:
-    logger.info("FastAPI application startup complete")
-
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
-    logger.info("FastAPI application shutdown complete")
 
 if __name__ == "__main__":  # Manual launch convenience
     import uvicorn
