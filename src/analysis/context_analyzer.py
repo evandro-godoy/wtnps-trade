@@ -24,7 +24,9 @@ class MarketContextAnalyzer:
     
     Attributes:
         ema_fast (int): Período da EMA rápida para tendência
+        sma_fast (int): Período da SMA rápida para tendência
         sma_slow (int): Período da SMA lenta para tendência
+        sma_lookback (int): Períodos para calcular inclinação da SMA lenta
         rsi_period (int): Período do RSI
         lookback_levels (int): Períodos para calcular suporte/resistência
         strong_candle_threshold (float): % do range para candle forte
@@ -35,7 +37,6 @@ class MarketContextAnalyzer:
         ema_fast: int = 9,
         sma_fast: int = 20,
         sma_slow: int = 50,
-        sma_lookback: int = 200,
         rsi_period: int = 14,
         lookback_levels: int = 30,
         strong_candle_threshold: float = 0.65
@@ -54,14 +55,13 @@ class MarketContextAnalyzer:
         self.ema_fast = ema_fast
         self.sma_fast = sma_fast
         self.sma_slow = sma_slow
-        self.sma_lookback = sma_lookback
         self.rsi_period = rsi_period
         self.lookback_levels = lookback_levels
         self.strong_candle_threshold = strong_candle_threshold
         
         logger.info(
             f"MarketContextAnalyzer inicializado: EMA{ema_fast}, SMA_FAST{sma_fast}, "
-            f"SMA_SLOW{sma_slow}, SLOPE_LOOKBACK={sma_lookback}, RSI{rsi_period}, LEVELS={lookback_levels}"
+            f"SMA_SLOW{sma_slow}, RSI{rsi_period}, LEVELS={lookback_levels}"
         )
     
     def analyze(self, df: pd.DataFrame) -> Dict:
@@ -196,6 +196,7 @@ class MarketContextAnalyzer:
         prev = df.iloc[-2] if len(df) > 1 else last
         
         ema_fast = last['ema_fast']
+        sma_fast = last['sma_fast']
         sma_slow = last['sma_slow']
         close = last['close']
         

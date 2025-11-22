@@ -38,6 +38,7 @@ from src.analysis.context_analyzer import MarketContextAnalyzer
 
 analyzer = MarketContextAnalyzer(
     ema_fast=9,          # Período da EMA rápida
+    sma_fast=20          # Período da SMA rápida
     sma_slow=50,         # Período da SMA lenta
     rsi_period=14,       # Período do RSI
     lookback_levels=20,  # Períodos para suporte/resistência
