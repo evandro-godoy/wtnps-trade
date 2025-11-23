@@ -17,9 +17,245 @@ from newapp.src.database.models import (
     TechnicalIndicators,
     MarketAnalysis,
     DataProviderLog,
+    AssetsRates
 )
 
 logger = logging.getLogger(__name__)
+
+class AssetsRatesRepository:
+    """Repository for AssetsRates data operations."""
+    
+    @staticmethod
+    def save_rates_dataframe(
+        db: Session,
+        df: pd.DataFrame,
+        symbol: str,
+        timeframe: int
+    ) -> int:
+        """Save DataFrame with rates data to database.
+        
+        Args:
+            db: Database session
+            df: DataFrame with columns: time, open, high, low, close, tick_volume, volume, spread
+            symbol: Asset symbol (e.g., "WDO$")
+            timeframe: Timeframe integer (e.g., 5 for M5)
+            
+        Returns:
+            Number of records inserted/updated
+        """
+        count = 0
+        
+        for timestamp, row in df.iterrows():
+            # Check if record exists
+            existing = db.query(AssetsRates).filter(
+                and_(
+                    AssetsRates.symbol == symbol,
+                    AssetsRates.timeframe == timeframe,
+                    AssetsRates.timestamp == timestamp
+                )
+            ).first()
+            
+            if existing:
+                # Update existing record
+                existing.open = float(row['open'])
+                existing.high = float(row['high'])
+                existing.low = float(row['low'])
+                existing.close = float(row['close'])
+                existing.tick_volume = int(row['tick_volume']) if 'tick_volume' in row else 0
+                existing.volume = int(row['volume']) if 'volume' in row else 0
+                existing.spread = int(row['spread']) if 'spread' in row else 0
+                existing.support_level = bool(row['support_level']) if 'support_level' in row else False
+                existing.resistance_level = bool(row['resistance_level']) if 'resistance_level' in row else False
+                existing.ema_9 = float(row['ema_9']) if 'ema_9' in row else 0.0
+                existing.sma_20 = float(row['sma_20']) if 'sma_20' in row else 0.0
+                existing.sma_50 = float(row['sma_50']) if 'sma_50' in row else 0.0
+                existing.sma_200 = float(row['sma_200']) if 'sma_200' in row else 0.0
+                existing.updated_at = datetime.utcnow()
+            else:
+                # Insert new record
+                rates = AssetsRates(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    timestamp=timestamp,
+                    open=float(row['open']),
+                    high=float(row['high']),
+                    low=float(row['low']),
+                    close=float(row['close']),
+                    tick_volume=int(row['tick_volume']) if 'tick_volume' in row else 0,
+                    volume=int(row['volume']) if 'volume' in row else 0,
+                    spread=int(row['spread']) if 'spread' in row else 0,
+                    support_level=bool(row['support_level']) if 'support_level' in row else False,
+                    resistance_level=bool(row['resistance_level']) if 'resistance_level' in row else False,
+                    ema_9=float(row['ema_9']) if 'ema_9' in row else 0.0,
+                    sma_20=float(row['sma_20']) if 'sma_20' in row else 0.0,  
+                    sma_50=float(row['sma_50']) if 'sma_50' in row else 0.0,  
+                    sma_200=float(row['sma_200']) if 'sma_200' in row else 0.0,        
+                )
+                db.add(rates)
+            
+            count += 1
+        
+        db.commit()
+        logger.info(f"Saved {count} AssetsRates records for {symbol} {timeframe}")
+        return count
+
+    @staticmethod
+    def get_all_rates(
+        db: Session,
+        symbol: str,
+        timeframe: int
+    ) -> pd.DataFrame:
+        """Retrieve candles within date range.
+        
+        Args:
+            db: Database session
+            symbol: Asset symbol
+            timeframe: Timeframe integer
+            
+        Returns:
+            DataFrame with OHLCV data
+        """
+        records = (
+            db.query(AssetsRates)
+            .filter(
+                and_(
+                    AssetsRates.symbol == symbol,
+                    AssetsRates.timeframe == timeframe
+                )
+            )
+            .order_by(AssetsRates.timestamp)
+            .all()
+        )
+        
+        if not records:
+            return pd.DataFrame()
+        
+        data = []
+        for record in records:
+            data.append({
+                'time': record.timestamp,
+                'open': record.open,
+                'high': record.high,
+                'low': record.low,
+                'close': record.close,
+                'tick_volume': record.tick_volume,
+                'volume': record.volume,
+                'spread': record.spread,
+                'support_level': record.support_level,
+                'resistance_level': record.resistance_level,
+                'ema_9': record.ema_9,
+                'sma_20': record.sma_20,
+                'sma_50': record.sma_50,
+                'sma_200': record.sma_200,                
+            })
+        
+        df = pd.DataFrame(data)
+        df.set_index('time', inplace=True)
+        return df        
+
+    @staticmethod
+    def get_rates_range(
+        db: Session,
+        symbol: str,
+        timeframe: int,
+        start_date: datetime,
+        end_date: datetime
+    ) -> pd.DataFrame:
+        """Retrieve candles within date range.
+        
+        Args:
+            db: Database session
+            symbol: Asset symbol
+            timeframe: Timeframe integer
+            start_date: Start datetime
+            end_date: End datetime
+            
+        Returns:
+            DataFrame with OHLCV data
+        """
+        records = (
+            db.query(AssetsRates)
+            .filter(
+                and_(
+                    AssetsRates.symbol == symbol,
+                    AssetsRates.timeframe == timeframe,
+                    AssetsRates.timestamp >= start_date,
+                    AssetsRates.timestamp <= end_date
+                )
+            )
+            .order_by(AssetsRates.timestamp)
+            .all()
+        )
+        
+        if not records:
+            return pd.DataFrame()
+        
+        data = []
+        for record in records:
+            data.append({
+                'time': record.timestamp,
+                'open': record.open,
+                'high': record.high,
+                'low': record.low,
+                'close': record.close,
+                'volume': record.volume,
+            })
+        
+        df = pd.DataFrame(data)
+        df.set_index('time', inplace=True)
+        return df        
+
+    @staticmethod
+    def get_rates_indicators_range(
+        db: Session,
+        symbol: str,
+        timeframe: int,
+        start_date: datetime,
+        end_date: datetime
+    ) -> pd.DataFrame:
+        """Retrieve candles within date range.
+        
+        Args:
+            db: Database session
+            symbol: Asset symbol
+            timeframe: Timeframe integer
+            start_date: Start datetime
+            end_date: End datetime
+            
+        Returns:
+            DataFrame with OHLCV data
+        """
+        records = (
+            db.query(AssetsRates)
+            .filter(
+                and_(
+                    AssetsRates.symbol == symbol,
+                    AssetsRates.timeframe == timeframe,
+                    AssetsRates.timestamp >= start_date,
+                    AssetsRates.timestamp <= end_date
+                )
+            )
+            .order_by(AssetsRates.timestamp)
+            .all()
+        )
+        
+        if not records:
+            return pd.DataFrame()
+        
+        data = []
+        for record in records:
+            data.append({
+                'time': record.timestamp,
+                'close': record.close,
+                'ema_9': record.ema_9,
+                'sma_20': record.sma_20,
+                'sma_50': record.sma_50,
+                'sma_200': record.sma_200,
+            })
+        
+        df = pd.DataFrame(data)
+        df.set_index('time', inplace=True)
+        return df     
 
 
 class OHLCVRepository:
@@ -186,6 +422,8 @@ class OHLCVRepository:
         df = pd.DataFrame(data)
         df.set_index('time', inplace=True)
         return df
+
+
 
 
 class MarketAnalysisRepository:
@@ -359,3 +597,102 @@ class DataProviderLogRepository:
         db.refresh(log_entry)
         
         return log_entry
+
+    @staticmethod
+    def update_indicators_with_analyzer(
+        db: Session,
+        symbol: str,
+        timeframe: int,
+        analyzer: Optional[Any] = None
+    ) -> int:
+        """Calculate and update technical indicators using MarketContextAnalyzer.
+        
+        Retrieves all rates for the symbol/timeframe, calculates indicators using
+        MarketContextAnalyzer, and updates the database with computed values.
+        
+        Args:
+            db: Database session
+            symbol: Asset symbol (e.g., "WDO$")
+            timeframe: Timeframe integer (e.g., 5 for M5)
+            analyzer: Optional MarketContextAnalyzer instance (creates default if None)
+            
+        Returns:
+            Number of records updated
+            
+        Example:
+            >>> from newapp.src.analysis.context_analyzer import MarketContextAnalyzer
+            >>> analyzer = MarketContextAnalyzer(ema_fast=9, sma_fast=20, sma_slow=50)
+            >>> count = AssetsRatesRepository.update_indicators_with_analyzer(
+            ...     db, "WDO$", 5, analyzer
+            ... )
+            >>> print(f"Updated {count} records with technical indicators")
+        """
+        from newapp.src.analysis.context_analyzer import MarketContextAnalyzer
+        
+        # Create default analyzer if not provided
+        if analyzer is None:
+            analyzer = MarketContextAnalyzer(
+                ema_fast=9,
+                sma_fast=20,
+                sma_slow=50,
+                sma_lookback=25,
+                rsi_period=14,
+                lookback_levels=30
+            )
+        
+        # Get all rates for this symbol/timeframe
+        df = AssetsRatesRepository.get_all_rates(db, symbol, timeframe)
+        
+        if df.empty:
+            logger.warning(f"No rates found for {symbol} timeframe={timeframe}")
+            return 0
+        
+        # Calculate indicators using the analyzer's internal method
+        df_with_indicators = analyzer._calculate_indicators(df)
+        
+        # Also calculate support/resistance for each candle (using rolling window)
+        lookback = analyzer.lookback_levels
+        
+        # Rolling support (min low in window)
+        df_with_indicators['support'] = df_with_indicators['low'].rolling(
+            window=lookback, min_periods=1
+        ).min()
+        
+        # Rolling resistance (max high in window)
+        df_with_indicators['resistance'] = df_with_indicators['high'].rolling(
+            window=lookback, min_periods=1
+        ).max()
+        
+        # Mark support/resistance levels (when price touches the level)
+        df_with_indicators['support_level'] = (
+            df_with_indicators['low'] <= df_with_indicators['support'] * 1.001
+        )
+        df_with_indicators['resistance_level'] = (
+            df_with_indicators['high'] >= df_with_indicators['resistance'] * 0.999
+        )
+        
+        # Update database records
+        count = 0
+        for timestamp, row in df_with_indicators.iterrows():
+            # Find existing record
+            record = db.query(AssetsRates).filter(
+                and_(
+                    AssetsRates.symbol == symbol,
+                    AssetsRates.timeframe == timeframe,
+                    AssetsRates.timestamp == timestamp
+                )
+            ).first()
+            
+            if record:
+                # Update indicators (use .get() to handle NaN values)
+                record.ema_9 = float(row.get('ema_fast', 0.0)) if pd.notna(row.get('ema_fast')) else None
+                record.sma_20 = float(row.get('sma_fast', 0.0)) if pd.notna(row.get('sma_fast')) else None
+                record.sma_50 = float(row.get('sma_slow', 0.0)) if pd.notna(row.get('sma_slow')) else None
+                record.support_level = bool(row.get('support_level', False))
+                record.resistance_level = bool(row.get('resistance_level', False))
+                record.updated_at = datetime.utcnow()
+                count += 1
+        
+        db.commit()
+        logger.info(f"Updated {count} AssetsRates records with technical indicators for {symbol} TF={timeframe}")
+        return count
