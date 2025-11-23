@@ -50,15 +50,8 @@ class BaseDataProvider(ABC):
     """Abstract base class for data providers."""
 
     @abstractmethod
-    def get_data(
-        self,
-        ticker: str,
-        start_date: str,
-        end_date: str,
-        timeframe: Any
-    ) -> pd.DataFrame:
+    def get_data(self, ticker: str, start_date: str, end_date: str, timeframe) -> pd.DataFrame:
         """Fetch historical market data.
-
         Args:
             ticker: Asset symbol
             start_date: Start date (YYYY-MM-DD format)
@@ -101,6 +94,12 @@ class BaseDataProvider(ABC):
         """
         return True
 
+class DataBaseProvider(BaseDataProvider):
+    """Base data provider with common utilities."""
+
+    def __init__(self) -> None:
+        """Initialize base provider."""
+        pass
 
 class MetaTraderProvider(BaseDataProvider):
     """MetaTrader 5 data provider with connection pooling.
@@ -683,6 +682,7 @@ class HybridProvider(BaseDataProvider):
         self.mt5_provider = MetaTraderProvider() if MT5_AVAILABLE else None
         self.cache_provider = CacheProvider()
         self.synthetic_provider = SyntheticProvider()
+        self.database_provider = DataBaseProvider()
 
         self._initialized = True
         logger.info("HybridProvider initialized with fallback chain: MT5 → Cache → Synthetic")

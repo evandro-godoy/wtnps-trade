@@ -15,6 +15,48 @@ from sqlalchemy.orm import relationship
 
 from newapp.src.database.db import Base
 
+class AssetsRates(Base):
+    """Rates candlestick data table.
+    
+    Stores Open, High, Low, Close, Volume, Indicators data for various symbols and timeframes.
+    """
+    __tablename__ = 'assets_rates'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True)
+    timeframe = Column(Integer, nullable=False, index=True)
+    timeframe_str = Column(String(20), nullable=True, index=True)
+    
+    
+    open = Column(Float, nullable=True)
+    high = Column(Float, nullable=True)
+    low = Column(Float, nullable=True)
+    close = Column(Float, nullable=True)
+    tick_volume = Column(Integer, nullable=True)
+    volume = Column(Integer, nullable=True)
+    spread = Column(Integer, nullable=True)
+
+
+    support_level = Column(Boolean, default=False, nullable=True)
+    resistance_level = Column(Boolean, default=False, nullable=True)
+
+    ema_9 = Column(Float, nullable=True)
+    sma_20 = Column(Float, nullable=True)
+    sma_50 = Column(Float, nullable=True)
+    sma_200 = Column(Float, nullable=True)
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Composite unique constraint
+    __table_args__ = (
+        Index('idx_symbol_timestamp_timeframe', 'symbol', 'timestamp', 'timeframe', unique=True),
+    )
+    
+    def __repr__(self):
+        return f"<AssetsRates(symbol={self.symbol}, timestamp={self.timestamp}, timeframe={self.timeframe}, close={self.close})>"
 
 class OHLCVData(Base):
     """OHLCV candlestick data table.

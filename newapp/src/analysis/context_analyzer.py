@@ -63,7 +63,8 @@ class MarketContextAnalyzer:
         
         logger.info(
             f"MarketContextAnalyzer initialized: EMA{ema_fast}, SMA_FAST{sma_fast}, "
-            f"SMA_SLOW{sma_slow}, SLOPE_LOOKBACK{sma_lookback}, RSI{rsi_period}, LEVELS={lookback_levels}"
+            f"SMA_SLOW{sma_slow}, SLOPE_LOOKBACK{sma_lookback}, RSI{rsi_period}, "
+            f"LEVELS_LOOKBACK{lookback_levels}, STRONG_CANDLE_THRESH{strong_candle_threshold}"
         )
     
     def analyze(self, df: pd.DataFrame) -> Dict:
@@ -207,7 +208,8 @@ class MarketContextAnalyzer:
         close = last['close']
         
         # Check moving average crossover
-        ema_above_sma = ema_fast > sma_fast
+        ema_above_smas = ema_fast > sma_fast and ema_fast > sma_slow
+        ema_bellow_smas = ema_fast < sma_fast and ema_fast < sma_slow
         price_above_ema = close > ema_fast
         
         # Calculate slow SMA slope using configurable window
@@ -224,9 +226,9 @@ class MarketContextAnalyzer:
             sma_slope = 0
         
         # Determine trend
-        if ema_above_sma and price_above_ema:
+        if ema_above_smas and price_above_ema:
             trend = 'ALTA'
-        elif not ema_above_sma and not price_above_ema:
+        elif ema_bellow_smas and not price_above_ema:
             trend = 'BAIXA'
         else:
             trend = 'LATERAL'
