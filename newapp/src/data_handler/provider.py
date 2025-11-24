@@ -682,7 +682,8 @@ class HybridProvider(BaseDataProvider):
         self.mt5_provider = MetaTraderProvider() if MT5_AVAILABLE else None
         self.cache_provider = CacheProvider()
         self.synthetic_provider = SyntheticProvider()
-        self.database_provider = DataBaseProvider()
+        # Note: database_provider removed - not needed for HybridProvider fallback chain
+        # Database access is handled directly via repositories in API routes
 
         self._initialized = True
         logger.info("HybridProvider initialized with fallback chain: MT5 → Cache → Synthetic")

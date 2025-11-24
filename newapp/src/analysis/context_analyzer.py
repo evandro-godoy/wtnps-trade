@@ -26,6 +26,7 @@ class MarketContextAnalyzer:
         ema_fast: Fast EMA period for trend analysis
         sma_fast: Fast SMA period for trend analysis
         sma_slow: Slow SMA period for trend analysis
+        sma_vslow: Very slow SMA period (not used in current analysis)
         sma_lookback: Periods to calculate slow SMA slope
         rsi_period: RSI calculation period
         lookback_levels: Periods for support/resistance calculation
@@ -37,7 +38,8 @@ class MarketContextAnalyzer:
         ema_fast: int = 9,
         sma_fast: int = 20,
         sma_slow: int = 50,
-        sma_lookback: int = 25,
+        sma_vslow: int = 200,
+        sma_lookback: int = 20,
         rsi_period: int = 14,
         lookback_levels: int = 30,
         strong_candle_threshold: float = 0.65
@@ -48,6 +50,7 @@ class MarketContextAnalyzer:
             ema_fast: Fast EMA period (default: 9)
             sma_fast: Fast SMA period (default: 20)
             sma_slow: Slow SMA period (default: 50)
+            sma_vslow: Very slow SMA period (default: 200)
             sma_lookback: Periods for slow SMA slope (default: 25)
             rsi_period: RSI period (default: 14)
             lookback_levels: Periods for support/resistance (default: 30)
@@ -56,6 +59,7 @@ class MarketContextAnalyzer:
         self.ema_fast = ema_fast
         self.sma_fast = sma_fast
         self.sma_slow = sma_slow
+        self.sma_vslow = sma_vslow
         self.sma_lookback = sma_lookback
         self.rsi_period = rsi_period
         self.lookback_levels = lookback_levels
@@ -63,7 +67,7 @@ class MarketContextAnalyzer:
         
         logger.info(
             f"MarketContextAnalyzer initialized: EMA{ema_fast}, SMA_FAST{sma_fast}, "
-            f"SMA_SLOW{sma_slow}, SLOPE_LOOKBACK{sma_lookback}, RSI{rsi_period}, "
+            f"SMA_SLOW{sma_slow}, SMA_VSLOW{sma_vslow}, SLOPE_LOOKBACK{sma_lookback}, RSI{rsi_period}, "
             f"LEVELS_LOOKBACK{lookback_levels}, STRONG_CANDLE_THRESH{strong_candle_threshold}"
         )
     
@@ -88,6 +92,7 @@ class MarketContextAnalyzer:
                 'ema_fast': float,
                 'sma_fast': float,
                 'sma_slow': float,
+                'sma_vslow': float,
                 'current_price': float
             }
         """
@@ -137,6 +142,7 @@ class MarketContextAnalyzer:
                 'ema_fast': round(last['ema_fast'], 2),
                 'sma_fast': round(last.get('sma_fast', np.nan), 2),
                 'sma_slow': round(last['sma_slow'], 2),
+                'sma_vslow': round(last.get('sma_vslow', np.nan), 2),
                 'current_price': round(current_price, 2)
             }
             
@@ -156,38 +162,24 @@ class MarketContextAnalyzer:
         Returns:
             DataFrame with added indicator columns
         """
+        from newapp.src.utils.indicators import calculate_ema, calculate_sma, calculate_rsi
+        
         # Fast EMA
-        df['ema_fast'] = df['close'].ewm(span=self.ema_fast, adjust=False).mean()
+        df['ema_fast'] = calculate_ema(df['close'], span=self.ema_fast, adjust=False)
         
         # Fast SMA
-        df['sma_fast'] = df['close'].rolling(window=self.sma_fast).mean()
+        df['sma_fast'] = calculate_sma(df['close'], window=self.sma_fast)
         
         # Slow SMA
-        df['sma_slow'] = df['close'].rolling(window=self.sma_slow).mean()
+        df['sma_slow'] = calculate_sma(df['close'], window=self.sma_slow)
+
+        # Very Slow SMA
+        df['sma_vslow'] = calculate_sma(df['close'], window=self.sma_vslow)
         
         # RSI
-        df['rsi'] = self._calculate_rsi(df['close'], self.rsi_period)
+        df['rsi'] = calculate_rsi(df['close'], period=self.rsi_period)
         
         return df
-    
-    def _calculate_rsi(self, series: pd.Series, period: int) -> pd.Series:
-        """Calculate Relative Strength Index (RSI).
-        
-        Args:
-            series: Price close series
-            period: RSI period
-        
-        Returns:
-            Series with RSI values
-        """
-        delta = series.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-        
-        rs = gain / loss
-        rsi = 100 - (100 / (1 + rs))
-        
-        return rsi
     
     def _analyze_trend(self, df: pd.DataFrame) -> Tuple[str, str]:
         """Analyze trend using moving average crossover and slope.
@@ -366,6 +358,7 @@ class MarketContextAnalyzer:
             'ema_fast': 0.0,
             'sma_fast': 0.0,
             'sma_slow': 0.0,
+            'sma_vslow': 0.0,
             'current_price': 0.0
         }
     

@@ -1,77 +1,77 @@
-<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="" readonly="0" foreign_keys="" case_sensitive_like="" temp_store="" wal_autocheckpoint="" synchronous=""/><attached/><window><main_tabs open="structure browser pragmas query" current="0"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="2923"/><column_width id="4" width="0"/></tab_structure><tab_browse><table title="." custom_title="0" dock_id="2" table="0,0:"/><dock_state state="000000ff00000000fd0000000100000002000005ab00000387fc0100000002fb000000160064006f0063006b00420072006f00770073006500310100000000000005ab0000000000000000fb000000160064006f0063006b00420072006f00770073006500320100000000ffffffff0000012400ffffff000002d10000000000000004000000040000000800000008fc00000000"/><default_encoding codec=""/><browse_table_settings/></tab_browse><tab_sql><sql name="SQL 1*">/*
-create table assets (
-	id int not null,
-	symbol varchar(20) not null,
-	currency varchar(10) not null,
-	price_variation int not null,
-	type_variation varchar(20) not null,
-	value_variation float not null,
-	enable boolean not null default true,
-	PRIMARY KEY (id)
-)
-
-insert into assets values (1, 'WDO$', 'R$', 0.5, 'tick', 5.00, true) 
-
-CREATE TABLE &quot;WDO$_M5_202204271625_202511211825&quot; (
-	&quot;&lt;DATE&gt;&quot;	TEXT,
-	&quot;&lt;TIME&gt;&quot;	TEXT,
-	&quot;&lt;OPEN&gt;&quot;	REAL,
-	&quot;&lt;HIGH&gt;&quot;	REAL,
-	&quot;&lt;LOW&gt;&quot;	REAL,
-	&quot;&lt;CLOSE&gt;&quot;	REAL,
-	&quot;&lt;TICKVOL&gt;&quot;	INTEGER,
-	&quot;&lt;VOL&gt;&quot;	INTEGER,
-	&quot;&lt;SPREAD&gt;&quot;	INTEGER
-)
-
-CREATE TABLE assets_rates (
-	id INTEGER NOT NULL, 
-	symbol VARCHAR(20) NOT NULL, 
-	timestamp DATETIME NOT NULL, 
-	timeframe int NOT NULL, 
-	timeframe_str varchar(20),
-	open float,
-	high float,
-	low float,
-	close float,
-	tick_volume INTEGER,
-	volume INTEGER,
-	spread INTEGER,
-	support_level boolean, 
-	resistance_level boolean, 
-	ema_9 FLOAT, 
-	sma_20 FLOAT, 
-	sma_50 FLOAT, 
-	sma_200 FLOAT,
-	created_at DATETIME NOT NULL, 
-	modify_at DATETIME,
-	PRIMARY KEY (id),
-	UNIQUE (symbol, timestamp, timeframe)
-)
-insert into assets_rates
-select ROWID as id, 
-	   'WDO$' as symbol,
-	   replace(&quot;&lt;DATE&gt;&quot;,'.','-') || ' ' || &quot;&lt;TIME&gt;&quot; as timestamp,  
-	   300 as timeframe,
-	   'M5' as timeframe_str,
-		cast(&quot;&lt;OPEN&gt;&quot; as float),
-		cast(&quot;&lt;HIGH&gt;&quot;as float),
-		cast(&quot;&lt;LOW&gt;&quot;as float),
-		cast(&quot;&lt;CLOSE&gt;&quot;as float),
-		&quot;&lt;TICKVOL&gt;&quot;,
-		&quot;&lt;VOL&gt;&quot;,
-		&quot;&lt;SPREAD&gt;&quot;,
-		false,
-		false,
-		0,
-		0,
-		0,
-		0,
-		datetime('now'),
-		null
-  from WDO$_M5_202204271625_202511211825
-order by 3 asc  
-*/
-
-
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="C:/projects/wtnps-trade/wtnps_trade.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="2923"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><table title="WDO$_M5_202204271625_202511211825" custom_title="0" dock_id="2" table="4,33:mainWDO$_M5_202204271625_202511211825"/><dock_state state="000000ff00000000fd00000001000000020000038100000256fc0100000002fb000000160064006f0063006b00420072006f00770073006500310100000000000005ab0000000000000000fb000000160064006f0063006b00420072006f00770073006500320100000000000003810000012400ffffff000003810000000000000004000000040000000800000008fc00000000"/><default_encoding codec=""/><browse_table_settings/></tab_browse><tab_sql><sql name="SQL 1">/*
+create table assets (
+	id int not null,
+	symbol varchar(20) not null,
+	currency varchar(10) not null,
+	price_variation int not null,
+	type_variation varchar(20) not null,
+	value_variation float not null,
+	enable boolean not null default true,
+	PRIMARY KEY (id)
+)
+
+insert into assets values (1, 'WDO$', 'R$', 0.5, 'tick', 5.00, true) 
+
+CREATE TABLE &quot;WDO$_M5_202204271625_202511211825&quot; (
+	&quot;&lt;DATE&gt;&quot;	TEXT,
+	&quot;&lt;TIME&gt;&quot;	TEXT,
+	&quot;&lt;OPEN&gt;&quot;	REAL,
+	&quot;&lt;HIGH&gt;&quot;	REAL,
+	&quot;&lt;LOW&gt;&quot;	REAL,
+	&quot;&lt;CLOSE&gt;&quot;	REAL,
+	&quot;&lt;TICKVOL&gt;&quot;	INTEGER,
+	&quot;&lt;VOL&gt;&quot;	INTEGER,
+	&quot;&lt;SPREAD&gt;&quot;	INTEGER
+)
+DROP TABLE assets_rates
+CREATE TABLE assets_rates (
+	id INTEGER NOT NULL, 
+	symbol VARCHAR(20) NOT NULL, 
+	timestamp DATETIME NOT NULL, 
+	timeframe int NOT NULL, 
+	timeframe_str varchar(20),
+	open float,
+	high float,
+	low float,
+	close float,
+	tick_volume INTEGER,
+	volume INTEGER,
+	spread INTEGER,
+	support_level boolean, 
+	resistance_level boolean, 
+	ema_9 FLOAT, 
+	sma_20 FLOAT, 
+	sma_50 FLOAT, 
+	sma_200 FLOAT,
+	created_at DATETIME NOT NULL, 
+	modify_at DATETIME,
+	PRIMARY KEY (id),
+	UNIQUE (symbol, timestamp, timeframe)
+)
+insert into assets_rates
+select ROWID as id, 
+	   'WDO$' as symbol,
+	   replace(&quot;&lt;DATE&gt;&quot;,'.','-') || ' ' || &quot;&lt;TIME&gt;&quot; as timestamp,  
+	   300 as timeframe,
+	   'M5' as timeframe_str,
+		cast(&quot;&lt;OPEN&gt;&quot; as float),
+		cast(&quot;&lt;HIGH&gt;&quot;as float),
+		cast(&quot;&lt;LOW&gt;&quot;as float),
+		cast(&quot;&lt;CLOSE&gt;&quot;as float),
+		&quot;&lt;TICKVOL&gt;&quot;,
+		&quot;&lt;VOL&gt;&quot;,
+		&quot;&lt;SPREAD&gt;&quot;,
+		false,
+		false,
+		0,
+		0,
+		0,
+		0,
+		datetime('now'),
+		null
+  from WDO$_M5_202204271625_202511211825
+order by 3 asc  
+*/
+
+
 </sql><current_tab id="0"/></tab_sql></sqlb_project>

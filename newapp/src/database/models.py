@@ -46,9 +46,8 @@ class AssetsRates(Base):
     sma_50 = Column(Float, nullable=True)
     sma_200 = Column(Float, nullable=True)
 
-    # Metadata
+    # Metadata (existing legacy schema contains only created_at)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Composite unique constraint
     __table_args__ = (
@@ -188,3 +187,68 @@ class DataProviderLog(Base):
     
     def __repr__(self):
         return f"<DataProviderLog(symbol={self.symbol}, provider={self.provider_type}, candles={self.candles_count})>"
+
+
+class BacktestRun(Base):
+    """Stores summary information for a backtest execution.
+
+    Aggregates performance metrics and references its trades.
+    """
+    __tablename__ = 'backtest_runs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    timeframe = Column(String(10), nullable=False, index=True)
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=False)
+    strategy = Column(String(50), nullable=True)
+    initial_capital = Column(Float, nullable=True)
+    final_capital = Column(Float, nullable=True)
+    net_profit = Column(Float, nullable=True)
+    total_trades = Column(Integer, nullable=True)
+    wins = Column(Integer, nullable=True)
+    losses = Column(Integer, nullable=True)
+    win_rate = Column(Float, nullable=True)
+    profit_factor = Column(Float, nullable=True)
+    max_drawdown = Column(Float, nullable=True)
+    avg_trade_return = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    trades = relationship('BacktestTrade', back_populates='run', cascade='all, delete-orphan')
+
+    def __repr__(self) -> str:
+        return (
+            f"<BacktestRun(symbol={self.symbol}, timeframe={self.timeframe}, "
+            f"period={self.start_date}..{self.end_date})>"
+        )
+
+
+class BacktestTrade(Base):
+    """Individual simulated trade for a backtest run."""
+    __tablename__ = 'backtest_trades'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_id = Column(Integer, ForeignKey('backtest_runs.id', ondelete='CASCADE'), nullable=False, index=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    timeframe = Column(String(10), nullable=False, index=True)
+    entry_time = Column(DateTime, nullable=False, index=True)
+    exit_time = Column(DateTime, nullable=True, index=True)
+    direction = Column(String(4), nullable=False)  # BUY / SELL
+    entry_price = Column(Float, nullable=False)
+    exit_price = Column(Float, nullable=True)
+    stop_loss = Column(Float, nullable=True)
+    take_profit = Column(Float, nullable=True)
+    volume = Column(Float, nullable=True)
+    return_pct = Column(Float, nullable=True)
+    pnl = Column(Float, nullable=True)
+    reason_exit = Column(String(50), nullable=True)  # STOP / TAKE / SIGNAL / END
+    indicators_snapshot = Column(Text, nullable=True)  # JSON serialized indicators for audit/debug
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    run = relationship('BacktestRun', back_populates='trades')
+
+    def __repr__(self) -> str:
+        return (
+            f"<BacktestTrade(symbol={self.symbol}, dir={self.direction}, "
+            f"entry={self.entry_time}, exit={self.exit_time})>"
+        )

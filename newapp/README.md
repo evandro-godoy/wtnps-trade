@@ -20,9 +20,20 @@ newapp/
 │   ├── analysis/
 │   │   ├── __init__.py
 │   │   └── context_analyzer.py # Technical analysis engine
-│   └── data_handler/
+│   ├── data_handler/
+│   │   ├── __init__.py
+│   │   ├── provider.py        # Data provider abstraction layer
+│   │   └── historical_reader.py # DB-first historical data reader
+│   ├── database/
+│   │   ├── __init__.py
+│   │   ├── db.py              # SQLAlchemy engine & session management
+│   │   ├── models.py          # ORM models (AssetsRates, etc.)
+│   │   ├── repository.py      # Data access layer with repositories
+│   │   ├── ingest_historical.py # Historical data ingestion script
+│   │   └── enrich_assets_rates_indicators.py # Indicator enrichment
+│   └── utils/
 │       ├── __init__.py
-│       └── provider.py        # Data provider abstraction layer
+│       └── indicators.py      # Centralized technical indicators
 ├── static/
 │   ├── css/
 │   │   └── style.css          # Application styles
@@ -222,6 +233,44 @@ Acesse: `http://localhost:8100`
 
 ## Integração com Sistema Existente
 
+### Módulo de Indicadores Centralizados (`src/utils/indicators.py`)
+
+**Novo desde v0.2.0** - Consolidação de cálculos técnicos duplicados.
+
+Todas as funções de cálculo de indicadores (EMA, SMA, RSI) foram centralizadas para:
+- ✅ Eliminar duplicação de código (~100 linhas)
+- ✅ Garantir consistência nos cálculos
+- ✅ Facilitar testes unitários
+- ✅ Permitir fácil adição de novos indicadores
+
+**Funções Disponíveis:**
+```python
+from newapp.src.utils.indicators import (
+    calculate_ema,      # EMA individual
+    calculate_sma,      # SMA individual
+    calculate_rsi,      # RSI individual
+    add_basic_indicators,           # Enriquecimento completo
+    enrich_indicators_from_close,   # Wrapper legado (EMA9, SMA20/50/200)
+    compute_indicator_dict,         # Retorna dict de Series
+)
+```
+
+**Uso nos Módulos:**
+- `ingest_historical.py` → Usa `enrich_indicators_from_close()`
+- `repository.py` → Usa `compute_indicator_dict()` para bulk updates
+- `context_analyzer.py` → Delega cálculos individuais mantendo lógica de análise
+- `enrich_assets_rates_indicators.py` → Usa `compute_indicator_dict()`
+
+**Exemplo:**
+```python
+import pandas as pd
+from newapp.src.utils.indicators import add_basic_indicators
+
+df = pd.DataFrame({'close': [100, 102, 101, 103, 105]})
+df = add_basic_indicators(df, ema_periods=[9], sma_periods=[20, 50, 200])
+# Adiciona colunas: ema_9, sma_20, sma_50, sma_200
+```
+
 ### Diferenças vs `src/data_handler/provider.py`
 
 | Aspecto | `src/` (Original) | `newapp/` (Novo) |
@@ -231,12 +280,14 @@ Acesse: `http://localhost:8100`
 | **Fallback** | Manual | Automático (HybridProvider) |
 | **Cloud Support** | Não (requer MT5) | Sim (Synthetic fallback) |
 | **Imports** | `import MetaTrader5` | Conditional import |
+| **Indicadores** | Duplicados em cada módulo | Centralizados em `utils/indicators.py` |
 
 ### Compatibilidade de Dados
 Ambos os sistemas:
 - Usam o mesmo diretório de cache (`.cache_data/`)
 - Formato Parquet compatível
 - Schema OHLCV idêntico
+- **Novidade:** Base histórica SQLite (`wtnps_trade.db`) para dados imutáveis
 - Timezone UTC
 
 **Compartilhamento de Cache:**

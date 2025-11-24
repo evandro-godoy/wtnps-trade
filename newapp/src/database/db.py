@@ -110,6 +110,18 @@ def get_engine() -> Engine:
             })
         
         _engine = create_engine(connection_string, **engine_args)
+
+        # SQLite pragmas to mitigate locking and improve write concurrency
+        if DB_BACKEND.lower() == 'sqlite':
+            @event.listens_for(_engine, 'connect')
+            def set_sqlite_pragmas(dbapi_connection, connection_record):  # type: ignore
+                cursor = dbapi_connection.cursor()
+                try:
+                    cursor.execute('PRAGMA journal_mode=WAL;')
+                    cursor.execute('PRAGMA synchronous=NORMAL;')
+                    cursor.execute('PRAGMA busy_timeout=5000;')
+                finally:
+                    cursor.close()
         
         # Test connection
         try:
