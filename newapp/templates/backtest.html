@@ -2,67 +2,108 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Backtest - NewApp</title>
+  <title>WTNPS Trade - Backtest</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/static/css/style.css?v={{ version }}" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
   <style>
-    .backtest-grid { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
-    .panel { background:#1e1f24; padding:16px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.4); }
-    .charts-flex { display:flex; flex-direction:column; gap:16px; }
-    #candlesChart, #equityChart { width:100%; height:340px; }
-    table { width:100%; border-collapse:collapse; font-size:12px; }
-    th, td { padding:4px 6px; border-bottom:1px solid #333; text-align:left; }
-    th { background:#2a2b30; position:sticky; top:0; }
-    .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-top:12px; }
-    .stat { background:#262830; padding:8px 10px; border-radius:6px; font-size:12px; }
-    .progress { font-size:12px; margin-top:8px; }
-    .badge-buy { color:#18c27a; font-weight:600; }
-    .badge-sell { color:#ff4d4f; font-weight:600; }
-    .tag { display:inline-block; padding:2px 6px; border-radius:4px; background:#34363d; margin-right:4px; }
+    .bt-layout { display:grid; grid-template-columns: 360px 1fr; gap:24px; align-items:start; }
+    .bt-panel { background:#182027; border:1px solid #242f38; border-radius:10px; padding:20px; }
+    .bt-panel h2 { margin:0 0 14px; font-size:16px; font-weight:600; color:#5ebcf3; display:flex; align-items:center; gap:8px; }
+    #candlesChart { width:100%; height:520px; }
+    .form-grid { display:flex; flex-direction:column; gap:10px; }
+    .form-grid label { font-size:12px; color:#a0aec0; font-weight:500; display:flex; flex-direction:column; gap:4px; }
+    .form-grid input { background:#1f2a33; border:1px solid #2b3945; color:#e0e3e6; padding:8px 10px; border-radius:6px; font-size:13px; width:100%; }
+    .form-actions { display:flex; gap:10px; margin-top:6px; }
+    .btn-primary { background:#5ebcf3; color:#0f1418; border:none; padding:10px 16px; border-radius:6px; cursor:pointer; font-weight:600; font-size:13px; }
+    .btn-primary:hover { background:#4aa8df; }
+    .progress { font-size:12px; margin-top:10px; color:#76838f; }
+    .activity-log { background:#182027; border:1px solid #242f38; border-radius:10px; padding:16px; max-height:300px; overflow-y:auto; }
+    .log-entry { background:#1f2a33; border-left:3px solid #5ebcf3; padding:10px 12px; margin-bottom:10px; font-size:12px; border-radius:4px; }
+    .log-entry.alert { border-left-color:#ff4d4d; background:rgba(255,77,77,0.08); }
+    .log-entry.info { border-left-color:#ffc107; background:rgba(255,193,7,0.08); }
+    .log-timestamp { font-size:10px; color:#76838f; margin-bottom:4px; }
+    .split-vert { display:flex; flex-direction:column; gap:20px; }
+    .inline-fields { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
   </style>
 </head>
-<body>
-  {% include 'sidebar.html' %}
+<body class="layout-with-sidebar">
+  <!-- Sidebar (shared layout) -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <h2 class="sidebar-logo"><i class="fas fa-chart-line"></i><span>WTNPS</span></h2>
+    </div>
+    <ul class="sidebar-menu">
+      <li class="menu-item"><a href="/home"><i class="fas fa-home"></i><span>Home</span></a></li>
+      <li class="menu-item"><a href="/charts"><i class="fas fa-chart-candlestick"></i><span>Gráficos</span></a></li>
+      <li class="menu-item"><a href="/monitor"><i class="fas fa-tv"></i><span>Monitor</span></a></li>
+      <li class="menu-item"><a href="/analysis"><i class="fas fa-brain"></i><span>Análise</span></a></li>
+      <li class="menu-item active"><a href="/backtest"><i class="fas fa-clock-rotate-left"></i><span>Backtest</span></a></li>
+      <li class="menu-item"><a href="/settings"><i class="fas fa-gear"></i><span>Configurações</span></a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <div class="user-info"><i class="fas fa-user-circle"></i><span>Trader Pro</span></div>
+      <div class="version-info">v{{ app_version }}</div>
+    </div>
+  </nav>
   <main class="main-content">
-    <h1>Backtest Streaming</h1>
-    <div class="backtest-grid">
-      <div class="panel">
-        <h2>Parâmetros</h2>
-        <form id="btForm">
-          <label>Ativo<br><input name="symbol" value="WDO$" /></label><br>
-          <label>Timeframe<br><input name="timeframe" value="M5" /></label><br>
-          <label>Início (ISO)<br><input name="start" placeholder="2025-10-01T09:00:00" /></label><br>
-          <label>Fim (ISO)<br><input name="end" placeholder="2025-11-01T18:00:00" /></label><br>
-          <label>Capital Inicial<br><input name="initial_capital" type="number" value="100000" /></label><br>
-          <label>Tamanho Posição<br><input name="position_size" type="number" value="1" step="0.1" /></label><br>
-          <label>Intervalo Updates (candles)<br><input name="update_interval" type="number" value="5" /></label><br>
-          <button type="submit" id="startBtn">Iniciar Backtest</button>
-        </form>
-        <div class="progress" id="progressInfo">Aguardando início...</div>
-        <div id="summary" class="stat-grid"></div>
+    <header class="page-header">
+      <h1><i class="fas fa-clock-rotate-left"></i> Backtest</h1>
+      <div class="header-actions">
+        <div class="connection-status disconnected" id="bt-status"><i class="fas fa-circle"></i><span>Desconectado</span></div>
       </div>
-      <div class="charts-flex">
-        <div class="panel">
-          <h2>Gráfico Candles</h2>
-          <div id="candlesChart"></div>
+    </header>
+    <div class="content-wrapper">
+      <section class="bt-layout">
+        <div class="bt-panel">
+          <h2><i class="fas fa-sliders"></i> Parâmetros</h2>
+          <form id="btForm" class="form-grid">
+            <div class="inline-fields">
+              <label>Ativo
+                <input name="symbol" value="WDO$" />
+              </label>
+              <label>Timeframe
+                <input name="timeframe" value="M5" />
+              </label>
+            </div>
+            <div class="inline-fields">
+              <label>Início (ISO)
+                <input name="start" value="{{ default_start }}" autocomplete="off" />
+              </label>
+              <label>Fim (ISO)
+                <input name="end" value="{{ default_end }}" autocomplete="off" />
+              </label>
+            </div>
+            <div class="inline-fields">
+              <label>Capital Inicial
+                <input name="initial_capital" type="number" value="100000" />
+              </label>
+              <label>Tamanho Posição
+                <input name="position_size" type="number" value="1" step="0.1" />
+              </label>
+            </div>
+            <label>Intervalo Updates (candles)
+              <input name="update_interval" type="number" value="5" />
+            </label>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary" id="startBtn"><i class="fas fa-play"></i> Iniciar</button>
+              <button type="button" class="btn-primary" id="stopBtn" disabled><i class="fas fa-stop"></i> Parar</button>
+            </div>
+            <div class="progress" id="progressInfo">Aguardando início...</div>
+          </form>
         </div>
-        <div class="panel">
-          <h2>Evolução do Equity</h2>
-          <div id="equityChart"></div>
+        <div class="split-vert">
+          <div class="bt-panel">
+            <h2><i class="fas fa-chart-candlestick"></i> Candles</h2>
+            <div id="candlesChart"></div>
+          </div>
+          <div class="bt-panel" style="min-height:260px;">
+            <h2><i class="fas fa-list"></i> Log de Atividades</h2>
+            <div id="activityLog" class="activity-log" style="max-height:220px;"></div>
+          </div>
         </div>
-        <div class="panel" style="max-height:320px; overflow:auto;">
-          <h2>Trades</h2>
-          <table id="tradesTable">
-            <thead>
-              <tr>
-                <th>#</th><th>Entrada</th><th>Direção</th><th>Preço Entrada</th><th>Saída</th><th>Preço Saída</th><th>PnL</th><th>Ret %</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
+      </section>
     </div>
   </main>
   <script src="/static/js/backtest.js?v={{ version }}"></script>

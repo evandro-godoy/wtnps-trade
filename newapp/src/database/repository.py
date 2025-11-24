@@ -274,7 +274,12 @@ class AssetsRatesRepository:
         for record in records:
             data.append({
                 'time': record.timestamp,
+                # Include OHLC for downstream calculations (range, returns)
+                'open': record.open,
+                'high': record.high,
+                'low': record.low,
                 'close': record.close,
+                'volume': record.volume,
                 'ema_9': record.ema_9,
                 'sma_20': record.sma_20,
                 'sma_50': record.sma_50,

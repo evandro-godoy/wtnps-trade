@@ -695,10 +695,16 @@ async def analysis_page(request: Request) -> HTMLResponse:
 async def backtest_page(request: Request) -> HTMLResponse:
     """Backtest page with real-time streaming progress."""
     import time
+    from datetime import datetime, timedelta
+    # Default period: last 30 days ending now (UTC naive for interface)
+    end_dt = datetime.utcnow().replace(microsecond=0, second=0)
+    start_dt = end_dt - timedelta(days=30)
     return templates.TemplateResponse('backtest.html', {
         'request': request,
         'app_version': APP_VERSION,
-        'version': int(time.time())
+        'version': int(time.time()),
+        'default_start': start_dt.isoformat(),
+        'default_end': end_dt.isoformat(),
     })
 
 @app.websocket('/ws/backtest')
@@ -794,8 +800,23 @@ async def websocket_backtest(websocket: WebSocket):
 # =============================================================================
 
 def _map_timeframe_to_int(tf: str) -> int:
-    mapping = {"M1": 1, "M5": 5, "M15": 15, "M30": 30, "H1": 60, "H4": 240, "D1": 1440}
-    return mapping.get(tf.upper(), 5)
+    """Map timeframe string to persisted integer (seconds).
+
+    The AssetsRates table stores timeframe as seconds (see ingest_historical.py).
+    Previous implementation used minutes, causing mismatches and empty queries.
+    """
+    mapping_seconds = {
+        "M1": 60,
+        "M5": 5 * 60,
+        "M15": 15 * 60,
+        "M30": 30 * 60,
+        "H1": 60 * 60,
+        "H4": 4 * 60 * 60,
+        "D1": 24 * 60 * 60,
+        "W1": 7 * 24 * 60 * 60,
+        "MN1": 30 * 24 * 60 * 60,
+    }
+    return mapping_seconds.get(tf.upper(), 5 * 60)
 
 
 @router.post('/api/backtest/run')
