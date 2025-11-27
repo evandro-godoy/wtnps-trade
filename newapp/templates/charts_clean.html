@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WTNPS Trade - Gráficos</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <link rel="stylesheet" href="/static/css/style.css?v=clean2" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Bokeh for charts -->
+  <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-3.8.1.min.css">
+  <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.8.1.min.js"></script>
+</head>
+<body class="layout-with-sidebar charts-clean">
+  <!-- Sidebar (apenas ícones) -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <h2 class="sidebar-logo" title="WTNPS Trade">
+        <i class="fas fa-chart-line"></i>
+        <span>WTNPS</span>
+      </h2>
+    </div>
+    <ul class="sidebar-menu">
+      <li class="menu-item"><a href="/home-clean"><i class="fas fa-home"></i><span>Home</span></a></li>
+      <li class="menu-item active"><a href="/charts-clean"><i class="fas fa-chart-line"></i><span>Gráficos</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-tv"></i><span>Monitor</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-brain"></i><span>Análise</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-clock-rotate-left"></i><span>Backtest</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-gear"></i><span>Configurações</span></a></li>
+    </ul>
+    <div class="sidebar-footer"></div>
+  </nav>
+
+  <!-- Main Content com gráfico apenas -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1>
+        <i class="fas fa-chart-line"></i>
+        Gráficos
+      </h1>
+      <div class="header-actions">
+        <div class="controls-group">
+          <select id="symbol-selector" class="form-select">
+            <option value="WDO$" selected>WDO$</option>
+            <option value="WIN$">WIN$</option>
+          </select>
+          
+          <select id="timeframe-selector" class="form-select">
+            <option value="M1">M1</option>
+            <option value="M5" selected>M5</option>
+            <option value="M15">M15</option>
+            <option value="M30">M30</option>
+            <option value="H1">H1</option>
+            <option value="H4">H4</option>
+            <option value="D1">D1</option>
+          </select>
+          
+          <select id="limit-selector" class="form-select">
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="500" selected>500</option>
+            <option value="1000">1000</option>
+          </select>
+          
+          <button id="refresh-chart" class="btn btn-primary">
+            <i class="fas fa-sync"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="content-wrapper">
+      <!-- Apenas o gráfico, sem cards de análise -->
+      <section class="chart-section">
+        <div class="chart-card">
+          <div class="chart-container">
+            {{ bokeh_div | safe }}
+          </div>
+        </div>
+      </section>
+      
+      <!-- Grid de Predições do Monitor -->
+      <section class="predictions-section">
+        <div class="predictions-card">
+          <div class="predictions-header">
+            <h3><i class="fas fa-brain"></i> Predições do Monitor Online</h3>
+            <button id="refresh-predictions" class="btn btn-sm">
+              <i class="fas fa-sync"></i>
+            </button>
+          </div>
+          <div class="predictions-table-container">
+            <table id="predictions-table" class="predictions-table">
+              <thead>
+                <tr>
+                  <th>Data/Hora (UTC)</th>
+                  <th>Tipo</th>
+                  <th>Preço</th>
+                  <th>Prob. ML (%)</th>
+                  <th>Mensagem</th>
+                </tr>
+              </thead>
+              <tbody id="predictions-body">
+                <tr>
+                  <td colspan="5" style="text-align: center; color: #76838f;">Carregando predições...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Embed Bokeh Script -->
+  {{ bokeh_script | safe }}
+  
+  <script>
+    // Chart refresh logic
+    document.getElementById('refresh-chart')?.addEventListener('click', () => {
+      const symbol = document.getElementById('symbol-selector')?.value || 'WDO$';
+      const timeframe = document.getElementById('timeframe-selector')?.value || 'M5';
+      const limit = document.getElementById('limit-selector')?.value || '500';
+      window.location.href = `/charts-clean?symbol=${symbol}&timeframe=${timeframe}&limit=${limit}`;
+    });
+    
+    document.getElementById('symbol-selector')?.addEventListener('change', () => {
+      document.getElementById('refresh-chart').click();
+    });
+    document.getElementById('timeframe-selector')?.addEventListener('change', () => {
+      document.getElementById('refresh-chart').click();
+    });
+    document.getElementById('limit-selector')?.addEventListener('change', () => {
+      document.getElementById('refresh-chart').click();
+    });
+    
+    // Load monitor predictions
+    async function loadPredictions() {
+      try {
+        const symbol = document.getElementById('symbol-selector')?.value || 'WDO$';
+        const timeframe = document.getElementById('timeframe-selector')?.value || 'M5';
+        
+        const response = await fetch(`/api/monitor-predictions?symbol=${symbol}&timeframe=${timeframe}`);
+        const data = await response.json();
+        
+        const tbody = document.getElementById('predictions-body');
+        tbody.innerHTML = '';
+        
+        if (data.predictions && data.predictions.length > 0) {
+          data.predictions.forEach(pred => {
+            const row = document.createElement('tr');
+            
+            // Tipo com cor
+            let tipoClass = 'neutral';
+            if (pred.tipo === 'COMPRA') tipoClass = 'buy';
+            else if (pred.tipo === 'VENDA') tipoClass = 'sell';
+            
+            row.innerHTML = `
+              <td>${pred.timestamp}</td>
+              <td><span class="signal-badge signal-${tipoClass}">${pred.tipo}</span></td>
+              <td>${pred.preco.toLocaleString('pt-BR')}</td>
+              <td>${pred.prob_ml}%</td>
+              <td>${pred.mensagem}</td>
+            `;
+            
+            tbody.appendChild(row);
+          });
+        } else {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #76838f;">Nenhuma predição disponível</td></tr>';
+        }
+      } catch (error) {
+        console.error('Error loading predictions:', error);
+        const tbody = document.getElementById('predictions-body');
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #e74c3c;">Erro ao carregar predições</td></tr>';
+      }
+    }
+    
+    // Refresh predictions button
+    document.getElementById('refresh-predictions')?.addEventListener('click', loadPredictions);
+    
+    // Load predictions on page load
+    document.addEventListener('DOMContentLoaded', loadPredictions);
+  </script>
+</body>
+<style>
+  /* Escopo apenas para charts-clean - OPTIMIZED FOR RESPONSIVENESS */
+  .charts-clean .sidebar { width: 80px; }
+  .charts-clean .main-content { margin-left: 80px; width: calc(100% - 80px); background: #101418; }
+  .charts-clean .menu-item a { justify-content: center; padding: 12px; }
+  .charts-clean .menu-item a span { display: none; }
+  .charts-clean .menu-item a i { font-size: 18px; }
+  .charts-clean .sidebar-logo span { display: none; }
+  .charts-clean .sidebar-logo { justify-content: center; }
+  .charts-clean .sidebar-footer { padding: 10px; }
+  
+  /* Reduced header dimensions for maximum chart space */
+  .charts-clean .page-header {
+    padding: 8px 15px !important;
+    min-height: 40px !important;
+  }
+  
+  .charts-clean .page-header h1 {
+    font-size: 16px !important;
+    margin: 0 !important;
+  }
+  
+  .charts-clean .controls-group {
+    gap: 6px !important;
+  }
+  
+  .charts-clean .form-select,
+  .charts-clean .btn {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+    height: 28px !important;
+  }
+  
+  /* Maximize content wrapper and chart container */
+  .charts-clean .content-wrapper {
+    padding: 10px !important;
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  
+  .charts-clean .chart-section {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+  }
+  
+  .charts-clean .chart-card {
+    padding: 10px !important;
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+  }
+  
+  .charts-clean .chart-container {
+    flex: 1 !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+  
+  /* Ensure Bokeh plot fills available space */
+  .charts-clean .chart-container .bk-root {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  .charts-clean .chart-container .bk-root > div {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  /* Predictions section */
+  .charts-clean .predictions-section {
+    margin-top: 10px;
+    flex-shrink: 0;
+  }
+  
+  .charts-clean .predictions-card {
+    background-color: #182027;
+    border: 1px solid #242f38;
+    border-radius: 8px;
+    padding: 10px;
+  }
+  
+  .charts-clean .predictions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #242f38;
+  }
+  
+  .charts-clean .predictions-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e8eaed;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .charts-clean .predictions-header h3 i {
+    color: #5ebcf3;
+  }
+  
+  .charts-clean .btn-sm {
+    padding: 3px 6px !important;
+    font-size: 11px !important;
+    height: 24px !important;
+  }
+  
+  .charts-clean .predictions-table-container {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  
+  .charts-clean .predictions-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  
+  .charts-clean .predictions-table thead {
+    position: sticky;
+    top: 0;
+    background-color: #1e2936;
+    z-index: 1;
+  }
+  
+  .charts-clean .predictions-table th {
+    padding: 8px;
+    text-align: left;
+    font-weight: 600;
+    color: #b3b8bd;
+    border-bottom: 1px solid #242f38;
+  }
+  
+  .charts-clean .predictions-table td {
+    padding: 8px;
+    color: #e8eaed;
+    border-bottom: 1px solid #242f38;
+  }
+  
+  .charts-clean .predictions-table tbody tr:hover {
+    background-color: #1e2936;
+  }
+  
+  .charts-clean .signal-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  
+  .charts-clean .signal-buy {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    border: 1px solid #2ecc71;
+  }
+  
+  .charts-clean .signal-sell {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+    border: 1px solid #e74c3c;
+  }
+  
+  .charts-clean .signal-neutral {
+    background-color: rgba(149, 165, 166, 0.2);
+    color: #95a5a6;
+    border: 1px solid #95a5a6;
+  }
+  
+  /* Scrollbar styling */
+  .charts-clean .predictions-table-container::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .charts-clean .predictions-table-container::-webkit-scrollbar-track {
+    background: #1e2936;
+    border-radius: 4px;
+  }
+  
+  .charts-clean .predictions-table-container::-webkit-scrollbar-thumb {
+    background: #242f38;
+    border-radius: 4px;
+  }
+  
+  .charts-clean .predictions-table-container::-webkit-scrollbar-thumb:hover {
+    background: #2d3a44;
+  }
+</style>
+</html>
