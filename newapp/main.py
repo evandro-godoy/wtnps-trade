@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, WebSocket, WebSocketDisconnect
@@ -36,6 +36,7 @@ from newapp.src.database.repository import (
     OHLCVRepository,
     MarketAnalysisRepository,
     DataProviderLogRepository,
+    AssetsRatesRepository,
 )
 from newapp.src.live.monitor_engine import RealtimeMarketMonitor
 from newapp.src.backtest.engine import BacktestEngine, BacktestConfig
@@ -212,8 +213,15 @@ async def api_ohlc(
             detail=f'limit deve estar entre 1 e {MAX_LIMIT}'
         )
     
-    # Try database first
-    df = OHLCVRepository.get_latest_candles(db, symbol, timeframe, limit)
+    # Map timeframe string to integer (seconds)
+    timeframe_map = {
+        "M1": 60, "M5": 300, "M15": 900, "M30": 1800,
+        "H1": 3600, "H4": 14400, "D1": 86400, "W1": 604800, "MN1": 2592000
+    }
+    timeframe_int = timeframe_map.get(timeframe.upper(), 300)
+    
+    # Try database first using AssetsRates (main table)
+    df = AssetsRatesRepository.get_rates(db, symbol, timeframe_int, limit)
     source = "Database"
     
     # Fallback to provider if insufficient data
@@ -222,11 +230,11 @@ async def api_ohlc(
         df = get_recent_ohlc(symbol, timeframe, limit)
         source = "Provider"
         
-        # Save to database
+        # Save to database (AssetsRates table)
         if not df.empty:
             try:
-                OHLCVRepository.save_dataframe(db, df, symbol, timeframe)
-                logger.info(f"Saved {len(df)} candles to database")
+                AssetsRatesRepository.save_rates(db, df, symbol, timeframe_int, timeframe)
+                logger.info(f"Saved {len(df)} candles to AssetsRates database")
             except Exception as e:
                 logger.error(f"Failed to save to database: {e}")
     
@@ -697,7 +705,7 @@ async def backtest_page(request: Request) -> HTMLResponse:
     import time
     from datetime import datetime, timedelta
     # Default period: last 30 days ending now (UTC naive for interface)
-    end_dt = datetime.utcnow().replace(microsecond=0, second=0)
+    end_dt = datetime.now(timezone.utc).replace(microsecond=0, second=0)
     start_dt = end_dt - timedelta(days=30)
     return templates.TemplateResponse('backtest.html', {
         'request': request,
@@ -717,10 +725,10 @@ async def websocket_backtest(websocket: WebSocket):
         3. Receive 'init' with candle list.
         4. Receive 'progress' snapshots and final 'complete'.
     """
-    await websocket.accept()
+    await websocket.accept()  # BREAKPOINT: Primeira linha após botão "Iniciar" pressionado
     try:
         import json
-        msg = await websocket.receive_text()
+        msg = await websocket.receive_text()  # BREAKPOINT: Recebe parâmetros do frontend
         params = json.loads(msg)
         if params.get('action') != 'start':
             await websocket.send_json({'type': 'error', 'message': 'Expected action=start'})
@@ -733,9 +741,22 @@ async def websocket_backtest(websocket: WebSocket):
         position_size = float(params.get('position_size', 1.0))
         update_interval = int(params.get('update_interval', 5))
 
-        now = datetime.utcnow()
-        end_dt = datetime.fromisoformat(end) if end else now
-        start_dt = datetime.fromisoformat(start) if start else (end_dt - pd.Timedelta(days=30))
+        now = datetime.now(timezone.utc)
+        # Parse dates and ensure UTC timezone
+        if end:
+            end_dt = datetime.fromisoformat(end)
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=timezone.utc)
+        else:
+            end_dt = now
+        
+        if start:
+            start_dt = datetime.fromisoformat(start)
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=timezone.utc)
+        else:
+            start_dt = end_dt - pd.Timedelta(days=30)
+        
         if start_dt >= end_dt:
             await websocket.send_json({'type': 'error', 'message': 'start must be before end'})
             return
@@ -843,15 +864,22 @@ async def api_backtest_run(
         Summary metrics + run_id
     """
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
+        # Parse dates and ensure UTC timezone
         if end:
             end_dt = datetime.fromisoformat(end)
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=timezone.utc)
         else:
             end_dt = now
+        
         if start:
             start_dt = datetime.fromisoformat(start)
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=timezone.utc)
         else:
-            start_dt = end_dt.replace(day=end_dt.day) - pd.Timedelta(days=90)
+            start_dt = end_dt - pd.Timedelta(days=90)
+        
         if start_dt >= end_dt:
             raise HTTPException(status_code=400, detail="start must be before end")
 

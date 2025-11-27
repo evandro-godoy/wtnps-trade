@@ -26,7 +26,8 @@ async function fetchLatestData() {
     }
     
     const latest = json.latest;
-    const time = new Date(latest.time).toLocaleString('pt-BR');
+    const dt = new Date(latest.time);
+    const time = `${dt.getUTCDate().toString().padStart(2, '0')}/${(dt.getUTCMonth() + 1).toString().padStart(2, '0')}/${dt.getUTCFullYear()} ${dt.getUTCHours().toString().padStart(2, '0')}:${dt.getUTCMinutes().toString().padStart(2, '0')}`;
     const change = latest.close - latest.open;
     const changeClass = change >= 0 ? 'positive' : 'negative';
     const changeSymbol = change >= 0 ? '▲' : '▼';

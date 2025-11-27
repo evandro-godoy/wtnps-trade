@@ -132,7 +132,9 @@ function appendLogEntry(data) {
   if (!logEl) return;
 
   const { timestamp, ticker, timeframe, ohlcv, indicators } = data;
-  const timeStr = new Date(timestamp).toLocaleString('pt-BR');
+  // Format timestamp to UTC without timezone info
+  const dt = new Date(timestamp);
+  const timeStr = `${dt.getUTCDate().toString().padStart(2, '0')}/${(dt.getUTCMonth() + 1).toString().padStart(2, '0')}/${dt.getUTCFullYear()} ${dt.getUTCHours().toString().padStart(2, '0')}:${dt.getUTCMinutes().toString().padStart(2, '0')}`;
   const change = ohlcv.close - ohlcv.open;
   const changePct = (change / ohlcv.open) * 100;
 

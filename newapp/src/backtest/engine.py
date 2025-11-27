@@ -197,6 +197,12 @@ class BacktestEngine:
                 self.db, cfg.symbol, cfg.timeframe_int, cfg.start_date, cfg.end_date
             )
         if df.empty:
+            # Log disponível range para debug
+            all_data = AssetsRatesRepository.get_rates(
+                self.db, cfg.symbol, cfg.timeframe_int, limit=1
+            )
+            if not all_data.empty:
+                self.logger.info(f"Dados disponíveis para {cfg.symbol} {cfg.timeframe_str}: última vela em {all_data.index[-1]}")
             self.df = df
             self.logger.warning(
                 f"Nenhum dado encontrado para {cfg.symbol} {cfg.timeframe_str} entre {cfg.start_date} e {cfg.end_date}"

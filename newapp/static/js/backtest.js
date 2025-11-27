@@ -32,7 +32,10 @@
   function addLogEntry(entry) {
     const div = document.createElement('div');
     div.className = 'log-entry ' + (entry.signal === 'BUY' ? 'info' : entry.signal === 'SELL' ? 'alert' : '');
-    div.innerHTML = `<div class="log-timestamp">${entry.timestamp}</div>
+    // Format timestamp to UTC without timezone info
+    const dt = new Date(entry.timestamp);
+    const formattedTime = `${dt.getUTCDate().toString().padStart(2, '0')}/${(dt.getUTCMonth() + 1).toString().padStart(2, '0')}/${dt.getUTCFullYear()} ${dt.getUTCHours().toString().padStart(2, '0')}:${dt.getUTCMinutes().toString().padStart(2, '0')}`;
+    div.innerHTML = `<div class="log-timestamp">${formattedTime}</div>
       <div><strong>${entry.signal}</strong> @ ${entry.price.toFixed(2)} | EMA9: ${Number(entry.ema_9).toFixed(2)} | SMA20: ${Number(entry.sma_20).toFixed(2)}<br>${entry.message}</div>`;
     logContainer.prepend(div); // most recent on top
     // trim if too many
