@@ -81,32 +81,77 @@
         </div>
       </section>
       
-      <!-- Grid de Predições do Monitor -->
+      <!-- Grid de Predições ML com Análise Técnica -->
       <section class="predictions-section">
+        <!-- Notebook com 2 tabs: Sinais ML e Análise Técnica -->
         <div class="predictions-card">
           <div class="predictions-header">
-            <h3><i class="fas fa-brain"></i> Predições do Monitor Online</h3>
-            <button id="refresh-predictions" class="btn btn-sm">
-              <i class="fas fa-sync"></i>
-            </button>
+            <h3><i class="fas fa-brain"></i> Monitor em Tempo Real</h3>
+            <div class="header-controls">
+              <button id="refresh-predictions" class="btn btn-sm">
+                <i class="fas fa-sync"></i>
+              </button>
+              <button id="clear-logs" class="btn btn-sm btn-danger">
+                <i class="fas fa-trash"></i> Limpar
+              </button>
+            </div>
           </div>
-          <div class="predictions-table-container">
-            <table id="predictions-table" class="predictions-table">
-              <thead>
-                <tr>
-                  <th>Data/Hora (UTC)</th>
-                  <th>Tipo</th>
-                  <th>Preço</th>
-                  <th>Prob. ML (%)</th>
-                  <th>Mensagem</th>
-                </tr>
-              </thead>
-              <tbody id="predictions-body">
-                <tr>
-                  <td colspan="5" style="text-align: center; color: #76838f;">Carregando predições...</td>
-                </tr>
-              </tbody>
-            </table>
+          
+          <!-- Tabs Navigation -->
+          <div class="tabs-container">
+            <div class="tabs-nav">
+              <button class="tab-btn active" data-tab="ml-signals">
+                <i class="fas fa-chart-line"></i> Sinais ML
+              </button>
+              <button class="tab-btn" data-tab="technical">
+                <i class="fas fa-chart-bar"></i> Análise Técnica
+              </button>
+            </div>
+            
+            <!-- Tab Content: Sinais ML -->
+            <div id="ml-signals" class="tab-content active">
+              <div class="predictions-table-container">
+                <table id="predictions-table" class="predictions-table">
+                  <thead>
+                    <tr>
+                      <th>Data/Hora</th>
+                      <th>Tipo</th>
+                      <th>Preço</th>
+                      <th>Prob. ML (%)</th>
+                      <th>Mensagem</th>
+                    </tr>
+                  </thead>
+                  <tbody id="predictions-body">
+                    <tr>
+                      <td colspan="5" style="text-align: center; color: #76838f;">Carregando predições...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <!-- Tab Content: Análise Técnica -->
+            <div id="technical" class="tab-content">
+              <div class="predictions-table-container">
+                <table id="analysis-table" class="predictions-table">
+                  <thead>
+                    <tr>
+                      <th>Data/Hora</th>
+                      <th>Tendência</th>
+                      <th>RSI</th>
+                      <th>EMA9</th>
+                      <th>SMA20</th>
+                      <th>SMA50</th>
+                    </tr>
+                  </thead>
+                  <tbody id="analysis-body">
+                    <tr>
+                      <td colspan="6" style="text-align: center; color: #76838f;">Carregando análises...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -135,52 +180,394 @@
       document.getElementById('refresh-chart').click();
     });
     
-    // Load monitor predictions
+    // ========== TABS NAVIGATION ==========
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Remove active from all
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        
+        // Add active to clicked
+        btn.classList.add('active');
+        const tabId = btn.getAttribute('data-tab');
+        document.getElementById(tabId)?.classList.add('active');
+      });
+    });
+    
+    // ========== STATE MANAGEMENT ==========
+    let lastCandleTime = null;
+    let autoRefreshInterval = null;
+    let isMarketOpen = false;
+    let predictionHistory = []; // Store all predictions with technical data
+    
+    // Get timeframe in seconds for interval calculation
+    function getTimeframeSeconds(tf) {
+      const mapping = {
+        'M1': 60, 'M5': 300, 'M15': 900, 'M30': 1800,
+        'H1': 3600, 'H4': 14400, 'D1': 86400
+      };
+      return mapping[tf] || 300;
+    }
+    
+    // Format timestamp to local timezone
+    function formatTimestamp(isoString) {
+      const date = new Date(isoString);
+      return date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    }
+    
+    // Calculate technical indicators from prediction data
+    function extractTechnicalData(pred) {
+      const indicators = pred.indicators || {};
+      
+      return {
+        timestamp: pred.timestamp,
+        trend: getTrend(indicators),
+        trend_strength: getTrendStrength(indicators),
+        rsi: indicators.rsi_14 || 0,
+        rsi_condition: getRSICondition(indicators.rsi_14 || 0),
+        ema9: indicators.ema_9 || 0,
+        sma20: indicators.sma_20 || 0,
+        sma50: indicators.sma_50 || 0
+      };
+    }
+    
+    // Determine trend from indicators
+    function getTrend(indicators) {
+      const close = indicators.close || 0;
+      const ema9 = indicators.ema_9 || 0;
+      const sma20 = indicators.sma_20 || 0;
+      
+      if (!close || !ema9 || !sma20) return 'N/A';
+      
+      if (ema9 > sma20 && close > ema9) return 'ALTA';
+      if (ema9 < sma20 && close < ema9) return 'BAIXA';
+      return 'LATERAL';
+    }
+    
+    // Determine trend strength
+    function getTrendStrength(indicators) {
+      const sma20 = indicators.sma_20 || 0;
+      const sma50 = indicators.sma_50 || 0;
+      
+      if (!sma20 || !sma50) return 'N/A';
+      
+      const slope = Math.abs((sma50 - sma20) / sma20 * 100);
+      
+      if (slope > 1.0) return 'FORTE';
+      if (slope > 0.3) return 'MODERADA';
+      return 'FRACA';
+    }
+    
+    // Determine RSI condition
+    function getRSICondition(rsi) {
+      if (rsi > 70) return 'SOBRECOMPRADO';
+      if (rsi < 30) return 'SOBREVENDIDO';
+      return 'NEUTRO';
+    }
+    
+    // Format trend display with strength
+    function formatTrend(trend, strength) {
+      if (trend === 'N/A') return 'N/A';
+      
+      let icon = '';
+      let color = '#95a5a6';
+      
+      if (trend === 'ALTA') {
+        icon = '▲';
+        color = '#2ecc71';
+      } else if (trend === 'BAIXA') {
+        icon = '▼';
+        color = '#e74c3c';
+      } else {
+        icon = '⬌';
+        color = '#f39c12';
+      }
+      
+      return `<span style="color: ${color}; font-weight: 600;">${icon} ${trend}</span><br><span style="font-size: 10px; color: #76838f;">${strength}</span>`;
+    }
+    
+    // Format RSI display with condition
+    function formatRSI(rsi, condition) {
+      if (!rsi || rsi === 0) return 'N/A';
+      
+      let color = '#95a5a6';
+      if (condition === 'SOBRECOMPRADO') color = '#e74c3c';
+      else if (condition === 'SOBREVENDIDO') color = '#2ecc71';
+      
+      return `<span style="font-weight: 600;">${rsi.toFixed(0)}</span><br><span style="font-size: 10px; color: ${color};">${condition}</span>`;
+    }
+    
+    // ========== LOAD PREDICTIONS ==========
     async function loadPredictions() {
       try {
         const symbol = document.getElementById('symbol-selector')?.value || 'WDO$';
         const timeframe = document.getElementById('timeframe-selector')?.value || 'M5';
         
-        const response = await fetch(`/api/monitor-predictions?symbol=${symbol}&timeframe=${timeframe}`);
+        const response = await fetch(`/api/monitor-predictions?symbol=${symbol}&timeframe=${timeframe}&count=10`);
         const data = await response.json();
         
-        const tbody = document.getElementById('predictions-body');
-        tbody.innerHTML = '';
+        console.log('📊 API Response:', {
+          predictions_count: data.predictions?.length || 0,
+          latest_candle: data.latest_candle_time,
+          is_market_open: data.is_market_open,
+          source: data.source,
+          error: data.error
+        });
+        
+        // Log first prediction for debugging
+        if (data.predictions && data.predictions.length > 0) {
+          console.log('📈 First prediction:', data.predictions[0]);
+        }
+        
+        const mlBody = document.getElementById('predictions-body');
+        const analysisBody = document.getElementById('analysis-body');
+        
+        // Update market status
+        isMarketOpen = data.is_market_open || false;
+        
+        // Check if new candle arrived
+        const newCandleTime = data.latest_candle_time;
+        const hasNewCandle = newCandleTime && newCandleTime !== lastCandleTime;
+        
+        if (hasNewCandle) {
+          console.log(`🕯️ New candle detected: ${newCandleTime}`);
+          lastCandleTime = newCandleTime;
+        }
         
         if (data.predictions && data.predictions.length > 0) {
+          // Store predictions in history (prepend new ones)
           data.predictions.forEach(pred => {
+            // Check if not already in history
+            const exists = predictionHistory.find(p => p.timestamp === pred.timestamp);
+            if (!exists) {
+              predictionHistory.unshift(pred);
+            }
+          });
+          
+          // Limit history to 50 items
+          predictionHistory = predictionHistory.slice(0, 50);
+          
+          // ===== POPULATE ML SIGNALS TAB =====
+          mlBody.innerHTML = '';
+          predictionHistory.forEach(pred => {
             const row = document.createElement('tr');
             
-            // Tipo com cor
+            // Determine signal type and class
             let tipoClass = 'neutral';
-            if (pred.tipo === 'COMPRA') tipoClass = 'buy';
-            else if (pred.tipo === 'VENDA') tipoClass = 'sell';
+            let tipoText = pred.tipo || 'N/A';
+            
+            if (tipoText === 'COMPRA') {
+              tipoClass = 'buy';
+            } else if (tipoText === 'VENDA') {
+              tipoClass = 'sell';
+            }
+            
+            // Format timestamp
+            const formattedTime = formatTimestamp(pred.timestamp);
+            
+            // Determine row tag based on probability
+            let rowTag = '';
+            const prob = pred.prob_ml || 0;
+            
+            if (prob >= 65) {
+              rowTag = 'ALERT';
+            } else if (prob >= 55) {
+              rowTag = 'INFO';
+            } else {
+              rowTag = 'TICK';
+            }
+            
+            row.className = `log-row log-${rowTag.toLowerCase()}`;
+            
+            // Format price
+            const preco = pred.preco || 0;
+            const precoStr = preco.toLocaleString('pt-BR');
             
             row.innerHTML = `
-              <td>${pred.timestamp}</td>
-              <td><span class="signal-badge signal-${tipoClass}">${pred.tipo}</span></td>
-              <td>${pred.preco.toLocaleString('pt-BR')}</td>
-              <td>${pred.prob_ml}%</td>
-              <td>${pred.mensagem}</td>
+              <td>${formattedTime}</td>
+              <td><span class="signal-badge signal-${tipoClass}">${tipoText}</span></td>
+              <td>${precoStr}</td>
+              <td><span class="prob-badge prob-${getProbClass(prob)}">${prob.toFixed(1)}%</span></td>
+              <td>${pred.mensagem || 'N/A'}</td>
             `;
             
-            tbody.appendChild(row);
+            mlBody.appendChild(row);
           });
+          
+          // ===== POPULATE TECHNICAL ANALYSIS TAB =====
+          analysisBody.innerHTML = '';
+          predictionHistory.forEach(pred => {
+            const row = document.createElement('tr');
+            const tech = extractTechnicalData(pred);
+            
+            const formattedTime = formatTimestamp(tech.timestamp);
+            
+            // Determine row tag
+            let rowTag = '';
+            const prob = pred.prob_ml || 0;
+            
+            if (prob >= 65) {
+              rowTag = 'ALERT';
+            } else if (prob >= 55) {
+              rowTag = 'INFO';
+            } else {
+              rowTag = 'TICK';
+            }
+            
+            row.className = `log-row log-${rowTag.toLowerCase()}`;
+            
+            row.innerHTML = `
+              <td>${formattedTime}</td>
+              <td>${formatTrend(tech.trend, tech.trend_strength)}</td>
+              <td>${formatRSI(tech.rsi, tech.rsi_condition)}</td>
+              <td>${tech.ema9 > 0 ? tech.ema9.toFixed(0) : 'N/A'}</td>
+              <td>${tech.sma20 > 0 ? tech.sma20.toFixed(0) : 'N/A'}</td>
+              <td>${tech.sma50 > 0 ? tech.sma50.toFixed(0) : 'N/A'}</td>
+            `;
+            
+            analysisBody.appendChild(row);
+          });
+          
         } else {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #76838f;">Nenhuma predição disponível</td></tr>';
+          mlBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #76838f;">Nenhuma predição disponível</td></tr>';
+          analysisBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #76838f;">Nenhuma análise disponível</td></tr>';
         }
+        
+        // Update status indicator in header
+        updateMarketStatus(isMarketOpen, newCandleTime);
+        
       } catch (error) {
         console.error('Error loading predictions:', error);
-        const tbody = document.getElementById('predictions-body');
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #e74c3c;">Erro ao carregar predições</td></tr>';
+        const mlBody = document.getElementById('predictions-body');
+        const analysisBody = document.getElementById('analysis-body');
+        mlBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #e74c3c;">Erro ao carregar predições</td></tr>';
+        analysisBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #e74c3c;">Erro ao carregar análises</td></tr>';
       }
     }
     
+    // Helper: Get probability class for color coding
+    function getProbClass(prob) {
+      if (prob >= 75) return 'high';
+      if (prob >= 65) return 'medium-high';
+      if (prob >= 55) return 'medium';
+      return 'low';
+    }
+    
+    // ========== CLEAR LOGS ==========
+    function clearLogs() {
+      predictionHistory = [];
+      document.getElementById('predictions-body').innerHTML = '<tr><td colspan="5" style="text-align: center; color: #76838f;">Logs limpos</td></tr>';
+      document.getElementById('analysis-body').innerHTML = '<tr><td colspan="6" style="text-align: center; color: #76838f;">Logs limpos</td></tr>';
+      console.log('📋 Logs cleared');
+    }
+    
+    document.getElementById('clear-logs')?.addEventListener('click', clearLogs);
+    
+    // ========== MARKET STATUS ==========
+    function updateMarketStatus(isOpen, lastCandle) {
+      const header = document.querySelector('.predictions-header h3');
+      if (!header) return;
+      
+      // Remove existing status
+      const existingStatus = header.querySelector('.market-status');
+      if (existingStatus) existingStatus.remove();
+      
+      // Add new status
+      const statusSpan = document.createElement('span');
+      statusSpan.className = 'market-status';
+      statusSpan.style.cssText = `
+        font-size: 11px;
+        margin-left: 8px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 500;
+      `;
+      
+      if (isOpen) {
+        statusSpan.textContent = '● Live';
+        statusSpan.style.color = '#2ecc71';
+        statusSpan.style.backgroundColor = 'rgba(46, 204, 113, 0.15)';
+      } else {
+        statusSpan.textContent = '● Fechado';
+        statusSpan.style.color = '#95a5a6';
+        statusSpan.style.backgroundColor = 'rgba(149, 165, 166, 0.15)';
+      }
+      
+      header.appendChild(statusSpan);
+    }
+    
+    // ========== AUTO-REFRESH ==========
+    function setupAutoRefresh() {
+      // Clear existing interval
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
+      
+      // Only auto-refresh if market is open
+      if (!isMarketOpen) {
+        console.log('⏸️ Market closed, auto-refresh paused');
+        return;
+      }
+      
+      const timeframe = document.getElementById('timeframe-selector')?.value || 'M5';
+      const intervalSeconds = getTimeframeSeconds(timeframe);
+      
+      // Poll every 5 seconds to detect new candles
+      const pollInterval = 5000;
+      
+      console.log(`🔄 Auto-refresh enabled: checking every ${pollInterval/1000}s for new ${timeframe} candles`);
+      
+      autoRefreshInterval = setInterval(async () => {
+        if (!isMarketOpen) {
+          clearInterval(autoRefreshInterval);
+          console.log('⏸️ Market closed, stopping auto-refresh');
+          return;
+        }
+        
+        await loadPredictions();
+      }, pollInterval);
+    }
+    
+    // ========== EVENT LISTENERS ==========
     // Refresh predictions button
-    document.getElementById('refresh-predictions')?.addEventListener('click', loadPredictions);
+    document.getElementById('refresh-predictions')?.addEventListener('click', () => {
+      loadPredictions();
+      setupAutoRefresh();
+    });
     
     // Load predictions on page load
-    document.addEventListener('DOMContentLoaded', loadPredictions);
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPredictions().then(() => {
+        setupAutoRefresh();
+      });
+    });
+    
+    // Restart auto-refresh when timeframe changes
+    document.getElementById('timeframe-selector')?.addEventListener('change', () => {
+      setTimeout(() => {
+        loadPredictions().then(() => {
+          setupAutoRefresh();
+        });
+      }, 500);
+    });
+    
+    document.getElementById('symbol-selector')?.addEventListener('change', () => {
+      setTimeout(() => {
+        loadPredictions().then(() => {
+          setupAutoRefresh();
+        });
+      }, 500);
+    });
   </script>
 </body>
 <style>
@@ -241,9 +628,9 @@
   }
   
   .charts-clean .chart-container {
-    flex: 1 !important;
+    flex: 0 0 auto !important;
     min-height: 0 !important;
-    height: auto !important;
+    height: 60vh !important; /* Reduced height for better fit */
   }
   
   /* Ensure Bokeh plot fills available space */
@@ -293,10 +680,70 @@
     color: #5ebcf3;
   }
   
+  .charts-clean .header-controls {
+    display: flex;
+    gap: 6px;
+  }
+  
   .charts-clean .btn-sm {
     padding: 3px 6px !important;
     font-size: 11px !important;
     height: 24px !important;
+  }
+  
+  .charts-clean .btn-danger {
+    background-color: #dc3545 !important;
+    color: white !important;
+  }
+  
+  .charts-clean .btn-danger:hover {
+    background-color: #c82333 !important;
+  }
+  
+  /* Tabs Navigation */
+  .charts-clean .tabs-container {
+    margin-top: 10px;
+  }
+  
+  .charts-clean .tabs-nav {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #242f38;
+  }
+  
+  .charts-clean .tab-btn {
+    background: transparent;
+    border: none;
+    padding: 8px 16px;
+    color: #b3b8bd;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+  }
+  
+  .charts-clean .tab-btn:hover {
+    color: #e8eaed;
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  .charts-clean .tab-btn.active {
+    color: #5ebcf3;
+    border-bottom-color: #5ebcf3;
+  }
+  
+  .charts-clean .tab-btn i {
+    margin-right: 6px;
+  }
+  
+  .charts-clean .tab-content {
+    display: none;
+  }
+  
+  .charts-clean .tab-content.active {
+    display: block;
   }
   
   .charts-clean .predictions-table-container {
@@ -335,6 +782,22 @@
     background-color: #1e2936;
   }
   
+  /* Log row styling (like monitor_ui.py) */
+  .charts-clean .log-row.log-alert {
+    background-color: rgba(255, 243, 205, 0.1);
+    border-left: 3px solid #ffc107;
+  }
+  
+  .charts-clean .log-row.log-info {
+    background-color: rgba(209, 236, 241, 0.1);
+    border-left: 3px solid #17a2b8;
+  }
+  
+  .charts-clean .log-row.log-tick {
+    background-color: transparent;
+    border-left: 3px solid transparent;
+  }
+  
   .charts-clean .signal-badge {
     display: inline-block;
     padding: 3px 8px;
@@ -360,6 +823,35 @@
     background-color: rgba(149, 165, 166, 0.2);
     color: #95a5a6;
     border: 1px solid #95a5a6;
+  }
+  
+  /* Probability badge styling */
+  .charts-clean .prob-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 11px;
+  }
+  
+  .charts-clean .prob-high {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+  }
+  
+  .charts-clean .prob-medium-high {
+    background-color: rgba(243, 156, 18, 0.2);
+    color: #f39c12;
+  }
+  
+  .charts-clean .prob-medium {
+    background-color: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+  }
+  
+  .charts-clean .prob-low {
+    background-color: rgba(149, 165, 166, 0.2);
+    color: #95a5a6;
   }
   
   /* Scrollbar styling */

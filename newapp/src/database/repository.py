@@ -932,3 +932,169 @@ class BacktestTradeRepository:
         db.commit()
         db.refresh(trade)
         return trade
+
+
+class TrainingRunRepository:
+    """Repository for ML training run persistence.
+    
+    Stores training metrics and model metadata for analysis.
+    """
+    
+    @staticmethod
+    def save_training_run(
+        db: Session,
+        symbol: str,
+        strategy_name: str,
+        timeframe_str: str,
+        start_date: datetime,
+        end_date: datetime,
+        model_path_prefix: str,
+        train_metrics: Dict[str, Any],
+        test_metrics: Dict[str, Any],
+        class_distribution: Dict[str, Any],
+        strategy_params: Optional[str] = None,
+        feature_stats: Optional[str] = None,
+        loss_history: Optional[str] = None,
+        val_loss_history: Optional[str] = None,
+        total_epochs: Optional[int] = None,
+        training_duration_seconds: Optional[float] = None
+    ) -> 'TrainingRun':
+        """Save a new training run record.
+        
+        Args:
+            db: Database session
+            symbol: Asset symbol (e.g., "WDO$")
+            strategy_name: Strategy name (e.g., "LSTMVolatilityStrategy")
+            timeframe_str: Timeframe string (e.g., "M5")
+            start_date: Training data start date
+            end_date: Training data end date
+            model_path_prefix: Path prefix where model artifacts are saved
+            train_metrics: Dict with accuracy, precision, recall, f1, confusion_matrix, samples
+            test_metrics: Dict with accuracy, precision, recall, f1, confusion_matrix, samples
+            class_distribution: Dict with train/test class counts
+            strategy_params: JSON string with strategy hyperparameters
+            feature_stats: JSON string with feature statistics
+            loss_history: JSON string with loss per epoch
+            val_loss_history: JSON string with validation loss per epoch
+            total_epochs: Number of training epochs
+            training_duration_seconds: Training time in seconds
+            
+        Returns:
+            Created TrainingRun instance
+        """
+        from newapp.src.database.models import TrainingRun
+        
+        # Extract metrics
+        train_cm = train_metrics.get('confusion_matrix', {})
+        test_cm = test_metrics.get('confusion_matrix', {})
+        train_dist = class_distribution.get('train', {}).get('counts', {})
+        test_dist = class_distribution.get('test', {}).get('counts', {})
+        
+        training_run = TrainingRun(
+            symbol=symbol,
+            strategy_name=strategy_name,
+            timeframe_str=timeframe_str,
+            start_date=start_date,
+            end_date=end_date,
+            model_path_prefix=model_path_prefix,
+            # Train metrics
+            train_accuracy=train_metrics.get('accuracy'),
+            train_precision=train_metrics.get('precision'),
+            train_recall=train_metrics.get('recall'),
+            train_f1=train_metrics.get('f1'),
+            train_samples=train_metrics.get('samples'),
+            train_tn=train_cm.get('tn'),
+            train_fp=train_cm.get('fp'),
+            train_fn=train_cm.get('fn'),
+            train_tp=train_cm.get('tp'),
+            # Test metrics
+            test_accuracy=test_metrics.get('accuracy'),
+            test_precision=test_metrics.get('precision'),
+            test_recall=test_metrics.get('recall'),
+            test_f1=test_metrics.get('f1'),
+            test_samples=test_metrics.get('samples'),
+            test_tn=test_cm.get('tn'),
+            test_fp=test_cm.get('fp'),
+            test_fn=test_cm.get('fn'),
+            test_tp=test_cm.get('tp'),
+            # Class distribution
+            train_class_0_count=train_dist.get(0),
+            train_class_1_count=train_dist.get(1),
+            test_class_0_count=test_dist.get(0),
+            test_class_1_count=test_dist.get(1),
+            # Additional metadata
+            strategy_params=strategy_params,
+            feature_stats=feature_stats,
+            loss_history=loss_history,
+            val_loss_history=val_loss_history,
+            total_epochs=total_epochs,
+            training_duration_seconds=training_duration_seconds
+        )
+        
+        db.add(training_run)
+        db.commit()
+        db.refresh(training_run)
+        logger.info(f"Saved TrainingRun id={training_run.id} for {symbol}/{strategy_name}/{timeframe_str}")
+        return training_run
+    
+    @staticmethod
+    def get_latest_training_run(
+        db: Session,
+        symbol: str,
+        strategy_name: str,
+        timeframe_str: str
+    ) -> Optional['TrainingRun']:
+        """Retrieve the most recent training run for a symbol/strategy/timeframe.
+        
+        Args:
+            db: Database session
+            symbol: Asset symbol
+            strategy_name: Strategy name
+            timeframe_str: Timeframe string
+            
+        Returns:
+            Most recent TrainingRun or None
+        """
+        from newapp.src.database.models import TrainingRun
+        
+        return (
+            db.query(TrainingRun)
+            .filter(
+                and_(
+                    TrainingRun.symbol == symbol,
+                    TrainingRun.strategy_name == strategy_name,
+                    TrainingRun.timeframe_str == timeframe_str
+                )
+            )
+            .order_by(desc(TrainingRun.created_at))
+            .first()
+        )
+    
+    @staticmethod
+    def get_all_training_runs(
+        db: Session,
+        symbol: Optional[str] = None,
+        strategy_name: Optional[str] = None,
+        limit: int = 50
+    ) -> List['TrainingRun']:
+        """Retrieve training runs with optional filters.
+        
+        Args:
+            db: Database session
+            symbol: Optional symbol filter
+            strategy_name: Optional strategy filter
+            limit: Maximum number of records to return
+            
+        Returns:
+            List of TrainingRun instances ordered by creation date (newest first)
+        """
+        from newapp.src.database.models import TrainingRun
+        
+        query = db.query(TrainingRun)
+        
+        if symbol:
+            query = query.filter(TrainingRun.symbol == symbol)
+        if strategy_name:
+            query = query.filter(TrainingRun.strategy_name == strategy_name)
+        
+        return query.order_by(desc(TrainingRun.created_at)).limit(limit).all()

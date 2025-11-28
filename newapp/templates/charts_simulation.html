@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WTNPS Trade - Simulação</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <link rel="stylesheet" href="/static/css/style.css?v=sim1" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Bokeh for charts -->
+  <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-3.8.1.min.css">
+  <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.8.1.min.js"></script>
+</head>
+<body class="layout-with-sidebar simulation-mode">
+  <!-- Sidebar (apenas ícones) -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <h2 class="sidebar-logo" title="WTNPS Trade">
+        <i class="fas fa-chart-line"></i>
+        <span>WTNPS</span>
+      </h2>
+    </div>
+    <ul class="sidebar-menu">
+      <li class="menu-item"><a href="/home-clean"><i class="fas fa-home"></i><span>Home</span></a></li>
+      <li class="menu-item"><a href="/charts-clean"><i class="fas fa-chart-line"></i><span>Gráficos</span></a></li>
+      <li class="menu-item active"><a href="/simulation"><i class="fas fa-play"></i><span>Simulação</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-tv"></i><span>Monitor</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-brain"></i><span>Análise</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-clock-rotate-left"></i><span>Backtest</span></a></li>
+    </ul>
+    <div class="sidebar-footer"></div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1>
+        <i class="fas fa-play"></i>
+        Simulação (Replay)
+      </h1>
+      <div class="header-actions">
+        <div class="controls-group">
+          <select id="symbol-selector" class="form-select">
+            <option value="WDO$" selected>WDO$</option>
+            <option value="WIN$">WIN$</option>
+          </select>
+          
+          <select id="timeframe-selector" class="form-select">
+            <option value="M1">M1</option>
+            <option value="M5" selected>M5</option>
+            <option value="M15">M15</option>
+            <option value="M30">M30</option>
+            <option value="H1">H1</option>
+            <option value="H4">H4</option>
+            <option value="D1">D1</option>
+          </select>
+          
+          <select id="limit-selector" class="form-select">
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="500" selected>500</option>
+            <option value="1000">1000</option>
+          </select>
+          
+          <button id="refresh-chart" class="btn btn-primary">
+            <i class="fas fa-sync"></i> Atualizar
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="content-wrapper">
+      <!-- Chart Section -->
+      <section class="chart-section">
+        <div class="chart-card">
+          <div class="chart-container">
+            {{ bokeh_div | safe }}
+          </div>
+        </div>
+      </section>
+      
+      <!-- Replay Controls -->
+      <section class="replay-controls-section">
+        <div class="replay-card">
+          <div class="replay-header">
+            <h3><i class="fas fa-sliders-h"></i> Controles de Replay</h3>
+            <div class="replay-status">
+              <span id="current-candle-info">Candle: 0 / 0</span>
+            </div>
+          </div>
+          
+          <div class="replay-body">
+            <div class="replay-slider-container">
+              <input type="range" id="candle-slider" class="replay-slider" min="0" max="100" value="0" />
+              <div class="slider-markers">
+                <span>Início</span>
+                <span id="current-timestamp">--</span>
+                <span>Fim</span>
+              </div>
+            </div>
+            
+            <div class="replay-buttons">
+              <button id="play-pause-btn" class="btn btn-success">
+                <i class="fas fa-play"></i> Play
+              </button>
+              <button id="step-back-btn" class="btn btn-secondary">
+                <i class="fas fa-step-backward"></i> Anterior
+              </button>
+              <button id="step-forward-btn" class="btn btn-secondary">
+                <i class="fas fa-step-forward"></i> Próximo
+              </button>
+              <button id="reset-btn" class="btn btn-warning">
+                <i class="fas fa-undo"></i> Reset
+              </button>
+              
+              <div class="speed-control">
+                <label>Velocidade:</label>
+                <select id="speed-selector" class="form-select">
+                  <option value="2000">0.5x</option>
+                  <option value="1000" selected>1x</option>
+                  <option value="500">2x</option>
+                  <option value="250">4x</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Prediction at Current Candle -->
+      <section class="current-prediction-section">
+        <div class="prediction-highlight-card">
+          <div class="prediction-highlight-header">
+            <h3><i class="fas fa-crosshairs"></i> Predição no Candle Atual</h3>
+          </div>
+          <div class="prediction-highlight-body" id="current-prediction-display">
+            <div class="no-prediction">
+              <i class="fas fa-hourglass-half"></i>
+              <p>Selecione um candle para ver a predição ML</p>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Predictions Grid -->
+      <section class="predictions-section">
+        <div class="predictions-card">
+          <div class="predictions-header">
+            <h3><i class="fas fa-brain"></i> Histórico de Predições ML</h3>
+            <button id="refresh-predictions" class="btn btn-sm">
+              <i class="fas fa-sync"></i>
+            </button>
+          </div>
+          <div class="predictions-table-container">
+            <table id="predictions-table" class="predictions-table">
+              <thead>
+                <tr>
+                  <th>Data/Hora (UTC)</th>
+                  <th>Tipo</th>
+                  <th>AI Signal</th>
+                  <th>Preço</th>
+                  <th>Prob. ML (%)</th>
+                  <th>Mensagem</th>
+                </tr>
+              </thead>
+              <tbody id="predictions-body">
+                <tr>
+                  <td colspan="6" style="text-align: center; color: #76838f;">Carregando predições...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Embed Bokeh Script -->
+  {{ bokeh_script | safe }}
+  
+  <script>
+    // Global state
+    let candlesData = [];
+    let predictionsData = [];
+    let currentCandleIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+    
+    // Chart refresh logic
+    document.getElementById('refresh-chart')?.addEventListener('click', () => {
+      const symbol = document.getElementById('symbol-selector')?.value || 'WDO$';
+      const timeframe = document.getElementById('timeframe-selector')?.value || 'M5';
+      const limit = document.getElementById('limit-selector')?.value || '500';
+      window.location.href = `/simulation?symbol=${symbol}&timeframe=${timeframe}&limit=${limit}`;
+    });
+    
+    document.getElementById('symbol-selector')?.addEventListener('change', () => {
+      document.getElementById('refresh-chart').click();
+    });
+    document.getElementById('timeframe-selector')?.addEventListener('change', () => {
+      document.getElementById('refresh-chart').click();
+    });
+    document.getElementById('limit-selector')?.addEventListener('change', () => {
+      document.getElementById('refresh-chart').click();
+    });
+    
+    // Load predictions and setup replay
+    async function loadPredictions() {
+      try {
+        const symbol = document.getElementById('symbol-selector')?.value || 'WDO$';
+        const timeframe = document.getElementById('timeframe-selector')?.value || 'M5';
+        
+        const response = await fetch(`/api/ml-predictions?symbol=${symbol}&timeframe=${timeframe}&count=50`);
+        const data = await response.json();
+        
+        predictionsData = data.predictions || [];
+        
+        // Update table
+        const tbody = document.getElementById('predictions-body');
+        tbody.innerHTML = '';
+        
+        if (predictionsData.length > 0) {
+          predictionsData.forEach((pred, idx) => {
+            const row = document.createElement('tr');
+            row.dataset.index = idx;
+            row.classList.add('prediction-row');
+            
+            // Tipo com cor
+            let tipoClass = 'neutral';
+            if (pred.tipo === 'COMPRA') tipoClass = 'buy';
+            else if (pred.tipo === 'VENDA') tipoClass = 'sell';
+            
+            let aiClass = 'neutral';
+            if (pred.ai_signal === 'COMPRA') aiClass = 'buy';
+            else if (pred.ai_signal === 'VENDA') aiClass = 'sell';
+            
+            row.innerHTML = `
+              <td>${pred.timestamp}</td>
+              <td><span class="signal-badge signal-${tipoClass}">${pred.tipo}</span></td>
+              <td><span class="signal-badge signal-${aiClass}">${pred.ai_signal || 'N/A'}</span></td>
+              <td>${pred.preco.toLocaleString('pt-BR')}</td>
+              <td>${pred.prob_ml}%</td>
+              <td>${pred.mensagem}</td>
+            `;
+            
+            // Click to jump to this candle
+            row.addEventListener('click', () => {
+              jumpToCandle(idx);
+            });
+            
+            tbody.appendChild(row);
+          });
+          
+          // Initialize slider
+          const slider = document.getElementById('candle-slider');
+          slider.max = predictionsData.length - 1;
+          slider.value = 0;
+          
+          updateCandleDisplay(0);
+        } else {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #76838f;">Nenhuma predição disponível</td></tr>';
+        }
+      } catch (error) {
+        console.error('Error loading predictions:', error);
+        const tbody = document.getElementById('predictions-body');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #e74c3c;">Erro ao carregar predições</td></tr>';
+      }
+    }
+    
+    // Update candle display
+    function updateCandleDisplay(index) {
+      currentCandleIndex = index;
+      
+      if (predictionsData.length === 0) return;
+      
+      const pred = predictionsData[index];
+      
+      // Update slider
+      document.getElementById('candle-slider').value = index;
+      
+      // Update info
+      document.getElementById('current-candle-info').textContent = 
+        `Candle: ${index + 1} / ${predictionsData.length}`;
+      document.getElementById('current-timestamp').textContent = pred.timestamp;
+      
+      // Update highlighted prediction
+      const display = document.getElementById('current-prediction-display');
+      
+      let tipoClass = 'neutral';
+      let tipoColor = '#95a5a6';
+      if (pred.tipo === 'COMPRA') {
+        tipoClass = 'buy';
+        tipoColor = '#2ecc71';
+      } else if (pred.tipo === 'VENDA') {
+        tipoClass = 'sell';
+        tipoColor = '#e74c3c';
+      }
+      
+      display.innerHTML = `
+        <div class="prediction-highlight-content">
+          <div class="prediction-main">
+            <div class="signal-display signal-${tipoClass}">
+              <i class="fas ${pred.tipo === 'COMPRA' ? 'fa-arrow-up' : pred.tipo === 'VENDA' ? 'fa-arrow-down' : 'fa-minus'}"></i>
+              <span>${pred.tipo}</span>
+            </div>
+            <div class="prediction-details">
+              <div class="detail-item">
+                <label>AI Signal:</label>
+                <span class="signal-badge signal-${pred.ai_signal === 'COMPRA' ? 'buy' : pred.ai_signal === 'VENDA' ? 'sell' : 'neutral'}">${pred.ai_signal || 'N/A'}</span>
+              </div>
+              <div class="detail-item">
+                <label>Preço:</label>
+                <span>${pred.preco.toLocaleString('pt-BR')}</span>
+              </div>
+              <div class="detail-item">
+                <label>Probabilidade:</label>
+                <span>${pred.prob_ml}%</span>
+              </div>
+              <div class="detail-item">
+                <label>Timestamp:</label>
+                <span>${pred.timestamp}</span>
+              </div>
+            </div>
+          </div>
+          <div class="prediction-message">
+            <i class="fas fa-info-circle"></i>
+            <span>${pred.mensagem}</span>
+          </div>
+        </div>
+      `;
+      
+      // Highlight row in table
+      document.querySelectorAll('.prediction-row').forEach(row => {
+        row.classList.remove('highlighted');
+      });
+      const targetRow = document.querySelector(`.prediction-row[data-index="${index}"]`);
+      if (targetRow) {
+        targetRow.classList.add('highlighted');
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+    
+    // Replay controls
+    document.getElementById('candle-slider')?.addEventListener('input', (e) => {
+      updateCandleDisplay(parseInt(e.target.value));
+    });
+    
+    document.getElementById('step-forward-btn')?.addEventListener('click', () => {
+      if (currentCandleIndex < predictionsData.length - 1) {
+        updateCandleDisplay(currentCandleIndex + 1);
+      }
+    });
+    
+    document.getElementById('step-back-btn')?.addEventListener('click', () => {
+      if (currentCandleIndex > 0) {
+        updateCandleDisplay(currentCandleIndex - 1);
+      }
+    });
+    
+    document.getElementById('reset-btn')?.addEventListener('click', () => {
+      updateCandleDisplay(0);
+      stopPlay();
+    });
+    
+    document.getElementById('play-pause-btn')?.addEventListener('click', () => {
+      if (isPlaying) {
+        stopPlay();
+      } else {
+        startPlay();
+      }
+    });
+    
+    function startPlay() {
+      isPlaying = true;
+      const btn = document.getElementById('play-pause-btn');
+      btn.innerHTML = '<i class="fas fa-pause"></i> Pause';
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-danger');
+      
+      const speed = parseInt(document.getElementById('speed-selector').value);
+      
+      playInterval = setInterval(() => {
+        if (currentCandleIndex < predictionsData.length - 1) {
+          updateCandleDisplay(currentCandleIndex + 1);
+        } else {
+          stopPlay();
+        }
+      }, speed);
+    }
+    
+    function stopPlay() {
+      isPlaying = false;
+      if (playInterval) {
+        clearInterval(playInterval);
+        playInterval = null;
+      }
+      
+      const btn = document.getElementById('play-pause-btn');
+      btn.innerHTML = '<i class="fas fa-play"></i> Play';
+      btn.classList.remove('btn-danger');
+      btn.classList.add('btn-success');
+    }
+    
+    function jumpToCandle(index) {
+      updateCandleDisplay(index);
+      stopPlay();
+    }
+    
+    // Speed change
+    document.getElementById('speed-selector')?.addEventListener('change', () => {
+      if (isPlaying) {
+        stopPlay();
+        startPlay();
+      }
+    });
+    
+    // Refresh predictions button
+    document.getElementById('refresh-predictions')?.addEventListener('click', loadPredictions);
+    
+    // Load predictions on page load
+    document.addEventListener('DOMContentLoaded', loadPredictions);
+  </script>
+</body>
+<style>
+  /* Simulation mode styles */
+  .simulation-mode .sidebar { width: 80px; }
+  .simulation-mode .main-content { margin-left: 80px; width: calc(100% - 80px); background: #101418; }
+  .simulation-mode .menu-item a { justify-content: center; padding: 12px; }
+  .simulation-mode .menu-item a span { display: none; }
+  .simulation-mode .menu-item a i { font-size: 18px; }
+  .simulation-mode .sidebar-logo span { display: none; }
+  .simulation-mode .sidebar-logo { justify-content: center; }
+  
+  .simulation-mode .page-header {
+    padding: 8px 15px !important;
+    min-height: 40px !important;
+  }
+  
+  .simulation-mode .page-header h1 {
+    font-size: 16px !important;
+    margin: 0 !important;
+  }
+  
+  .simulation-mode .controls-group {
+    gap: 6px !important;
+  }
+  
+  .simulation-mode .form-select,
+  .simulation-mode .btn {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+    height: 28px !important;
+  }
+  
+  .simulation-mode .content-wrapper {
+    padding: 10px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto 1fr;
+    gap: 10px;
+    height: calc(100vh - 60px);
+    overflow: hidden;
+  }
+  
+  .simulation-mode .chart-section {
+    grid-column: 1 / -1;
+    min-height: 0;
+  }
+  
+  .simulation-mode .chart-card {
+    padding: 10px !important;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .simulation-mode .chart-container {
+    flex: 1;
+    min-height: 0;
+    height: 400px;
+  }
+  
+  .simulation-mode .chart-container .bk-root {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  /* Replay controls */
+  .replay-controls-section {
+    grid-column: 1 / -1;
+  }
+  
+  .replay-card {
+    background-color: #182027;
+    border: 1px solid #242f38;
+    border-radius: 8px;
+    padding: 15px;
+  }
+  
+  .replay-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #242f38;
+  }
+  
+  .replay-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e8eaed;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .replay-status {
+    font-size: 13px;
+    color: #76838f;
+  }
+  
+  .replay-slider-container {
+    margin-bottom: 15px;
+  }
+  
+  .replay-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #242f38;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .replay-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #5ebcf3;
+    cursor: pointer;
+  }
+
+  
+  .slider-markers {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-size: 11px;
+    color: #76838f;
+  }
+  
+  .slider-markers #current-timestamp {
+    color: #5ebcf3;
+    font-weight: 600;
+  }
+  
+  .replay-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .speed-control {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #e8eaed;
+  }
+  
+  /* Current prediction highlight */
+  .current-prediction-section {
+    grid-column: 1;
+  }
+  
+  .prediction-highlight-card {
+    background-color: #182027;
+    border: 1px solid #242f38;
+    border-radius: 8px;
+    padding: 15px;
+    height: 100%;
+  }
+  
+  .prediction-highlight-header h3 {
+    margin: 0 0 15px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e8eaed;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .prediction-highlight-body {
+    height: calc(100% - 30px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .no-prediction {
+    text-align: center;
+    color: #76838f;
+  }
+  
+  .no-prediction i {
+    font-size: 48px;
+    margin-bottom: 10px;
+    opacity: 0.5;
+  }
+  
+  .prediction-highlight-content {
+    width: 100%;
+  }
+  
+  .signal-display {
+    text-align: center;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+  }
+  
+  .signal-display.signal-buy {
+    background-color: rgba(46, 204, 113, 0.2);
+    border: 2px solid #2ecc71;
+  }
+  
+  .signal-display.signal-sell {
+    background-color: rgba(231, 76, 60, 0.2);
+    border: 2px solid #e74c3c;
+  }
+  
+  .signal-display.signal-neutral {
+    background-color: rgba(149, 165, 166, 0.2);
+    border: 2px solid #95a5a6;
+  }
+  
+  .signal-display i {
+    font-size: 48px;
+    margin-bottom: 10px;
+  }
+  
+  .signal-display.signal-buy i { color: #2ecc71; }
+  .signal-display.signal-sell i { color: #e74c3c; }
+  .signal-display.signal-neutral i { color: #95a5a6; }
+  
+  .signal-display span {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  
+  .prediction-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+  
+  .detail-item {
+    background-color: #1e2936;
+    padding: 10px;
+    border-radius: 4px;
+  }
+  
+  .detail-item label {
+    display: block;
+    font-size: 11px;
+    color: #76838f;
+    margin-bottom: 5px;
+  }
+  
+  .detail-item span {
+    font-size: 14px;
+    color: #e8eaed;
+    font-weight: 600;
+  }
+  
+  .prediction-message {
+    background-color: #1e2936;
+    padding: 10px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: #b3b8bd;
+  }
+  
+  .prediction-message i {
+    color: #5ebcf3;
+  }
+  
+  /* Predictions table */
+  .predictions-section {
+    grid-column: 2;
+    min-height: 0;
+    overflow: hidden;
+  }
+  
+  .predictions-card {
+    background-color: #182027;
+    border: 1px solid #242f38;
+    border-radius: 8px;
+    padding: 10px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .predictions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #242f38;
+  }
+  
+  .predictions-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e8eaed;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .btn-sm {
+    padding: 3px 6px !important;
+    font-size: 11px !important;
+    height: 24px !important;
+  }
+  
+  .predictions-table-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  
+  .predictions-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  
+  .predictions-table thead {
+    position: sticky;
+    top: 0;
+    background-color: #1e2936;
+    z-index: 1;
+  }
+  
+  .predictions-table th {
+    padding: 6px;
+    text-align: left;
+    font-weight: 600;
+    color: #b3b8bd;
+    border-bottom: 1px solid #242f38;
+  }
+  
+  .predictions-table td {
+    padding: 6px;
+    color: #e8eaed;
+    border-bottom: 1px solid #242f38;
+  }
+  
+  .predictions-table tbody tr {
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .predictions-table tbody tr:hover {
+    background-color: #1e2936;
+  }
+  
+  .predictions-table tbody tr.highlighted {
+    background-color: rgba(94, 188, 243, 0.2);
+    border-left: 3px solid #5ebcf3;
+  }
+  
+  .signal-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+  
+  .signal-buy {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    border: 1px solid #2ecc71;
+  }
+  
+  .signal-sell {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+    border: 1px solid #e74c3c;
+  }
+  
+  .signal-neutral {
+    background-color: rgba(149, 165, 166, 0.2);
+    color: #95a5a6;
+    border: 1px solid #95a5a6;
+  }
+  
+  /* Scrollbar styling */
+  .predictions-table-container::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .predictions-table-container::-webkit-scrollbar-track {
+    background: #1e2936;
+    border-radius: 3px;
+  }
+  
+  .predictions-table-container::-webkit-scrollbar-thumb {
+    background: #242f38;
+    border-radius: 3px;
+  }
+  
+  .predictions-table-container::-webkit-scrollbar-thumb:hover {
+    background: #2d3a44;
+  }
+  
+  /* Button styles */
+  .btn-success {
+    background-color: #2ecc71;
+    color: white;
+    border: none;
+  }
+  
+  .btn-success:hover {
+    background-color: #27ae60;
+  }
+  
+  .btn-danger {
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+  }
+  
+  .btn-danger:hover {
+    background-color: #c0392b;
+  }
+  
+  .btn-secondary {
+    background-color: #34495e;
+    color: white;
+    border: none;
+  }
+  
+  .btn-secondary:hover {
+    background-color: #2c3e50;
+  }
+  
+  .btn-warning {
+    background-color: #f39c12;
+    color: white;
+    border: none;
+  }
+  
+  .btn-warning:hover {
+    background-color: #e67e22;
+  }
+</style>
+</html>

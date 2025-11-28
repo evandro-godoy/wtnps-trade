@@ -17,7 +17,7 @@ import asyncio
 from datetime import datetime, timezone
 
 import pandas as pd
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -25,6 +25,7 @@ from fastapi import Request
 from sqlalchemy.orm import Session
 
 from newapp.src.data_handler.provider import get_default_provider
+from newapp.src.data_handler.hybrid_data_loader import get_hybrid_candles
 from newapp.src.analysis.context_analyzer import MarketContextAnalyzer, analyze_market_context
 from newapp.plotting import create_dashboard_chart
 from newapp.src.database import (
@@ -41,6 +42,7 @@ from newapp.src.database.repository import (
 from newapp.src.live.monitor_engine import RealtimeMarketMonitor
 from newapp.src.backtest.engine import BacktestEngine, BacktestConfig
 from newapp.src.database.models import BacktestRun, BacktestTrade
+from newapp.src.ml.prediction_engine import get_prediction_engine
 from newapp.configs.config import (
     APP_NAME,
     APP_VERSION,
@@ -101,6 +103,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 # Initialize data provider and analyzer (singletons)
 data_provider = get_default_provider()
 market_analyzer = MarketContextAnalyzer()
+ml_prediction_engine = get_prediction_engine()
 
 # Monitor instances (global state for WebSocket streaming)
 active_monitors: Dict[str, RealtimeMarketMonitor] = {}
@@ -158,28 +161,43 @@ monitor_manager = MonitorManager()
 def get_recent_ohlc(
     symbol: str = DEFAULT_SYMBOL,
     timeframe: str = DEFAULT_TIMEFRAME,
-    limit: int = DEFAULT_LIMIT
+    limit: int = DEFAULT_LIMIT,
+    db: Session = None,
+    background_tasks: BackgroundTasks = None
 ) -> pd.DataFrame:
-    """Retrieve recent OHLC bars using HybridProvider.
+    """Retrieve recent OHLC bars using hybrid strategy (DB-first, provider fallback).
     
-    Automatically handles fallback chain: MT5 → Cache → Synthetic.
+    Strategy:
+    1. Query AssetsRates database first
+    2. Check for gaps (missing recent data)
+    3. Fetch missing candles via HybridProvider (MT5 → Cache → Synthetic)
+    4. Return data immediately, persist new candles in background
     
     Args:
         symbol: Asset symbol (e.g., "WDO$")
         timeframe: Timeframe string (e.g., "M5", "H1")
         limit: Number of candles to retrieve
+        db: Database session (if None, uses provider fallback only)
+        background_tasks: FastAPI BackgroundTasks for async persistence
         
     Returns:
         DataFrame with OHLCV data, timezone-aware index
     """
     try:
-        df = data_provider.get_latest_candles(symbol, timeframe, limit)
-        if df.empty:
-            logger.warning(f"Provider returned empty DataFrame for {symbol} {timeframe}")
-        return df
+        if db is not None:
+            # Use hybrid loader (DB-first with async persist)
+            df = get_hybrid_candles(db, symbol, timeframe, limit, background_tasks)
+            if df.empty:
+                logger.warning(f"Hybrid loader returned empty DataFrame for {symbol} {timeframe}")
+            return df
+        else:
+            # Fallback to provider only (legacy compatibility)
+            df = data_provider.get_latest_candles(symbol, timeframe, limit)
+            if df.empty:
+                logger.warning(f"Provider returned empty DataFrame for {symbol} {timeframe}")
+            return df
     except Exception as exc:
         logger.error(f"Error fetching OHLC data: {exc}")
-        # Return empty DataFrame on error
         return pd.DataFrame()
 
 
@@ -188,7 +206,8 @@ async def api_ohlc(
     symbol: str = DEFAULT_SYMBOL,
     timeframe: str = DEFAULT_TIMEFRAME,
     limit: int = DEFAULT_LIMIT,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ) -> Dict[str, Any]:
     """Return OHLC data in JSON format for chart rendering.
     
@@ -213,30 +232,14 @@ async def api_ohlc(
             detail=f'limit deve estar entre 1 e {MAX_LIMIT}'
         )
     
-    # Map timeframe string to integer (seconds)
-    timeframe_map = {
-        "M1": 60, "M5": 300, "M15": 900, "M30": 1800,
-        "H1": 3600, "H4": 14400, "D1": 86400, "W1": 604800, "MN1": 2592000
-    }
-    timeframe_int = timeframe_map.get(timeframe.upper(), 300)
+    # Use hybrid loader (DB-first with auto-fill gaps)
+    df = get_hybrid_candles(db, symbol, timeframe, limit, background_tasks)
     
-    # Try database first using AssetsRates (main table)
-    df = AssetsRatesRepository.get_rates(db, symbol, timeframe_int, limit)
-    source = "Database"
-    
-    # Fallback to provider if insufficient data
-    if df.empty or len(df) < limit:
-        logger.info(f"Database has {len(df)} candles, fetching from provider...")
-        df = get_recent_ohlc(symbol, timeframe, limit)
-        source = "Provider"
-        
-        # Save to database (AssetsRates table)
-        if not df.empty:
-            try:
-                AssetsRatesRepository.save_rates(db, df, symbol, timeframe_int, timeframe)
-                logger.info(f"Saved {len(df)} candles to AssetsRates database")
-            except Exception as e:
-                logger.error(f"Failed to save to database: {e}")
+    # Determine data source for response metadata
+    if df.empty:
+        source = "No Data"
+    else:
+        source = "Hybrid (DB + Provider)"
     
     records: List[Dict[str, Any]] = []
     for ts, row in df.iterrows():
@@ -375,6 +378,124 @@ async def monitor_status() -> JSONResponse:
     })
 
 
+@router.get('/api/monitor-predictions')
+async def api_monitor_predictions(
+    symbol: str = DEFAULT_SYMBOL,
+    timeframe: str = DEFAULT_TIMEFRAME,
+    count: int = 1
+) -> JSONResponse:
+    """Generate ML prediction for the last COMPLETED candle.
+    
+    Returns prediction for the most recent closed candle (not the one in formation).
+    Also returns the timestamp of the latest available candle for sync detection.
+    
+    Uses models from newapp/models/ directory (trained via train_model.py).
+    
+    Args:
+        symbol: Asset symbol (default: WDO$)
+        timeframe: Timeframe string (default: M5)
+        count: Number of predictions to return (default: 1, max: 10)
+        
+    Returns:
+        JSON with predictions array and latest candle info:
+        {
+            'predictions': [{
+                'timestamp': '2025-11-28T12:00:00+00:00',
+                'tipo': 'COMPRA'|'VENDA',
+                'preco': 12345.0,
+                'prob_ml': 75,
+                'mensagem': 'Signal from LSTMVolatilityStrategy'
+            }],
+            'latest_candle_time': '2025-11-28T12:05:00+00:00',
+            'is_market_open': true
+        }
+    """
+    try:
+        # Limit count to prevent excessive load
+        count = min(count, 10)
+        
+        # Get latest data to determine last complete candle
+        from newapp.src.data_handler.provider import get_default_provider
+        provider = get_default_provider()
+        
+        # Fetch recent data (need extra for LSTM lookback)
+        data = provider.get_latest_candles(
+            ticker=symbol,
+            timeframe=timeframe,
+            count=500
+        )
+        
+        if data.empty:
+            return JSONResponse({
+                'predictions': [],
+                'latest_candle_time': None,
+                'is_market_open': False,
+                'error': 'No data available'
+            })
+        
+        # Get latest candle timestamp (for frontend sync)
+        latest_candle_time = data.index[-1]
+        
+        # Check if market is open (last candle within last 10 minutes)
+        from datetime import datetime, timezone, timedelta
+        now_utc = datetime.now(timezone.utc)
+        time_diff = (now_utc - latest_candle_time).total_seconds()
+        is_market_open = time_diff < 600  # 10 minutes threshold
+        
+        # Generate predictions using ML engine (only for completed candles)
+        predictions = ml_prediction_engine.predict_batch(
+            data=data,
+            symbol=symbol,
+            timeframe=timeframe,
+            strategy_name="LSTMVolatilityStrategy",
+            module_name="lstm_volatility",
+            count=count
+        )
+        
+        # Format for frontend
+        formatted_predictions = []
+        for pred in predictions:
+            timestamp = pred['timestamp']
+            if hasattr(timestamp, 'isoformat'):
+                timestamp_str = timestamp.isoformat()
+            else:
+                timestamp_str = str(timestamp)
+            
+            formatted_predictions.append({
+                'timestamp': timestamp_str,
+                'tipo': pred['signal'],
+                'preco': pred['price'],
+                'prob_ml': int(pred['probability'] * 100),
+                'mensagem': f"Signal from {pred.get('model', 'ML Model')}"
+            })
+        
+        return JSONResponse({
+            'predictions': formatted_predictions,
+            'latest_candle_time': latest_candle_time.isoformat(),
+            'is_market_open': is_market_open,
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'count': len(formatted_predictions)
+        })
+        
+    except FileNotFoundError as e:
+        logger.error(f"Model not found: {e}")
+        return JSONResponse({
+            'predictions': [],
+            'latest_candle_time': None,
+            'is_market_open': False,
+            'error': f'Modelo não encontrado para {symbol} {timeframe}. Execute train_model.py primeiro.'
+        }, status_code=404)
+    except Exception as e:
+        logger.error(f"Error generating predictions: {e}", exc_info=True)
+        return JSONResponse({
+            'predictions': [],
+            'latest_candle_time': None,
+            'is_market_open': False,
+            'error': str(e)
+        }, status_code=500)
+
+
 @app.websocket('/ws/monitor')
 async def websocket_monitor(websocket: WebSocket):
     """WebSocket endpoint for real-time market data streaming.
@@ -408,7 +529,8 @@ async def api_analysis(
     symbol: str = DEFAULT_SYMBOL,
     timeframe: str = DEFAULT_TIMEFRAME,
     limit: int = DEFAULT_LIMIT,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ) -> Dict[str, Any]:
     """Return technical analysis of market context.
     
@@ -436,19 +558,8 @@ async def api_analysis(
             detail=f'limit deve estar entre 1 e {MAX_LIMIT}'
         )
     
-    # Get OHLC data (will use database when available)
-    df = OHLCVRepository.get_latest_candles(db, symbol, timeframe, limit)
-    
-    if df.empty or len(df) < limit:
-        # Fallback to provider
-        df = get_recent_ohlc(symbol, timeframe, limit)
-        
-        # Save to database
-        if not df.empty:
-            try:
-                OHLCVRepository.save_dataframe(db, df, symbol, timeframe)
-            except Exception as e:
-                logger.error(f"Failed to save to database: {e}")
+    # Get OHLC data using hybrid loader
+    df = get_hybrid_candles(db, symbol, timeframe, limit, background_tasks)
     
     if df.empty:
         raise HTTPException(
@@ -492,7 +603,9 @@ async def api_analysis(
 async def api_combined(
     symbol: str = DEFAULT_SYMBOL,
     timeframe: str = DEFAULT_TIMEFRAME,
-    limit: int = DEFAULT_LIMIT
+    limit: int = DEFAULT_LIMIT,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ) -> Dict[str, Any]:
     """Return combined OHLC data and technical analysis.
     
@@ -516,8 +629,8 @@ async def api_combined(
             detail=f'limit deve estar entre 1 e {MAX_LIMIT}'
         )
     
-    # Get OHLC data
-    df = get_recent_ohlc(symbol, timeframe, limit)
+    # Get OHLC data using hybrid loader
+    df = get_hybrid_candles(db, symbol, timeframe, limit, background_tasks)
     
     if df.empty:
         raise HTTPException(
@@ -593,7 +706,9 @@ async def charts_page(
     request: Request,
     symbol: str = DEFAULT_SYMBOL,
     timeframe: str = DEFAULT_TIMEFRAME,
-    limit: int = DEFAULT_LIMIT
+    limit: int = DEFAULT_LIMIT,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ) -> HTMLResponse:
     """Serve charts page with embedded Bokeh candlestick chart.
     
@@ -612,8 +727,8 @@ async def charts_page(
     if limit > MAX_LIMIT:
         limit = MAX_LIMIT
     
-    # Fetch OHLC data
-    df = get_recent_ohlc(symbol, timeframe, limit)
+    # Fetch OHLC data using hybrid loader
+    df = get_recent_ohlc(symbol, timeframe, limit, db, background_tasks)
     
     # Convert to list of dicts for Bokeh
     ohlc_data = []
@@ -642,8 +757,77 @@ async def charts_page(
     })
 
 
+@router.get('/charts-clean', response_class=HTMLResponse)
+async def charts_clean_page(
+    request: Request,
+    symbol: str = DEFAULT_SYMBOL,
+    timeframe: str = DEFAULT_TIMEFRAME,
+    limit: int = DEFAULT_LIMIT,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+) -> HTMLResponse:
+    """Serve clean charts page with ML predictions grid.
+    
+    Optimized layout for real-time chart + ML predictions table.
+    
+    Args:
+        request: FastAPI request object
+        symbol: Asset symbol (default: WDO$)
+        timeframe: Timeframe string (default: M5)
+        limit: Number of candles (default: 500)
+        
+    Returns:
+        Rendered HTML template with Bokeh chart and predictions grid
+    """
+    import time
+    
+    # Validate limit
+    if limit > MAX_LIMIT:
+        limit = MAX_LIMIT
+    
+    # Fetch OHLC data using hybrid loader
+    df = get_recent_ohlc(symbol, timeframe, limit, db, background_tasks)
+    
+    # Convert to list of dicts for Bokeh
+    ohlc_data = []
+    for ts, row in df.iterrows():
+        ohlc_data.append({
+            'time': ts.isoformat(),
+            'open': float(row['open']),
+            'high': float(row['high']),
+            'low': float(row['low']),
+            'close': float(row['close']),
+            'volume': int(row['volume']) if 'volume' in row and not pd.isna(row['volume']) else 0
+        })
+    
+    # Generate Bokeh chart components
+    script, div = create_dashboard_chart(ohlc_data)
+    
+    return templates.TemplateResponse('charts_clean.html', {
+        'request': request,
+        'symbol': symbol,
+        'timeframe': timeframe,
+        'limit': limit,
+        'app_version': APP_VERSION,
+        'version': int(time.time()),
+        'bokeh_script': script,
+        'bokeh_div': div
+    })
+
+
+@router.get('/home-clean', response_class=HTMLResponse)
+async def home_clean_page(request: Request) -> HTMLResponse:
+    """Serve clean home page (redirect to charts-clean for now)."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url='/charts-clean')
+
+
 @router.get('/dashboard', response_class=HTMLResponse)
-async def index(request: Request) -> HTMLResponse:
+async def index(
+    request: Request,
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+) -> HTMLResponse:
     """Serve legacy dashboard HTML page with embedded Bokeh chart.
     
     DEPRECATED: Use /charts instead. Kept for backward compatibility.
@@ -656,8 +840,8 @@ async def index(request: Request) -> HTMLResponse:
     """
     import time
     
-    # Fetch OHLC data
-    df = get_recent_ohlc(DEFAULT_SYMBOL, DEFAULT_TIMEFRAME, DEFAULT_LIMIT)
+    # Fetch OHLC data using hybrid loader
+    df = get_recent_ohlc(DEFAULT_SYMBOL, DEFAULT_TIMEFRAME, DEFAULT_LIMIT, db, background_tasks)
     
     # Convert to list of dicts for Bokeh
     ohlc_data = []

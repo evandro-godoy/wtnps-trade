@@ -252,3 +252,78 @@ class BacktestTrade(Base):
             f"<BacktestTrade(symbol={self.symbol}, dir={self.direction}, "
             f"entry={self.entry_time}, exit={self.exit_time})>"
         )
+
+
+class TrainingRun(Base):
+    """ML model training execution metadata and metrics.
+    
+    Stores comprehensive training information for analysis and comparison.
+    """
+    __tablename__ = 'training_runs'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    strategy_name = Column(String(50), nullable=False, index=True)
+    timeframe_str = Column(String(10), nullable=False, index=True)
+    
+    # Training period
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=False)
+    
+    # Model artifacts paths
+    model_path_prefix = Column(String(255), nullable=False)
+    
+    # Training metrics (train set)
+    train_accuracy = Column(Float, nullable=True)
+    train_precision = Column(Float, nullable=True)
+    train_recall = Column(Float, nullable=True)
+    train_f1 = Column(Float, nullable=True)
+    train_samples = Column(Integer, nullable=True)
+    
+    # Confusion matrix (train)
+    train_tn = Column(Integer, nullable=True)
+    train_fp = Column(Integer, nullable=True)
+    train_fn = Column(Integer, nullable=True)
+    train_tp = Column(Integer, nullable=True)
+    
+    # Test metrics
+    test_accuracy = Column(Float, nullable=True)
+    test_precision = Column(Float, nullable=True)
+    test_recall = Column(Float, nullable=True)
+    test_f1 = Column(Float, nullable=True)
+    test_samples = Column(Integer, nullable=True)
+    
+    # Confusion matrix (test)
+    test_tn = Column(Integer, nullable=True)
+    test_fp = Column(Integer, nullable=True)
+    test_fn = Column(Integer, nullable=True)
+    test_tp = Column(Integer, nullable=True)
+    
+    # Class distribution
+    train_class_0_count = Column(Integer, nullable=True)
+    train_class_1_count = Column(Integer, nullable=True)
+    test_class_0_count = Column(Integer, nullable=True)
+    test_class_1_count = Column(Integer, nullable=True)
+    
+    # Training configuration (JSON serialized)
+    strategy_params = Column(Text, nullable=True)
+    feature_stats = Column(Text, nullable=True)  # JSON with mean/std/min/max per feature
+    
+    # Loss history (JSON serialized lists)
+    loss_history = Column(Text, nullable=True)
+    val_loss_history = Column(Text, nullable=True)
+    
+    # Metadata
+    total_epochs = Column(Integer, nullable=True)
+    training_duration_seconds = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    __table_args__ = (
+        Index('idx_training_symbol_strategy_timeframe', 'symbol', 'strategy_name', 'timeframe_str'),
+    )
+    
+    def __repr__(self) -> str:
+        return (
+            f"<TrainingRun(symbol={self.symbol}, strategy={self.strategy_name}, "
+            f"timeframe={self.timeframe_str}, date={self.created_at})>"
+        )

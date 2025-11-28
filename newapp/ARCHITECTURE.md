@@ -1,12 +1,26 @@
 # NewApp Architecture Documentation
 
+> Estado: Em Desenvolvimento. Este documento descreve a arquitetura planejada e o estado atual desta worktree “limpa”: sem duplicações; apenas objetos já implementados e recursos core permanecem válidos. As demais seções representam a visão futura/migrada.
+
 **Version:** 1.0.0  
 **Last Updated:** 2025-11-27  
-**Status:** Active Development
+**Status:** Em Desenvolvimento
 
 ## Overview
 
 NewApp is the **next-generation web-based trading platform** for WTNPS Trade, designed as a modern, cloud-ready alternative to the legacy desktop framework. It follows clean architecture principles with clear separation of concerns, robust path resolution, and database-first data persistence.
+
+## Objetos Implementados (Worktree Atual)
+- **Web API + UI:** `newapp/main.py`, `main_clean.py`. Detalhe técnico: FastAPI app com rotas `GET /home`, `GET /charts`, `GET /monitor`, `GET /backtest`, REST `GET /api/ohlc`, `GET /api/analysis`, `GET /api/combined`, `POST /api/backtest/run`, `GET /api/backtest/run/{run_id}` e WebSockets `ws/monitor`, `ws/backtest`. Integrações: `HybridProvider`, `hybrid_data_loader` (database-first), `MarketContextAnalyzer`, SQLAlchemy `get_db`, `templates/` e `static/` com Bokeh (`newapp/plotting.py`). BackgroundTasks para persistência assíncrona.
+- **Hybrid Data Loader (Database-First):** `newapp/src/data_handler/hybrid_data_loader.py`. Detalhe técnico: Estratégia DB-first com gap detection; fluxo: (1) query AssetsRates, (2) detecta gaps (> 2 candles), (3) fallback MT5 → Cache → Synthetic, (4) retorna imediatamente (DB+novos), (5) persiste em background via FastAPI BackgroundTasks (não bloqueia). Timezone-aware, thread-safe, deduplicação automática. Integrações: endpoints `/charts`, `/api/ohlc`, `AssetsRatesRepository`, providers. Ver `HYBRID_DATA_INTEGRATION.md`.
+- **Provedores de Dados (HybridProvider):** `newapp/src/data_handler/provider.py`. Detalhe técnico: singleton thread-safe; cascata MT5 → Cache → Synthetic; cache Parquet em `newapp/.cache_data`; APIs `get_data`/`get_latest_candles`. Integrações: `hybrid_data_loader`, rotas `/api/*` e páginas de gráficos; MT5 (opcional), leitura/escrita de Parquet.
+- **Análise Técnica:** `newapp/src/analysis/context_analyzer.py`. Detalhe técnico: `MarketContextAnalyzer` e helpers; saída com tendência + força, RSI, suportes/resistências, MAs e padrões. Integrações: `/api/analysis`, `MarketAnalysisRepository.save_analysis`, enriquecimento de indicadores em `AssetsRatesRepository`.
+- **Banco de Dados (ORM/Repos):** `newapp/src/database/db.py`, `models.py`, `repository.py`. Tabelas: `OHLCVData`, `TechnicalIndicators`, `MarketAnalysis`, `DataProviderLog`, `AssetsRates`, `BacktestRun`, `BacktestTrade`. Detalhe técnico: SQLite com WAL mode (concurrent reads), path resolution via `get_db()`, suporte para SQL Server (prod). Integrações: endpoints (`get_db`), `hybrid_data_loader` (query + async persist), backtest (`BacktestRunRepository`, `BacktestTradeRepository`).
+- **Backtesting Engine:** `newapp/src/backtest/engine.py`. Detalhe técnico: execução síncrona e streaming; sinais por EMA9×SMA20 com fallback para ML LSTM (artefatos em `../models/` quando disponíveis). Integrações: WebSocket `/ws/backtest` e APIs `/api/backtest/*`, persistência via repositórios.
+- **Configuração e Paths:** `newapp/configs/config.py`. Constantes: `APP_ROOT`, `PROJECT_ROOT`, `STATIC_DIR`, `TEMPLATES_DIR`, `CACHE_DIR`, `MODELS_DIR`. Nota: path resolution via config (não via `newapp.src.utils.paths`). Integrações: app, providers, templates, logging.
+- **Templates/Estático/Plotting:** `templates/`, `static/`, `newapp/plotting.py` (Bokeh). Integrações: páginas HTML e geração de gráfico de candles.
+- **Testes (parciais):** `newapp/tests/` (ex.: `test_provider.py`, `test_database.py`, `test_context_analyzer.py`, `test_bokeh_chart.py`, `test_backtest_stream.py`, `test_hybrid_loader.py`, `verify_hybrid_integration.py`). Integrações: providers, ORM, análise, backtest e hybrid loader.
+- **Recursos Compartilhados:** `models/` (raiz, artefatos LSTM/DRL), `wtnps_trade.db` (SQLite na raiz). Observação: o provider usa `newapp/.cache_data`; unificação com `.cache_data` na raiz é desejável em ciclo futuro.
 
 ## Technology Stack
 
