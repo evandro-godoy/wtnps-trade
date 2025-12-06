@@ -4,7 +4,7 @@ Fetches OHLCV data from configured provider (MetaTrader5 or fallback synthetic) 
 persists into SQLite/SQL Server through AssetsRatesRepository with partial immutability.
 
 Usage (PowerShell):
-    poetry run python newapp\src\database\ingest_historical.py --symbol WDO$ --timeframe M5 --start 2024-01-01 --end 2024-01-10
+    poetry run python newapp/src/database/ingest_historical.py --symbol WDO$ --timeframe M5 --start 2024-01-01 --end 2024-01-10
 
 Environment variables:
     WTNPS_DB_BACKEND      -> 'sqlite' (default) or 'sqlserver'
@@ -17,9 +17,15 @@ from __future__ import annotations
 import argparse
 import logging
 from datetime import datetime
-from typing import Optional
+from pathlib import Path
+import sys
 
 import pandas as pd
+
+# Ensure project root is on sys.path when executed as a script
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from newapp.src.database.db import get_db, init_database
 from newapp.src.database.repository import AssetsRatesRepository
@@ -131,13 +137,13 @@ def ingest_range(symbol: str, timeframe_str: str, start: str, end: str, allow_en
         return 0
 
     # Basic columns normalization
-    for col in ['open', 'high', 'low', 'close', 'volume']:
+    for col in ['open', 'high', 'low', 'close', 'tick_volume','volume']:
         if col not in df.columns:
             raise ValueError(f"Column '{col}' missing from provider data")
 
     # Add tick_volume/spread placeholder if absent
     if 'tick_volume' not in df.columns:
-        df['tick_volume'] = df['volume']
+        df['tick_volume'] = 0
     if 'spread' not in df.columns:
         df['spread'] = 0
 

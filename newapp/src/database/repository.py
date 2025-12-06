@@ -104,7 +104,7 @@ class AssetsRatesRepository:
                     symbol=symbol,
                     timeframe=timeframe,
                     timeframe_str=timeframe_str,
-                    timestamp=timestamp,
+                    timestamp=timestamp,   
                     open=float(row['open']),
                     high=float(row['high']),
                     low=float(row['low']),

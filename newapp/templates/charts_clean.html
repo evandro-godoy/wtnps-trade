@@ -35,50 +35,12 @@
 
   <!-- Main Content com gráfico apenas -->
   <main class="main-content">
-    <header class="page-header">
-      <h1>
-        <i class="fas fa-chart-line"></i>
-        Gráficos
-      </h1>
-      <div class="header-actions">
-        <div class="controls-group">
-          <select id="symbol-selector" class="form-select">
-            <option value="WDO$" selected>WDO$</option>
-            <option value="WIN$">WIN$</option>
-          </select>
-          
-          <select id="timeframe-selector" class="form-select">
-            <option value="M1">M1</option>
-            <option value="M5" selected>M5</option>
-            <option value="M15">M15</option>
-            <option value="M30">M30</option>
-            <option value="H1">H1</option>
-            <option value="H4">H4</option>
-            <option value="D1">D1</option>
-          </select>
-          
-          <select id="limit-selector" class="form-select">
-            <option value="100">100</option>
-            <option value="250">250</option>
-            <option value="500" selected>500</option>
-            <option value="1000">1000</option>
-          </select>
-          
-          <button id="refresh-chart" class="btn btn-primary">
-            <i class="fas fa-sync"></i>
-          </button>
-        </div>
-      </div>
-    </header>
-
     <div class="content-wrapper">
-      <!-- Apenas o gráfico, sem cards de análise -->
-      <section class="chart-section">
-        <div class="chart-card">
-          <div class="chart-container">
-            {{ bokeh_div | safe }}
-          </div>
-        </div>
+      <!-- Apenas o gráfico, sem cabeçalho -->
+      <section class="chart-section">      
+        <div class="chart-container">
+          {{ bokeh_div | safe }}
+        </div>      
       </section>
       
       <!-- Grid de Predições ML com Análise Técnica -->
@@ -86,7 +48,7 @@
         <!-- Notebook com 2 tabs: Sinais ML e Análise Técnica -->
         <div class="predictions-card">
           <div class="predictions-header">
-            <h3><i class="fas fa-brain"></i> Monitor em Tempo Real</h3>
+            <h3><i class="fas fa-brain"></i> Monitor em Tempo Real - WDO$ M5</h3>
             <div class="header-controls">
               <button id="refresh-predictions" class="btn btn-sm">
                 <i class="fas fa-sync"></i>
@@ -116,14 +78,16 @@
                     <tr>
                       <th>Data/Hora</th>
                       <th>Tipo</th>
+                      <th>Direção</th>
                       <th>Preço</th>
                       <th>Prob. ML (%)</th>
+                      <th>Status</th>
                       <th>Mensagem</th>
                     </tr>
                   </thead>
                   <tbody id="predictions-body">
                     <tr>
-                      <td colspan="5" style="text-align: center; color: #76838f;">Carregando predições...</td>
+                      <td colspan="7" style="text-align: center; color: #76838f;">Carregando predições...</td>
                     </tr>
                   </tbody>
                 </table>
@@ -139,14 +103,16 @@
                       <th>Data/Hora</th>
                       <th>Tendência</th>
                       <th>RSI</th>
-                      <th>EMA9</th>
+                      <th>EMA20</th>
                       <th>SMA20</th>
                       <th>SMA50</th>
+                      <th>Padrão</th>
+                      <th>Suporte/Resistência</th>
                     </tr>
                   </thead>
                   <tbody id="analysis-body">
                     <tr>
-                      <td colspan="6" style="text-align: center; color: #76838f;">Carregando análises...</td>
+                      <td colspan="8" style="text-align: center; color: #76838f;">Carregando análises...</td>
                     </tr>
                   </tbody>
                 </table>
@@ -162,46 +128,15 @@
   {{ bokeh_script | safe }}
   
   <script>
-    // Chart refresh logic
-    document.getElementById('refresh-chart')?.addEventListener('click', () => {
-      const symbol = document.getElementById('symbol-selector')?.value || 'WDO$';
-      const timeframe = document.getElementById('timeframe-selector')?.value || 'M5';
-      const limit = document.getElementById('limit-selector')?.value || '500';
-      window.location.href = `/charts-clean?symbol=${symbol}&timeframe=${timeframe}&limit=${limit}`;
-    });
-    
-    document.getElementById('symbol-selector')?.addEventListener('change', () => {
-      document.getElementById('refresh-chart').click();
-    });
-    document.getElementById('timeframe-selector')?.addEventListener('change', () => {
-      document.getElementById('refresh-chart').click();
-    });
-    document.getElementById('limit-selector')?.addEventListener('change', () => {
-      document.getElementById('refresh-chart').click();
-    });
-    
-    // ========== TABS NAVIGATION ==========
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    tabBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        // Remove active from all
-        tabBtns.forEach(b => b.classList.remove('active'));
-        tabContents.forEach(c => c.classList.remove('active'));
-        
-        // Add active to clicked
-        btn.classList.add('active');
-        const tabId = btn.getAttribute('data-tab');
-        document.getElementById(tabId)?.classList.add('active');
-      });
-    });
-    
     // ========== STATE MANAGEMENT ==========
     let lastCandleTime = null;
     let autoRefreshInterval = null;
     let isMarketOpen = false;
     let predictionHistory = []; // Store all predictions with technical data
+    
+    // Fixed parameters (no longer user-selectable)
+    const FIXED_SYMBOL = 'WDO$';
+    const FIXED_TIMEFRAME = 'M5';
     
     // Get timeframe in seconds for interval calculation
     function getTimeframeSeconds(tf) {
@@ -228,16 +163,21 @@
     // Calculate technical indicators from prediction data
     function extractTechnicalData(pred) {
       const indicators = pred.indicators || {};
+      const analysis = pred.analysis || {};
       
       return {
         timestamp: pred.timestamp,
-        trend: getTrend(indicators),
-        trend_strength: getTrendStrength(indicators),
-        rsi: indicators.rsi_14 || 0,
-        rsi_condition: getRSICondition(indicators.rsi_14 || 0),
+        trend: analysis.trend || getTrend(indicators),
+        trend_strength: analysis.trend_strength || getTrendStrength(indicators),
+        rsi: analysis.rsi || indicators.rsi_14 || 0,
+        rsi_condition: analysis.rsi_condition || getRSICondition(indicators.rsi_14 || 0),
         ema9: indicators.ema_9 || 0,
+        ema20: indicators.ema_20 || 0,
         sma20: indicators.sma_20 || 0,
-        sma50: indicators.sma_50 || 0
+        sma50: indicators.sma_50 || 0,
+        support: analysis.support || 0,
+        resistance: analysis.resistance || 0,
+        pattern: analysis.pattern || 'N/A'
       };
     }
     
@@ -310,10 +250,7 @@
     // ========== LOAD PREDICTIONS ==========
     async function loadPredictions() {
       try {
-        const symbol = document.getElementById('symbol-selector')?.value || 'WDO$';
-        const timeframe = document.getElementById('timeframe-selector')?.value || 'M5';
-        
-        const response = await fetch(`/api/monitor-predictions?symbol=${symbol}&timeframe=${timeframe}&count=10`);
+        const response = await fetch(`/api/monitor-predictions?symbol=${FIXED_SYMBOL}&timeframe=${FIXED_TIMEFRAME}&count=10`);
         const data = await response.json();
         
         console.log('📊 API Response:', {
@@ -372,6 +309,19 @@
               tipoClass = 'sell';
             }
             
+            // Get direction (CALL/PUT)
+            const direction = pred.direction || 'N/A';
+            let directionClass = 'neutral';
+            let directionIcon = '⬌';
+            
+            if (direction === 'CALL') {
+              directionClass = 'buy';
+              directionIcon = '↑ CALL';
+            } else if (direction === 'PUT') {
+              directionClass = 'sell';
+              directionIcon = '↓ PUT';
+            }
+            
             // Format timestamp
             const formattedTime = formatTimestamp(pred.timestamp);
             
@@ -393,11 +343,19 @@
             const preco = pred.preco || 0;
             const precoStr = preco.toLocaleString('pt-BR');
             
+            // Get validation status from analysis
+            const analysis = pred.analysis || {};
+            const signalValid = analysis.signal_valid !== false;
+            const statusIcon = signalValid ? '✅' : '⚠️';
+            const statusText = signalValid ? 'Válido' : 'Inválido';
+            
             row.innerHTML = `
               <td>${formattedTime}</td>
               <td><span class="signal-badge signal-${tipoClass}">${tipoText}</span></td>
+              <td><span class="signal-badge signal-${directionClass}">${directionIcon}</span></td>
               <td>${precoStr}</td>
               <td><span class="prob-badge prob-${getProbClass(prob)}">${prob.toFixed(1)}%</span></td>
+              <td style="text-align: center; font-size: 12px;">${statusIcon} ${statusText}</td>
               <td>${pred.mensagem || 'N/A'}</td>
             `;
             
@@ -426,21 +384,29 @@
             
             row.className = `log-row log-${rowTag.toLowerCase()}`;
             
+            // Format support/resistance
+            const supportResistance = (
+              (tech.support > 0 ? `S: ${tech.support.toFixed(0)}` : 'S: N/A') + ' / ' +
+              (tech.resistance > 0 ? `R: ${tech.resistance.toFixed(0)}` : 'R: N/A')
+            );
+            
             row.innerHTML = `
               <td>${formattedTime}</td>
               <td>${formatTrend(tech.trend, tech.trend_strength)}</td>
               <td>${formatRSI(tech.rsi, tech.rsi_condition)}</td>
-              <td>${tech.ema9 > 0 ? tech.ema9.toFixed(0) : 'N/A'}</td>
+              <td>${tech.ema20 > 0 ? tech.ema20.toFixed(0) : 'N/A'}</td>
               <td>${tech.sma20 > 0 ? tech.sma20.toFixed(0) : 'N/A'}</td>
               <td>${tech.sma50 > 0 ? tech.sma50.toFixed(0) : 'N/A'}</td>
+              <td style="font-size: 11px;">${tech.pattern}</td>
+              <td style="font-size: 11px;">${supportResistance}</td>
             `;
             
             analysisBody.appendChild(row);
           });
           
         } else {
-          mlBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #76838f;">Nenhuma predição disponível</td></tr>';
-          analysisBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #76838f;">Nenhuma análise disponível</td></tr>';
+          mlBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #76838f;">Nenhuma predição disponível</td></tr>';
+          analysisBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #76838f;">Nenhuma análise disponível</td></tr>';
         }
         
         // Update status indicator in header
@@ -450,8 +416,8 @@
         console.error('Error loading predictions:', error);
         const mlBody = document.getElementById('predictions-body');
         const analysisBody = document.getElementById('analysis-body');
-        mlBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #e74c3c;">Erro ao carregar predições</td></tr>';
-        analysisBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #e74c3c;">Erro ao carregar análises</td></tr>';
+        mlBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #e74c3c;">Erro ao carregar predições</td></tr>';
+        analysisBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #e74c3c;">Erro ao carregar análises</td></tr>';
       }
     }
     
@@ -466,8 +432,8 @@
     // ========== CLEAR LOGS ==========
     function clearLogs() {
       predictionHistory = [];
-      document.getElementById('predictions-body').innerHTML = '<tr><td colspan="5" style="text-align: center; color: #76838f;">Logs limpos</td></tr>';
-      document.getElementById('analysis-body').innerHTML = '<tr><td colspan="6" style="text-align: center; color: #76838f;">Logs limpos</td></tr>';
+      document.getElementById('predictions-body').innerHTML = '<tr><td colspan="7" style="text-align: center; color: #76838f;">Logs limpos</td></tr>';
+      document.getElementById('analysis-body').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #76838f;">Logs limpos</td></tr>';
       console.log('📋 Logs cleared');
     }
     
@@ -519,13 +485,12 @@
         return;
       }
       
-      const timeframe = document.getElementById('timeframe-selector')?.value || 'M5';
-      const intervalSeconds = getTimeframeSeconds(timeframe);
+      const intervalSeconds = getTimeframeSeconds(FIXED_TIMEFRAME);
       
       // Poll every 5 seconds to detect new candles
       const pollInterval = 5000;
       
-      console.log(`🔄 Auto-refresh enabled: checking every ${pollInterval/1000}s for new ${timeframe} candles`);
+      console.log(`🔄 Auto-refresh enabled: checking every ${pollInterval/1000}s for new ${FIXED_TIMEFRAME} candles`);
       
       autoRefreshInterval = setInterval(async () => {
         if (!isMarketOpen) {
@@ -537,6 +502,23 @@
         await loadPredictions();
       }, pollInterval);
     }
+    
+    // ========== TABS NAVIGATION ==========
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Remove active from all
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        
+        // Add active to clicked
+        btn.classList.add('active');
+        const tabId = btn.getAttribute('data-tab');
+        document.getElementById(tabId)?.classList.add('active');
+      });
+    });
     
     // ========== EVENT LISTENERS ==========
     // Refresh predictions button
@@ -551,29 +533,20 @@
         setupAutoRefresh();
       });
     });
-    
-    // Restart auto-refresh when timeframe changes
-    document.getElementById('timeframe-selector')?.addEventListener('change', () => {
-      setTimeout(() => {
-        loadPredictions().then(() => {
-          setupAutoRefresh();
-        });
-      }, 500);
-    });
-    
-    document.getElementById('symbol-selector')?.addEventListener('change', () => {
-      setTimeout(() => {
-        loadPredictions().then(() => {
-          setupAutoRefresh();
-        });
-      }, 500);
-    });
   </script>
 </body>
 <style>
-  /* Escopo apenas para charts-clean - OPTIMIZED FOR RESPONSIVENESS */
+  /* Escopo apenas para charts-clean - OPTIMIZED FOR NO SCROLL */
   .charts-clean .sidebar { width: 80px; }
-  .charts-clean .main-content { margin-left: 80px; width: calc(100% - 80px); background: #101418; }
+  .charts-clean .main-content { 
+    margin-left: 80px; 
+    width: calc(100% - 80px); 
+    background: #101418; 
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
   .charts-clean .menu-item a { justify-content: center; padding: 12px; }
   .charts-clean .menu-item a span { display: none; }
   .charts-clean .menu-item a i { font-size: 18px; }
@@ -581,47 +554,23 @@
   .charts-clean .sidebar-logo { justify-content: center; }
   .charts-clean .sidebar-footer { padding: 10px; }
   
-  /* Reduced header dimensions for maximum chart space */
+  /* Remove page header completely */
   .charts-clean .page-header {
-    padding: 8px 15px !important;
-    min-height: 40px !important;
+    display: none !important;
   }
   
-  .charts-clean .page-header h1 {
-    font-size: 16px !important;
-    margin: 0 !important;
-  }
-  
-  .charts-clean .controls-group {
-    gap: 6px !important;
-  }
-  
-  .charts-clean .form-select,
-  .charts-clean .btn {
-    padding: 4px 8px !important;
-    font-size: 12px !important;
-    height: 28px !important;
-  }
-  
-  /* Maximize content wrapper and chart container */
+  /* Maximize content wrapper */
   .charts-clean .content-wrapper {
-    padding: 10px !important;
+    padding: 8px !important;
     flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
+    gap: 8px;
   }
   
   .charts-clean .chart-section {
-    flex: 1 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    min-height: 0 !important;
-  }
-  
-  .charts-clean .chart-card {
-    padding: 10px !important;
-    flex: 1 !important;
+    flex: 0 0 auto !important;
     display: flex !important;
     flex-direction: column !important;
     min-height: 0 !important;
@@ -630,7 +579,8 @@
   .charts-clean .chart-container {
     flex: 0 0 auto !important;
     min-height: 0 !important;
-    height: 60vh !important; /* Reduced height for better fit */
+    height: auto !important;
+    max-height: 58vh !important;
   }
   
   /* Ensure Bokeh plot fills available space */
@@ -644,36 +594,45 @@
     height: 100% !important;
   }
   
-  /* Predictions section */
+  /* Predictions section - FIT REMAINING SPACE */
   .charts-clean .predictions-section {
-    margin-top: 10px;
-    flex-shrink: 0;
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
   }
   
   .charts-clean .predictions-card {
     background-color: #182027;
     border: 1px solid #242f38;
     border-radius: 8px;
-    padding: 10px;
+    padding: 8px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
   }
   
   .charts-clean .predictions-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
-    padding-bottom: 8px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
     border-bottom: 1px solid #242f38;
+    flex-shrink: 0;
   }
   
   .charts-clean .predictions-header h3 {
     margin: 0;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     color: #e8eaed;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
   
   .charts-clean .predictions-header h3 i {
@@ -702,23 +661,28 @@
   
   /* Tabs Navigation */
   .charts-clean .tabs-container {
-    margin-top: 10px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
   }
   
   .charts-clean .tabs-nav {
     display: flex;
     gap: 4px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     border-bottom: 1px solid #242f38;
+    flex-shrink: 0;
   }
   
   .charts-clean .tab-btn {
     background: transparent;
     border: none;
-    padding: 8px 16px;
+    padding: 6px 12px;
     color: #b3b8bd;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     border-bottom: 2px solid transparent;
     transition: all 0.2s ease;
@@ -735,26 +699,31 @@
   }
   
   .charts-clean .tab-btn i {
-    margin-right: 6px;
+    margin-right: 4px;
   }
   
   .charts-clean .tab-content {
     display: none;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
   
   .charts-clean .tab-content.active {
-    display: block;
+    display: flex;
+    flex-direction: column;
   }
   
   .charts-clean .predictions-table-container {
-    max-height: 300px;
+    flex: 1;
     overflow-y: auto;
+    min-height: 0;
   }
   
   .charts-clean .predictions-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 11px;
   }
   
   .charts-clean .predictions-table thead {
@@ -765,15 +734,16 @@
   }
   
   .charts-clean .predictions-table th {
-    padding: 8px;
+    padding: 6px;
     text-align: left;
     font-weight: 600;
     color: #b3b8bd;
     border-bottom: 1px solid #242f38;
+    font-size: 10px;
   }
   
   .charts-clean .predictions-table td {
-    padding: 8px;
+    padding: 5px 6px;
     color: #e8eaed;
     border-bottom: 1px solid #242f38;
   }
@@ -800,10 +770,10 @@
   
   .charts-clean .signal-badge {
     display: inline-block;
-    padding: 3px 8px;
-    border-radius: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
     font-weight: 600;
-    font-size: 11px;
+    font-size: 10px;
     text-transform: uppercase;
   }
   
@@ -828,10 +798,10 @@
   /* Probability badge styling */
   .charts-clean .prob-badge {
     display: inline-block;
-    padding: 2px 6px;
+    padding: 2px 5px;
     border-radius: 3px;
     font-weight: 600;
-    font-size: 11px;
+    font-size: 10px;
   }
   
   .charts-clean .prob-high {
@@ -856,17 +826,17 @@
   
   /* Scrollbar styling */
   .charts-clean .predictions-table-container::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
   }
   
   .charts-clean .predictions-table-container::-webkit-scrollbar-track {
     background: #1e2936;
-    border-radius: 4px;
+    border-radius: 3px;
   }
   
   .charts-clean .predictions-table-container::-webkit-scrollbar-thumb {
     background: #242f38;
-    border-radius: 4px;
+    border-radius: 3px;
   }
   
   .charts-clean .predictions-table-container::-webkit-scrollbar-thumb:hover {

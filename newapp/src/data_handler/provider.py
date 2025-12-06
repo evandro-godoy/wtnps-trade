@@ -334,11 +334,12 @@ class MetaTraderProvider(BaseDataProvider):
             'high': 'high',
             'low': 'low',
             'close': 'close',
-            'tick_volume': 'volume'
+            'tick_volume': 'tick_volume',
+            'real_volume': 'volume'
         }, inplace=True)
 
         # Ensure required columns
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        required_cols = ['open', 'high', 'low', 'close', 'tick_volume','volume']
         for col in required_cols:
             if col not in data.columns:
                 data[col] = 0.0
@@ -393,16 +394,18 @@ class MetaTraderProvider(BaseDataProvider):
             'high': 'high',
             'low': 'low',
             'close': 'close',
-            'tick_volume': 'volume'
+            'tick_volume': 'tick_volume',
+            'real_volume': 'volume'
         }, inplace=True)
 
         # Handle volume columns
         if 'real_volume' in data.columns and 'volume' not in data.columns:
             data['volume'] = data['real_volume']
         elif 'real_volume' in data.columns and 'volume' in data.columns:
+            data['volume'] = data['real_volume']
             data.drop(columns=['real_volume'], inplace=True)
 
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        required_cols = ['open', 'high', 'low', 'close', 'tick_volume', 'volume']
         data = data[[col for col in required_cols if col in data.columns]]
         if 'volume' not in data.columns:
             data['volume'] = 0

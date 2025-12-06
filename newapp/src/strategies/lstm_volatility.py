@@ -234,7 +234,7 @@ class LSTMVolatilityWrapper(BaseEstimator, ClassifierMixin):
         rebuild = False
         for param, value in params.items():
             setattr(self, param, value)
-            if param in ['lookback', 'lstm_units', 'dropout_rate', 'n_features']:
+            if param in ['lookback', 'lstm_units', 'dropout_rate', 'epochs', 'batch_size', 'n_features']:
                 rebuild = True
         
         if rebuild:
@@ -422,6 +422,8 @@ class LSTMVolatilityStrategy(BaseStrategy):
             hour = df.index.hour
             target = target.where(hour < 17, 0)
         
+        # Retornar mantendo o índice original (NaN nos últimos target_period registros)
+        # O train_model.py fará a limpeza dos NaNs posteriormente
         return target
 
     def define_model(self) -> BaseEstimator:

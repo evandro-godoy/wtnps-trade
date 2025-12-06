@@ -7,7 +7,7 @@ from newapp.configs.config import STATIC_DIR, TEMPLATES_DIR, APP_NAME, DEFAULT_S
 from newapp.src.data_handler.provider import get_default_provider
 from newapp.src.data_handler.hybrid_data_loader import get_hybrid_candles
 from newapp.src.database.db import get_db
-from newapp.src.ml.prediction_engine import get_prediction_engine
+from newapp.src.ml.legacy_monitor_engine import get_legacy_monitor_engine
 from newapp.plotting import create_dashboard_chart
 import pandas as pd
 import logging
@@ -72,14 +72,17 @@ async def home_clean(request: Request):
 @app.get("/charts-clean", response_class=HTMLResponse)
 async def charts_clean(
     request: Request,
-    symbol: str = DEFAULT_SYMBOL,
-    timeframe: str = DEFAULT_TIMEFRAME,
-    limit: int = DEFAULT_LIMIT,
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = BackgroundTasks()
 ):
-    """Serve clean charts page with only the Bokeh candlestick chart."""
+    """Serve clean charts page with Bokeh candlestick chart.
+    Fixed parameters: WDO$, M5, 1500 barras."""
     import time
+    
+    # Fixed parameters (no longer from query params)
+    symbol = "WDO$"
+    timeframe = "M5"
+    limit = 1500
     
     # Fetch OHLC data using hybrid loader
     df = get_recent_ohlc(symbol, timeframe, limit, db, background_tasks)
@@ -101,9 +104,6 @@ async def charts_clean(
     
     return templates.TemplateResponse('charts_clean.html', {
         'request': request,
-        'symbol': symbol,
-        'timeframe': timeframe,
-        'limit': limit,
         'version': int(time.time()),
         'bokeh_script': script,
         'bokeh_div': div
@@ -156,79 +156,6 @@ async def healthcheck():
     return HTMLResponse(content="OK", status_code=200)
 
 
-@app.get("/api/ml-predictions")
-async def get_ml_predictions(
-    symbol: str = DEFAULT_SYMBOL,
-    timeframe: str = DEFAULT_TIMEFRAME,
-    count: int = 10
-):
-    """Get ML predictions from trained models (LSTM/DRL).
-    
-    Returns real predictions using legacy strategy framework.
-    """
-    try:
-        engine = get_prediction_engine()
-        predictions_raw = engine.predict_latest(
-            symbol=symbol,
-            timeframe=timeframe,
-            count=count
-        )
-        
-        # Format for frontend
-        predictions = []
-        for pred in predictions_raw:
-            timestamp = pred['timestamp']
-            timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S') if hasattr(timestamp, 'strftime') else str(timestamp)
-            
-            # Extract technical indicators
-            indicators = pred.get('indicators', {})
-            
-            # Determine trend
-            close = indicators.get('close', 0)
-            ema9 = indicators.get('ema_9', 0)
-            sma20 = indicators.get('sma_20', 0)
-            
-            if ema9 > sma20 and close > ema9:
-                trend = 'ALTA'
-            elif ema9 < sma20 and close < ema9:
-                trend = 'BAIXA'
-            else:
-                trend = 'LATERAL'
-            
-            # Get probability
-            prob_ml = round(pred['probability'] * 100, 1)
-            
-            # Build message like legacy monitor
-            signal = pred['signal']
-            if prob_ml >= 65:
-                # ALERT - Critical message with trend
-                message = f"🚨 SINAL {signal} ({prob_ml:.1f}%) | Tendência: {trend}"
-            elif prob_ml >= 55:
-                # INFO - Moderate probability
-                rsi = indicators.get('rsi_14', 0)
-                message = f"📊 Prob. Moderada ({prob_ml:.1f}%) | Tendência: {trend} | RSI: {rsi:.0f}"
-            else:
-                # TICK - Normal candle
-                message = f"Candle processado | Tendência: {trend}"
-            
-            predictions.append({
-                'timestamp': timestamp_str,
-                'tipo': signal,
-                'ai_signal': pred.get('ai_signal', signal),
-                'preco': int(pred['price']),
-                'prob_ml': prob_ml,
-                'mensagem': message,
-                'indicators': indicators,
-                'trend': trend
-            })
-        
-        return {'predictions': predictions, 'source': 'ml_engine'}
-        
-    except Exception as e:
-        logger.error(f"Error generating ML predictions: {e}", exc_info=True)
-        return {'predictions': [], 'error': str(e)}
-
-
 @app.get("/api/monitor-predictions")
 async def get_monitor_predictions(
     symbol: str = DEFAULT_SYMBOL,
@@ -237,12 +164,19 @@ async def get_monitor_predictions(
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = BackgroundTasks()
 ):
-    """Get recent monitor predictions with market status."""
+    """Get monitor predictions using EXACT legacy logic.
+    
+    Returns real predictions matching monitor_ui.py output:
+    - Direction (CALL/PUT) based on EMA20
+    - Signal (COMPRA/VENDA) mapped from direction
+    - Complete technical analysis (RSI, Trend, Patterns, Support/Resistance)
+    - Validation status
+    """
     from datetime import datetime, timezone
     
-    # Get fresh data from provider
-    provider = get_default_provider()
     try:
+        # Get fresh data from provider
+        provider = get_default_provider()
         data = provider.get_latest_candles(ticker=symbol, timeframe=timeframe, count=500)
         
         if data.empty:
@@ -253,7 +187,7 @@ async def get_monitor_predictions(
                 'error': 'No data available'
             }
         
-        # Get latest candle time
+        # Get latest candle time for market status
         latest_candle_time = data.index[-1]
         latest_candle_time_str = latest_candle_time.strftime('%Y-%m-%d %H:%M:%S')
         
@@ -265,16 +199,82 @@ async def get_monitor_predictions(
         time_diff = (now_utc - latest_candle_time).total_seconds()
         is_market_open = time_diff < 600  # 10 minutes
         
-        # Get ML predictions
-        ml_result = await get_ml_predictions(symbol, timeframe, count=count)
+        # === Get prediction using LEGACY MONITOR ENGINE ===
+        engine = get_legacy_monitor_engine()
         
-        # Return with market status
+        # Generate predictions for last N completed candles
+        predictions = []
+        
+        # Use sliding window to get last N predictions
+        for i in range(max(1, len(data) - count), len(data)):
+            subset = data.iloc[:i+1]
+            pred_result = engine.predict_on_candle(subset, symbol, timeframe)
+            
+            if pred_result:
+                # Format for frontend (matching legacy monitor output)
+                timestamp_str = pred_result['timestamp'].strftime('%Y-%m-%d %H:%M:%S') if hasattr(pred_result['timestamp'], 'strftime') else str(pred_result['timestamp'])
+                
+                # Probability text
+                prob_pct = round(pred_result['probability'] * 100, 2)
+                
+                # Message formatting (like legacy monitor)
+                if prob_pct >= 65:
+                    # ALERT message
+                    target = pred_result['resistance'] if pred_result['direction'] == 'CALL' else pred_result['support']
+                    validation_icon = "✅" if pred_result['signal_valid'] else "⚠️"
+                    message = (
+                        f"{validation_icon} SINAL {pred_result['direction']} ({prob_pct:.1f}%) | "
+                        f"Tendência: {pred_result['trend']} ({pred_result['trend_strength']}) | "
+                        f"Padrão: {pred_result['pattern']} | "
+                        f"Alvo: {target:.2f}"
+                    )
+                elif prob_pct >= 55:
+                    # INFO message
+                    message = (
+                        f"📊 Prob. Moderada ({prob_pct:.1f}%) | "
+                        f"Tendência: {pred_result['trend']} | "
+                        f"RSI: {pred_result['rsi']:.0f} ({pred_result['rsi_condition']})"
+                    )
+                else:
+                    # TICK message
+                    message = f"Candle processado | Tendência: {pred_result['trend']}"
+                
+                predictions.append({
+                    'timestamp': timestamp_str,
+                    'tipo': pred_result['signal'],
+                    'direction': pred_result['direction'],
+                    'preco': int(pred_result['price']),
+                    'prob_ml': prob_pct,
+                    'mensagem': message,
+                    'indicators': {
+                        'close': pred_result['price'],
+                        'ema_9': pred_result['ema_9'],
+                        'ema_20': pred_result['ema_20'],
+                        'sma_20': pred_result['sma_20'],
+                        'sma_50': pred_result['sma_50'],
+                        'rsi_14': pred_result['rsi']
+                    },
+                    'analysis': {
+                        'trend': pred_result['trend'],
+                        'trend_strength': pred_result['trend_strength'],
+                        'rsi': pred_result['rsi'],
+                        'rsi_condition': pred_result['rsi_condition'],
+                        'support': pred_result['support'],
+                        'resistance': pred_result['resistance'],
+                        'pattern': pred_result['pattern'],
+                        'signal_valid': pred_result['signal_valid']
+                    }
+                })
+        
+        # Return last N predictions
+        results = predictions[-count:] if predictions else []
+        
         return {
-            'predictions': ml_result.get('predictions', []),
+            'predictions': results,
             'latest_candle_time': latest_candle_time_str,
             'is_market_open': is_market_open,
-            'source': ml_result.get('source', 'ml_engine'),
-            'error': ml_result.get('error')
+            'source': 'legacy_monitor_engine',
+            'error': None
         }
         
     except Exception as e:
@@ -283,62 +283,6 @@ async def get_monitor_predictions(
             'predictions': [],
             'latest_candle_time': None,
             'is_market_open': False,
-            'error': str(e)
+            'error': str(e),
+            'source': 'legacy_monitor_engine'
         }
-    
-    # Fallback to mock if ML engine fails
-    logger.warning(f"ML predictions failed, using fallback: {ml_result.get('error')}")
-    
-    try:
-        from datetime import datetime, timedelta
-        import random
-        
-        df = get_recent_ohlc(symbol, timeframe, 20, db, background_tasks)
-        
-        if df.empty:
-            return {'predictions': []}
-        
-        predictions = []
-        
-        # Get last 10 candles for predictions
-        last_candles = df.tail(10)
-        
-        for idx, (timestamp, row) in enumerate(last_candles.iterrows()):
-            # Use actual price data
-            close_price = float(row['close'])
-            
-            # Simulate signal based on simple logic (for demonstration)
-            if idx > 0:
-                prev_close = float(last_candles.iloc[idx-1]['close'])
-                price_change = close_price - prev_close
-                
-                # Simple signal logic: uptrend = COMPRA, downtrend = VENDA
-                if price_change > 0:
-                    signal = 'COMPRA' if random.random() > 0.3 else 'HOLD'
-                    prob = random.uniform(0.65, 0.92)
-                elif price_change < 0:
-                    signal = 'VENDA' if random.random() > 0.3 else 'HOLD'
-                    prob = random.uniform(0.65, 0.92)
-                else:
-                    signal = 'HOLD'
-                    prob = random.uniform(0.45, 0.60)
-            else:
-                signal = random.choice(['COMPRA', 'VENDA', 'HOLD'])
-                prob = random.uniform(0.55, 0.85)
-            
-            # Format timestamp (convert to local time if needed)
-            timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
-            
-            predictions.append({
-                'timestamp': timestamp_str,
-                'tipo': signal,
-                'preco': int(close_price),
-                'prob_ml': round(prob * 100, 1),
-                'mensagem': f'Sinal {signal} detectado' if signal != 'HOLD' else 'Aguardando confirmação'
-            })
-        
-        return {'predictions': predictions}
-        
-    except Exception as e:
-        print(f"Error generating predictions: {e}")
-        return {'predictions': []}

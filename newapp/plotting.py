@@ -1,6 +1,9 @@
 """
 Bokeh plotting module for WTNPS Trade dashboard.
-Replicates backtesting.py chart style with vertical subplots.
+Replicates notebook general_analysis.ipynb chart style with:
+- Candlesticks + Moving Averages (EMA 9, SMA 20, SMA 50)
+- Volume subplot
+- RSI subplot with reference lines
 """
 from typing import List, Dict, Any
 import pandas as pd
@@ -8,14 +11,16 @@ import numpy as np
 
 from bokeh.plotting import figure
 from bokeh.layouts import gridplot
-from bokeh.models import ColumnDataSource, HoverTool, CrosshairTool, Range1d
+from bokeh.models import ColumnDataSource, HoverTool, CrosshairTool, Range1d, Span
 from bokeh.embed import components
 from bokeh.colors.named import lime as BULL_COLOR, tomato as BEAR_COLOR
+from bokeh.transform import factor_cmap
 
 
 def create_dashboard_chart(ohlc_data: List[Dict[str, Any]]) -> tuple[str, str]:
     """
-    Create Bokeh chart with candlestick + volume subplots.
+    Create Bokeh chart with candlestick + MA + volume + RSI subplots.
+    Matches notebook general_analysis.ipynb implementation.
     
     Args:
         ohlc_data: List of OHLC dicts with keys: time, open, high, low, close, volume
@@ -32,33 +37,48 @@ def create_dashboard_chart(ohlc_data: List[Dict[str, Any]]) -> tuple[str, str]:
     df['index'] = range(len(df))
     df['inc'] = (df['close'] >= df['open']).astype(int).astype(str)
     
+    # Format timestamp for display
+    df['time_str'] = df['time'].dt.strftime('%Y-%m-%d %H:%M')
+    
+    # Calculate Moving Averages
+    df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
+    df['sma_20'] = df['close'].rolling(window=20).mean()
+    df['sma_50'] = df['close'].rolling(window=50).mean()
+    
+    # Calculate RSI (14 periods)
+    delta = df['close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['rsi'] = 100 - (100 / (1 + rs))
+    
     # Create ColumnDataSource
     source = ColumnDataSource(df)
     
-    # Shared x_range for synchronized zooming (show last 100 candles by default)
-    visible_candles = min(100, len(df))
-    start_idx = max(0, len(df) - visible_candles)
-    x_range = Range1d(start=start_idx, end=len(df) - 1)
+    # Shared x_range for synchronized zooming
+    x_range = Range1d(start=0, end=len(df) - 1)
     
     # Color mapping
     COLORS = [BEAR_COLOR, BULL_COLOR]
-    from bokeh.transform import factor_cmap
     inc_cmap = factor_cmap('inc', COLORS, ['0', '1'])
     
-    # Create Candlestick Figure (80% height)
-    fig_ohlc = figure(
+    # ========== FIGURE 1: CANDLESTICK + MOVING AVERAGES ==========
+    fig_candle = figure(
         width=1400,
-        height=500,
+        height=350,
         x_range=x_range,
-        tools="xpan,xwheel_zoom,box_zoom,reset,save",
-        active_drag='xpan',
-        active_scroll='xwheel_zoom',
-        title=f"WDO$ - M5 ({len(df)} candles)"
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+        active_drag='pan',
+        active_scroll='wheel_zoom',
+        title="WDO$ - M5 - 1500 barras"
     )
     
-    # OHLC Candlesticks
-    fig_ohlc.segment('index', 'high', 'index', 'low', source=source, color="white", line_width=1)
-    fig_ohlc.vbar(
+    # Candlesticks: wicks (high-low)
+    fig_candle.segment('index', 'high', 'index', 'low', 
+                      source=source, color="white", line_width=1)
+    
+    # Candlesticks: bodies (open-close)
+    fig_candle.vbar(
         'index', 0.8, 'open', 'close',
         source=source,
         line_color="white",
@@ -66,36 +86,56 @@ def create_dashboard_chart(ohlc_data: List[Dict[str, Any]]) -> tuple[str, str]:
         line_width=1
     )
     
+    # Moving Averages
+    fig_candle.line('index', 'ema_9', source=source, 
+                   color="#f33012", line_width=2, alpha=0.8, 
+                   legend_label="EMA 9")
+    
+    fig_candle.line('index', 'sma_20', source=source, 
+                   color="#3439db", line_width=2, alpha=0.7,
+                   legend_label="SMA 20")
+    
+    fig_candle.line('index', 'sma_50', source=source, 
+                   color="#bf751a", line_width=2, alpha=0.6, 
+                   line_dash='dashed', legend_label="SMA 50")
+    
     # Styling
-    fig_ohlc.grid.grid_line_alpha = 0.3
-    fig_ohlc.xaxis.visible = False  # Hide x-axis (shown only on volume)
-    fig_ohlc.yaxis.axis_label = "Price"
-    fig_ohlc.background_fill_color = "#0a0e1a"
-    fig_ohlc.border_fill_color = "#1a1f2e"
+    fig_candle.grid.grid_line_alpha = 0.3
+    fig_candle.xaxis.visible = False
+    fig_candle.yaxis.axis_label = "Preço"
+    fig_candle.background_fill_color = "#0a0e1a"
+    fig_candle.border_fill_color = "#1a1f2e"
+    fig_candle.title.text_color = "white"
+    fig_candle.title.text_font_size = "14pt"
+    
+    # Legend styling
+    fig_candle.legend.location = "top_left"
+    fig_candle.legend.background_fill_alpha = 0.7
+    fig_candle.legend.background_fill_color = "#1a1f2e"
+    fig_candle.legend.label_text_color = "white"
     
     # Hover tooltip
-    hover_ohlc = HoverTool(
+    hover_candle = HoverTool(
         tooltips=[
-            ("Time", "@time{%F %H:%M}"),
+            ("Data/Hora", "@time_str"),
             ("Open", "@open{0,0.00}"),
             ("High", "@high{0,0.00}"),
             ("Low", "@low{0,0.00}"),
             ("Close", "@close{0,0.00}"),
             ("Volume", "@volume{0,0}")
         ],
-        formatters={'@time': 'datetime'},
         mode='vline'
     )
-    fig_ohlc.add_tools(hover_ohlc)
+    fig_candle.add_tools(hover_candle)
     
-    # Create Volume Figure (20% height)
+    # ========== FIGURE 2: VOLUME ==========
     fig_volume = figure(
         width=1400,
-        height=150,
-        x_range=fig_ohlc.x_range,  # Shared range for sync
-        tools="xpan,xwheel_zoom,box_zoom,reset",
-        active_drag='xpan',
-        active_scroll='xwheel_zoom'
+        height=100,
+        x_range=fig_candle.x_range,
+        tools="pan,wheel_zoom,box_zoom,reset",
+        active_drag='pan',
+        active_scroll='wheel_zoom'
     )
     
     # Volume bars
@@ -103,24 +143,67 @@ def create_dashboard_chart(ohlc_data: List[Dict[str, Any]]) -> tuple[str, str]:
         'index', 0.8, 'volume',
         source=source,
         color=inc_cmap,
-        line_color=None
+        line_color=None,
+        alpha=0.6
     )
     
     # Styling
     fig_volume.grid.grid_line_alpha = 0.3
     fig_volume.yaxis.axis_label = "Volume"
-    fig_volume.xaxis.axis_label = "Time (candles)"
+    fig_volume.xaxis.visible = False
     fig_volume.background_fill_color = "#0a0e1a"
     fig_volume.border_fill_color = "#1a1f2e"
     
-    # Crosshair linking
-    crosshair = CrosshairTool(dimensions="both", line_color='lightgrey')
-    fig_ohlc.add_tools(crosshair)
-    fig_volume.add_tools(crosshair)
+    # ========== FIGURE 3: RSI ==========
+    fig_rsi = figure(
+        width=1400,
+        height=120,
+        x_range=fig_candle.x_range,
+        tools="pan,wheel_zoom,box_zoom,reset",
+        active_drag='pan',
+        active_scroll='wheel_zoom',
+        y_range=Range1d(0, 100)
+    )
+    
+    # RSI line
+    fig_rsi.line('index', 'rsi', source=source, 
+                color='#1abc9c', line_width=2, legend_label="RSI (14)")
+    
+    # RSI area fill
+    fig_rsi.varea('index', 0, 'rsi', source=source, 
+                 color='#1abc9c', alpha=0.2)
+    
+    # Reference lines (70 = overbought, 30 = oversold, 50 = neutral)
+    hline_70 = Span(location=70, dimension='width', line_color='red', 
+                   line_dash='dashed', line_width=1, line_alpha=0.5)
+    hline_30 = Span(location=30, dimension='width', line_color='green', 
+                   line_dash='dashed', line_width=1, line_alpha=0.5)
+    hline_50 = Span(location=50, dimension='width', line_color='gray', 
+                   line_dash='dotted', line_width=1, line_alpha=0.3)
+    
+    fig_rsi.add_layout(hline_70)
+    fig_rsi.add_layout(hline_30)
+    fig_rsi.add_layout(hline_50)
+    
+    # Styling
+    fig_rsi.grid.grid_line_alpha = 0.3
+    fig_rsi.yaxis.axis_label = "RSI"
+    fig_rsi.xaxis.axis_label = "Candles"
+    fig_rsi.background_fill_color = "#0a0e1a"
+    fig_rsi.border_fill_color = "#1a1f2e"
+    fig_rsi.legend.location = "top_left"
+    fig_rsi.legend.background_fill_alpha = 0.7
+    fig_rsi.legend.background_fill_color = "#1a1f2e"
+    fig_rsi.legend.label_text_color = "white"
+    
+    # Crosshair linking (synchronize cursor between charts)
+    crosshair = CrosshairTool(dimensions="both", line_color='lightgrey', line_alpha=0.5)
+    for fig in [fig_candle, fig_volume, fig_rsi]:
+        fig.add_tools(crosshair)
     
     # Stack figures vertically
     grid = gridplot(
-        [[fig_ohlc], [fig_volume]],
+        [[fig_candle], [fig_volume], [fig_rsi]],
         toolbar_location='right',
         sizing_mode='stretch_width'
     )

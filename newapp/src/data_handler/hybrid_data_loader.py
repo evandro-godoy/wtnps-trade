@@ -219,11 +219,16 @@ def get_hybrid_candles(
         
         try:
             # Fetch full limit from provider (ensures we have enough data)
-            df_provider = provider.get_latest_candles(
-                ticker=symbol,
-                timeframe=timeframe_str,
-                count=limit
-            )
+            # df_provider = provider.get_latest_candles(
+            #    ticker=symbol,
+            #    timeframe=timeframe_str,
+            #    count=limit
+            #)
+
+            # ajusta formato para mt5
+            start_date = latest_db_time.strftime('%Y-%m-%d') 
+            end_date = expected_latest.strftime('%Y-%m-%d')
+            df_provider = provider.get_data(symbol, start_date, end_date, timeframe_str)
             
             if not df_provider.empty:
                 # Identify truly new candles (not in DB)
@@ -252,7 +257,7 @@ def get_hybrid_candles(
                             timeframe_str,
                             False
                         )
-                        logger.info("📤 Queued {len(df_new)} candles for background persistence (FastAPI)")
+                        logger.info(f"📤 Queued {len(df_new)} candles for background persistence (FastAPI)")
                     else:
                         # Fallback: asyncio task (for non-FastAPI contexts)
                         try:
@@ -392,7 +397,11 @@ def get_hybrid_candles_sync(
         provider = get_default_provider()
         
         try:
-            df_provider = provider.get_latest_candles(symbol, timeframe_str, limit)
+            # ajusta formato para mt5
+            start_date = latest_db_time.strftime('%Y-%m-%d') 
+            end_date = expected_latest.strftime('%Y-%m-%d')
+            
+            df_provider = provider.get_data(symbol, start_date, end_date, timeframe_str)
             
             if not df_provider.empty:
                 if df_db.empty:
