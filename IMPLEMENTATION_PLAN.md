@@ -539,7 +539,7 @@ poetry install  # Reinstala dependências do lock file
 
 ---
 
-## 🎉 CONCLUSÃO
+## 🎉 CONCLUSÃO - SPRINT 1
 
 A implementação foi concluída com sucesso! Todos os arquivos foram criados/modificados conforme planejado:
 
@@ -549,6 +549,246 @@ A implementação foi concluída com sucesso! Todos os arquivos foram criados/mo
 ✅ 0 erros de sintaxe  
 ✅ 0 erros de importação  
 
-**Status:** ✅ **PRONTO PARA TESTES**
+**Status:** ✅ **SPRINT 1 - MVP MOCK COMPLETE**
 
 Execute os comandos de teste acima para validar ambos os modos!
+
+---
+
+# 🚀 SPRINT 2: INTEGRAÇÃO REAL
+
+## 📋 OBJETIVO
+
+Substituir componentes mock por implementações reais, conectando o sistema ao MetaTrader 5 e usando modelos treinados para inferência em produção.
+
+**Sprint 1 (✅ COMPLETE):** MVP Mock - Interface funcional com dados simulados
+**Sprint 2 (🔄 CURRENT):** Integração Real - MetaTrader5 Provider + Model Loading + Dependency Injection
+
+---
+
+## 📊 RESUMO DO SPRINT
+
+| Métrica | Valor |
+|---------|-------|
+| **Duração** | 5-6 dias |
+| **Story Points** | 34 |
+| **Issues** | 4 |
+| **Prioridade** | 🔴 CRÍTICA |
+
+---
+
+## 🎯 ISSUES DO SPRINT 2
+
+### 1. [DATA-001] Implementar MetaTraderProvider
+**Squad:** Data Engineering  
+**Story Points:** 13  
+**Prioridade:** 🔴 ALTA  
+
+**Arquivo:** [.github/issues/sprint2/DATA-001-mt5-provider.md](.github/issues/sprint2/DATA-001-mt5-provider.md)
+
+**Objetivo:**
+- Criar classe `MetaTraderProvider` que conecta ao MT5
+- Publicar dados reais no EventBus
+- Configuração via `.env`
+
+**DoD:**
+- [ ] Classe implementada com docstrings
+- [ ] Conexão MT5 validada
+- [ ] Dados publicados no EventBus
+- [ ] Testes de integração passando
+- [ ] README atualizado com setup MT5
+
+---
+
+### 2. [QUANT-002] Refinar Carregamento de Modelo
+**Squad:** Quantitative Strategy  
+**Story Points:** 5  
+**Prioridade:** 🟡 MÉDIA  
+
+**Arquivo:** [.github/issues/sprint2/QUANT-002-model-loading.md](.github/issues/sprint2/QUANT-002-model-loading.md)
+
+**Objetivo:**
+- Garantir carregamento robusto do LSTM
+- Validação de `input_shape`
+- Exception handling completo
+
+**DoD:**
+- [ ] Try/except implementado
+- [ ] Input shape validado
+- [ ] Conversão `np.array(X)` adicionada
+- [ ] Testes cobrem cenário "modelo ausente"
+- [ ] Logs claros de erro
+
+---
+
+### 3. [ARCH-003] Injeção de Dependências no main.py
+**Squad:** Architecture  
+**Story Points:** 8  
+**Prioridade:** 🔴 ALTA  
+
+**Arquivo:** [.github/issues/sprint2/ARCH-003-dependency-injection.md](.github/issues/sprint2/ARCH-003-dependency-injection.md)
+
+**Objetivo:**
+- Substituir loop de teste por `MetaTraderProvider` real
+- Configurar `.env` com credenciais MT5
+- Remover todos os mocks
+
+**DoD:**
+- [ ] main.py usa provider real (0 mocks)
+- [ ] `.env.example` criado
+- [ ] Sistema processa candles reais
+- [ ] Logs mostram "Conectado ao MT5"
+- [ ] README tem seção "Setup MT5"
+
+**Dependências:** DATA-001 deve estar merged ✅
+
+---
+
+### 4. [GUARDIAN-004] Criar Teste de Contrato
+**Squad:** QA/Testing  
+**Story Points:** 8  
+**Prioridade:** 🟡 MÉDIA  
+
+**Arquivo:** [.github/issues/sprint2/GUARDIAN-004-contract-test.md](.github/issues/sprint2/GUARDIAN-004-contract-test.md)
+
+**Objetivo:**
+- Validar contrato `MarketDataEvent`
+- Garantir shape de dados pós-features
+- Teste de integração end-to-end
+
+**DoD:**
+- [ ] Contract test implementado
+- [ ] Todos os campos de `MarketDataEvent` testados
+- [ ] Shape validado após `define_features()`
+- [ ] Teste passa em CI (Python 3.12)
+- [ ] Documentação explica contract test
+
+**Dependências:** DATA-001 deve estar merged ✅
+
+---
+
+## 📁 ESTRUTURA DE ARQUIVOS DO SPRINT 2
+
+```
+.github/
+├── ISSUE_TEMPLATE/
+│   └── sprint2_task.md              # Template para issues do Sprint 2
+└── issues/
+    └── sprint2/
+        ├── DATA-001-mt5-provider.md
+        ├── QUANT-002-model-loading.md
+        ├── ARCH-003-dependency-injection.md
+        └── GUARDIAN-004-contract-test.md
+
+.env.example                          # Template de configuração MT5
+```
+
+---
+
+## 🔗 DEPENDÊNCIAS E ORDEM DE EXECUÇÃO
+
+```mermaid
+graph TD
+    A[Sprint 1 MVP Mock ✅] --> B[DATA-001: MT5Provider]
+    A --> C[QUANT-002: Model Loading]
+    B --> D[ARCH-003: Dependency Injection]
+    B --> E[GUARDIAN-004: Contract Test]
+    C --> D
+```
+
+**Ordem recomendada:**
+1. **Paralelo:** DATA-001 + QUANT-002
+2. **Sequencial:** ARCH-003 (após DATA-001)
+3. **Paralelo:** GUARDIAN-004 (após DATA-001)
+
+---
+
+## ⚙️ CONFIGURAÇÃO MT5
+
+### Arquivo `.env` (criar na raiz do projeto)
+
+```bash
+# Trading System Configuration
+PROJECT_NAME=wtnps-finadv
+VERSION=0.2.0-sprint2
+LOG_LEVEL=INFO
+TRADING_ENABLED=false
+
+# MetaTrader 5 Configuration
+MT5_PATH=C:\\Program Files\\MetaTrader 5\\terminal64.exe
+MT5_LOGIN=your_account_number
+MT5_SERVER=your_broker_server
+MT5_PASSWORD=your_password
+
+# Model Paths
+MODELS_DIR=models
+LOGS_DIR=logs
+```
+
+**Exemplo criado:** `.env.example` na raiz do projeto
+
+---
+
+## 📦 DEFINITION OF DONE - SPRINT 2
+
+### Critérios de Aceitação
+
+- [ ] Todas as 4 issues completadas
+- [ ] Sistema conecta ao MT5 real
+- [ ] Modelo LSTM carrega sem erros
+- [ ] EventBus processa dados reais
+- [ ] Contract tests passando
+- [ ] 0 mocks no código de produção
+- [ ] Logs mostram conexão MT5 ao startup
+- [ ] README atualizado com setup MT5
+- [ ] Testes de integração passando em CI
+
+### Testes de Validação
+
+```powershell
+# 1. Validar conexão MT5
+poetry run python -c "
+from src.data_handler.mt5_provider import MetaTraderProvider
+provider = MetaTraderProvider()
+print('✅ MT5 conectado')
+"
+
+# 2. Validar carregamento de modelo
+poetry run python -c "
+from src.modules.strategy.lstm_adapter import LSTMAdapter
+adapter = LSTMAdapter()
+print('✅ Modelo carregado')
+"
+
+# 3. Executar sistema completo
+poetry run python newapp/main.py
+
+# 4. Executar testes de contrato
+poetry run pytest tests/integration/test_mt5_contract.py -v
+```
+
+---
+
+## 🚀 PRÓXIMOS PASSOS (SPRINT 3)
+
+Após conclusão do Sprint 2, o Sprint 3 focará em:
+
+1. **Execution Engine:** Implementar módulo de execução de ordens
+2. **Risk Management:** Stop Loss/Take Profit dinâmico
+3. **Position Tracking:** Gerenciamento de posições abertas
+4. **Performance Metrics:** Dashboard de métricas em tempo real
+
+---
+
+## 📊 TRACKING DO SPRINT 2
+
+| Issue | Status | Assignee | Progress |
+|-------|--------|----------|----------|
+| DATA-001 | 📋 TODO | - | 0% |
+| QUANT-002 | 📋 TODO | - | 0% |
+| ARCH-003 | 📋 TODO | - | 0% |
+| GUARDIAN-004 | 📋 TODO | - | 0% |
+
+**Sprint Start:** 2026-01-31  
+**Sprint End:** 2026-02-06 (estimado)  
+**Velocity:** 34 story points

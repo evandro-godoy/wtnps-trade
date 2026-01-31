@@ -136,7 +136,74 @@ O `SimulationEngine` carrega os modelos treinados e permite executar um único c
 
 #### Modo 3: Dashboards
 
-Este modo permite visualizar dados dos ativos 
+Este modo permite visualizar dados dos ativos
+
+---
+
+## 🚀 Sprint 2: Integração Real (NEW APP)
+
+### Objetivo
+
+O Sprint 2 foca em substituir componentes mock por implementações reais, conectando o sistema ao MetaTrader 5 e usando modelos treinados para inferência em produção.
+
+**Status:** 🔄 Em Progresso  
+**Duração:** 5-6 dias  
+**Story Points:** 34
+
+### Issues do Sprint 2
+
+1. **[DATA-001]** Implementar MetaTraderProvider - [Ver detalhes](.github/issues/sprint2/DATA-001-mt5-provider.md)
+2. **[QUANT-002]** Refinar Carregamento de Modelo - [Ver detalhes](.github/issues/sprint2/QUANT-002-model-loading.md)
+3. **[ARCH-003]** Injeção de Dependências no main.py - [Ver detalhes](.github/issues/sprint2/ARCH-003-dependency-injection.md)
+4. **[GUARDIAN-004]** Criar Teste de Contrato - [Ver detalhes](.github/issues/sprint2/GUARDIAN-004-contract-test.md)
+
+### Setup MetaTrader 5
+
+Para usar o sistema com dados reais do MT5, você precisa:
+
+1. **Instalar MetaTrader 5:** Baixe e instale o terminal do seu broker
+2. **Configurar credenciais:** Crie um arquivo `.env` na raiz do projeto (use `.env.example` como template)
+
+```bash
+# Copiar template
+cp .env.example .env
+
+# Editar com suas credenciais
+# MT5_PATH=C:\\Program Files\\MetaTrader 5\\terminal64.exe
+# MT5_LOGIN=sua_conta
+# MT5_SERVER=servidor_do_broker
+# MT5_PASSWORD=sua_senha
+```
+
+3. **Verificar conexão:**
+
+```powershell
+poetry run python -c "
+from src.data_handler.mt5_provider import MetaTraderProvider
+provider = MetaTraderProvider()
+print('✅ MT5 conectado com sucesso')
+"
+```
+
+### Arquitetura do New App
+
+O novo sistema (em desenvolvimento no diretório `newapp/`) utiliza arquitetura event-driven:
+
+```
+MetaTrader5 → MT5Provider → EventBus → LSTMAdapter → SignalEvent → Execution
+```
+
+**Componentes principais:**
+- **EventBus:** Sistema de mensagens pub/sub para comunicação entre módulos
+- **MT5Provider:** Publica dados de mercado em tempo real
+- **LSTMAdapter:** Consome dados, executa inferência do modelo
+- **Execution:** (Sprint 3) Gerenciamento de ordens e posições
+
+Para mais detalhes, consulte:
+- [Plano de Implementação](IMPLEMENTATION_PLAN.md)
+- [Issues do Sprint 2](.github/issues/sprint2/)
+
+---
 
 ## Instalação
 

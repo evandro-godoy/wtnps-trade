@@ -103,7 +103,14 @@ class LSTMVolatilityAdapter:
             else:
                 X_scaled = X
             
-            # Reshape para LSTM: (1, timesteps, features)
+            # Escalar os dados
+            X_scaled = self.scaler.transform(X)
+
+            # 🎯 HARDENING: Garante que é array antes do reshape
+            X_scaled = np.array(X_scaled)
+
+            # Reshape para (batch_size, time_steps, n_features)
+            # O erro acontecia aqui pq listas não têm .reshape()
             X_seq = X_scaled.reshape(1, self.lookback, len(feature_names))
             
             # Predição
