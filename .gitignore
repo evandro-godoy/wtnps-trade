@@ -39,6 +39,19 @@ venv.bak/
 # VSCode
 .vscode/
 
+# Caches
+__pycache__/
+.pytest_cache/
+
+# Logs
+logs/
+*.log
+
+# Large model artifacts
+*.keras
+*.h5
+*.joblib
+
 # Poetry
 .poetry-virtualenvs/
 archive/tests/monitor_ui.html
