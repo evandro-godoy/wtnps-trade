@@ -769,7 +769,7 @@
     background-color: #182027;
     border: 1px solid #242f38;
     border-radius: 8px;
-    padding: 8px;
+    padding: 6px;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -781,35 +781,40 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
-    padding-bottom: 6px;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
     border-bottom: 1px solid #242f38;
     flex-shrink: 0;
   }
   
   .charts-clean .predictions-header h3 {
     margin: 0;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     color: #e8eaed;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .charts-clean .predictions-header h3 i {
     color: #5ebcf3;
+    flex-shrink: 0;
   }
   
   .charts-clean .header-controls {
     display: flex;
-    gap: 6px;
+    gap: 4px;
+    flex-shrink: 0;
   }
   
   .charts-clean .btn-sm {
-    padding: 3px 6px !important;
-    font-size: 11px !important;
-    height: 24px !important;
+    padding: 2px 4px !important;
+    font-size: 10px !important;
+    height: 22px !important;
   }
   
   .charts-clean .btn-danger {
@@ -832,8 +837,8 @@
   
   .charts-clean .tabs-nav {
     display: flex;
-    gap: 4px;
-    margin-bottom: 6px;
+    gap: 2px;
+    margin-bottom: 4px;
     border-bottom: 1px solid #242f38;
     flex-shrink: 0;
   }
@@ -841,10 +846,10 @@
   .charts-clean .tab-btn {
     background: transparent;
     border: none;
-    padding: 6px 12px;
+    padding: 4px 8px;
     color: #b3b8bd;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
     border-bottom: 2px solid transparent;
     transition: all 0.2s ease;
@@ -861,7 +866,7 @@
   }
   
   .charts-clean .tab-btn i {
-    margin-right: 4px;
+    margin-right: 3px;
   }
   
   .charts-clean .tab-content {
@@ -879,13 +884,14 @@
   .charts-clean .predictions-table-container {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     min-height: 0;
   }
   
   .charts-clean .predictions-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: 10px;
   }
   
   .charts-clean .predictions-table thead {
@@ -896,18 +902,19 @@
   }
   
   .charts-clean .predictions-table th {
-    padding: 6px;
+    padding: 4px;
     text-align: left;
     font-weight: 600;
     color: #b3b8bd;
     border-bottom: 1px solid #242f38;
-    font-size: 10px;
+    font-size: 9px;
   }
   
   .charts-clean .predictions-table td {
-    padding: 5px 6px;
+    padding: 3px 4px;
     color: #e8eaed;
     border-bottom: 1px solid #242f38;
+    font-size: 10px;
   }
   
   .charts-clean .predictions-table tbody tr:hover {
@@ -917,25 +924,25 @@
   /* Log row styling (like monitor_ui.py) */
   .charts-clean .log-row.log-alert {
     background-color: rgba(255, 243, 205, 0.1);
-    border-left: 3px solid #ffc107;
+    border-left: 2px solid #ffc107;
   }
   
   .charts-clean .log-row.log-info {
     background-color: rgba(209, 236, 241, 0.1);
-    border-left: 3px solid #17a2b8;
+    border-left: 2px solid #17a2b8;
   }
   
   .charts-clean .log-row.log-tick {
     background-color: transparent;
-    border-left: 3px solid transparent;
+    border-left: 2px solid transparent;
   }
   
   .charts-clean .signal-badge {
     display: inline-block;
-    padding: 2px 6px;
-    border-radius: 3px;
+    padding: 1px 4px;
+    border-radius: 2px;
     font-weight: 600;
-    font-size: 10px;
+    font-size: 9px;
     text-transform: uppercase;
   }
   
@@ -960,10 +967,10 @@
   /* Probability badge styling */
   .charts-clean .prob-badge {
     display: inline-block;
-    padding: 2px 5px;
-    border-radius: 3px;
+    padding: 1px 3px;
+    border-radius: 2px;
     font-weight: 600;
-    font-size: 10px;
+    font-size: 9px;
   }
   
   .charts-clean .prob-high {
@@ -988,17 +995,17 @@
   
   /* Scrollbar styling */
   .charts-clean .predictions-table-container::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
   }
   
   .charts-clean .predictions-table-container::-webkit-scrollbar-track {
     background: #1e2936;
-    border-radius: 3px;
+    border-radius: 2px;
   }
   
   .charts-clean .predictions-table-container::-webkit-scrollbar-thumb {
     background: #242f38;
-    border-radius: 3px;
+    border-radius: 2px;
   }
   
   .charts-clean .predictions-table-container::-webkit-scrollbar-thumb:hover {
