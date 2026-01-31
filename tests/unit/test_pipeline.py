@@ -1,11 +1,10 @@
-# tests/unit/test_pipeline.py
 import pytest
 from unittest.mock import MagicMock, patch
 import pandas as pd
 from src.core.event_bus import event_bus
 from src.events import MarketDataEvent, SignalEvent
 
-# Tenta importar o adaptador. Se o QUANT não terminou o trabalho, isso vai falhar (o que é bom!)
+# Tenta importar o adaptador.
 try:
     from src.modules.strategy.lstm_adapter import LSTMVolatilityAdapter
 except ImportError:
@@ -15,7 +14,6 @@ except ImportError:
 def mock_strategy_dependencies():
     """
     Engana o adaptador para ele achar que carregou os modelos reais.
-    Isso permite testar a lógica do código sem os arquivos pesados.
     """
     with patch('tensorflow.keras.models.load_model') as mock_keras, \
          patch('joblib.load') as mock_joblib:
@@ -25,17 +23,10 @@ def mock_strategy_dependencies():
         mock_model.predict.return_value = [[0.85]] 
         mock_keras.return_value = mock_model
         
-        # 2. Mock do Scaler e Params
+        # 2. Mock do Scaler
         mock_scaler = MagicMock()
-        # Retorna array de zeros com shape correto quando chamar transform()
         mock_scaler.transform.side_effect = lambda x: [[0.0] * x.shape[1]]
         mock_joblib.return_value = mock_scaler
-        
-        # Quando carregar 'params', retorna um dict fictício
-        # O side_effect ajuda a diferenciar qual joblib.load foi chamado, 
-        # mas para simplificar, vamos assumir que o mock retorna o scaler, 
-        # e ajustamos o Adapter para ser robusto ou mockamos especificamente o params.
-        # Estratégia melhor: Mockar os atributos da classe diretamente no teste abaixo.
         
         yield mock_keras, mock_joblib
 
@@ -43,15 +34,15 @@ def test_end_to_end_flow(mock_strategy_dependencies):
     """
     Testa: MarketData -> EventBus -> Adapter -> SignalEvent
     """
-    # 1. Setup: Instancia o Adaptador com caminhos falsos (os mocks vão interceptar)
-    # Precisamos garantir que o joblib carregue os parametros corretos
-    with patch('joblib.load') as loader:
-        # Primeiro call (scaler), Segundo call (params)
-        loader.side_effect = [MagicMock(), {'lookback': 5, 'n_features': 10}]
-        
-        adapter = LSTMVolatilityAdapter("models/dummy_model")
+    # 1. Setup: Instancia o Adaptador com caminhos falsos E lookback curto
+    # Passamos lookback=5 para o teste não precisar injetar 108 candles
+    adapter = LSTMVolatilityAdapter(
+        model_path="models/dummy.keras", 
+        scaler_path="models/dummy.scaler",
+        lookback=5
+    )
     
-    # Registra o adaptador manualmente (como o main.py faria)
+    # Registra o adaptador manualmente
     event_bus.subscribe("MARKET_DATA", adapter.on_market_data)
     
     # 2. Setup: Ouvinte espião para verificar se o sinal saiu
