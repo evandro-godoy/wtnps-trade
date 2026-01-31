@@ -13,22 +13,25 @@ except ImportError:
 @pytest.fixture
 def mock_strategy_dependencies():
     """
-    Engana o adaptador para ele achar que carregou os modelos reais.
+    Engana o adaptador interceptando o objeto 'keras' DENTRO do módulo do adaptador.
     """
-    with patch('tensorflow.keras.models.load_model') as mock_keras, \
+    # 🎯 CORREÇÃO AQUI: Apontamos para o módulo exato onde o keras é importado
+    target_keras = 'src.modules.strategy.lstm_adapter.keras.models.load_model'
+    
+    with patch(target_keras) as mock_load_model, \
          patch('joblib.load') as mock_joblib:
         
-        # 1. Mock do Modelo Keras (Sempre diz que a probabilidade é alta: 0.85)
+        # 1. Mock do Modelo
         mock_model = MagicMock()
         mock_model.predict.return_value = [[0.85]] 
-        mock_keras.return_value = mock_model
+        mock_load_model.return_value = mock_model
         
         # 2. Mock do Scaler
         mock_scaler = MagicMock()
         mock_scaler.transform.side_effect = lambda x: [[0.0] * x.shape[1]]
         mock_joblib.return_value = mock_scaler
         
-        yield mock_keras, mock_joblib
+        yield mock_load_model, mock_joblib
 
 def test_end_to_end_flow(mock_strategy_dependencies):
     """
