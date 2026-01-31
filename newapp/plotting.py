@@ -64,7 +64,7 @@ def create_dashboard_chart(ohlc_data: List[Dict[str, Any]]) -> tuple[str, str]:
     
     # ========== FIGURE 1: CANDLESTICK + MOVING AVERAGES ==========
     fig_candle = figure(
-        width=1400,
+        sizing_mode='stretch_width',
         height=350,
         x_range=x_range,
         tools="pan,wheel_zoom,box_zoom,reset,save",
@@ -130,7 +130,7 @@ def create_dashboard_chart(ohlc_data: List[Dict[str, Any]]) -> tuple[str, str]:
     
     # ========== FIGURE 2: VOLUME ==========
     fig_volume = figure(
-        width=1400,
+        sizing_mode='stretch_width',
         height=100,
         x_range=fig_candle.x_range,
         tools="pan,wheel_zoom,box_zoom,reset",
@@ -156,7 +156,7 @@ def create_dashboard_chart(ohlc_data: List[Dict[str, Any]]) -> tuple[str, str]:
     
     # ========== FIGURE 3: RSI ==========
     fig_rsi = figure(
-        width=1400,
+        sizing_mode='stretch_width',
         height=120,
         x_range=fig_candle.x_range,
         tools="pan,wheel_zoom,box_zoom,reset",

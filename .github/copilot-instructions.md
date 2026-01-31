@@ -12,9 +12,10 @@ WTNPS Trade is a modular Python framework for algorithmic trading with ML/DRL st
 `configs/main.yaml` is the **single source of truth**. Every asset, strategy, trading rule, and execution parameter is defined here. The system dynamically loads strategies and models based on this configuration.
 
 **Key sections:**
-- `global_settings.model_directory`: Where trained models/scalers are saved
+- `global_settings.model_directory`: Where trained models/scalers are saved (fallback default: 'models')
 - `assets[]`: Per-asset configuration with `ticker`, `enabled`, `strategies[]`, `trading_rules`, `live_trading`, `backtesting`, `setup`
 - Each strategy under `assets[].strategies[]` has: `name`, `module`, `provider`, `data`, `strategy_params`
+- Note: Code may reference `models_directory` due to legacy naming; use `model_directory` in YAML configs
 
 ### 2. Strategy Pattern (Plugin System)
 All strategies inherit from `src/strategies/base.py` and implement:
@@ -278,7 +279,74 @@ All dashboards built with **tkinter**, follow thread separation pattern:
 4. **Train:** `poetry run python train_model.py` (processes all enabled assets)
 5. **Test:** Use `SimulationEngine` in notebook or `run_monitor_gui.py` for live validation
 
+## Common Code Patterns & Developer Tips
+
+### Strategy Loading in Engines
+Both `SimulationEngine` and `LiveTrader` use identical patterns to load strategies:
+1. Get asset config from YAML via `config['assets'][i]`
+2. Extract strategy name and module: `strategy_config['name']`, `strategy_config['module']`
+3. Dynamically import: `importlib.import_module(f"src.strategies.{module_name}")`
+4. Instantiate strategy class: `strategy_class = getattr(module, class_name); strategy = strategy_class()`
+5. Load trained model: `strategy_class.load(model_path_prefix)` (classmethod)
+
+**Reference:** See `_load_asset_resources()` in [src/simulation/engine.py](src/simulation/engine.py#L100-L150) and `_load_asset_resources()` in [src/live_trader.py](src/live_trader.py#L100-L160)
+
+### Data Pipeline for Feature Engineering
+1. Raw data (OHLCV) → `define_features()` adds technical indicators → DataFrame with all columns
+2. Strategy.get_feature_names() specifies which columns to use for ML model input
+3. Features are normalized via `MinMaxScaler` (saved as `.joblib` file)
+4. For supervised learning: `define_target()` creates binary classification target (1 or 0)
+5. Sequences are created for LSTM: `create_sequences(X, y, lookback=108)` yields 3D arrays `(samples, timesteps, features)`
+
+**Reference:** [src/strategies/lstm_volatility.py](src/strategies/lstm_volatility.py#L25-L80) - see `create_sequences()` function
+
+### Model Artifact Loading Pattern
+**Problem:** Code tries `models_directory` but config has `model_directory`
+**Solution:** Use `.get('model_directory', 'models')` with fallback. Both `train_model.py`, `SimulationEngine`, and `LiveTrader` apply this pattern.
+
+Naming format: `{TICKER}_{STRATEGY_CLASS_NAME}_{TIMEFRAME}_prod_` prefix
+- LSTM: suffix `_lstm.keras` (Keras native format)
+- Scaler: suffix `_scaler.joblib` (scikit-learn format)
+- Params: suffix `_params.joblib` (metadata dictionary)
+
+### Thread Safety in LiveTrader
+- Initialization runs in background thread (`_initialize_resources()`)
+- Main thread waits for `is_trader_initialized` flag before executing trades
+- Lock (`_lock`) protects shared state: `asset_resources`, `last_candle_time`, `current_state`, `mt5_provider`
+- GUI updates use `callback()` function passed via constructor
+
+**Key methods:**
+- `_start_initialization_thread()`: Launches daemon thread
+- `_initialize_mt5()`: Wrapped in `with self._lock:`
+- `_load_asset_resources()`: Wrapped in `with self._lock:`
+
+### SetupAnalyzer Logic
+- Evaluates setup rules only if a matching `condition` exists in config
+- **Default behavior:** If no rule matches the AI signal's condition, setup is **VALID** (not INVALID)
+- Rules check DataFrame columns created by `define_features()` - missing columns log warnings once
+- Returns dict: `{valid: bool, setup_used: str or None, details: dict}`
+
+**Reference:** [src/setups/analyzer.py](src/setups/analyzer.py)
+
+### Testing a New Feature
+Use the **SimulationEngine** entry point for isolated testing:
+```python
+from src.simulation.engine import SimulationEngine
+engine = SimulationEngine('configs/main.yaml')
+result = engine.run_simulation_cycle(
+    asset_symbol='WDO$', 
+    timeframe_str='M5',
+    target_datetime_local=pd.Timestamp('2025-11-20 10:00:00')  # UTC or local based on config
+)
+# result: {ai_signal, setup_valid, final_decision, price, stop, take, indicators}
+```
+
 ## Troubleshooting
+
+### YAML Config Keys Mismatch
+**Issue:** Code references `models_directory` but config defines `model_directory`
+**Root Cause:** Legacy naming inconsistency; the code uses `.get('model_directory', 'models')` as fallback
+**Status:** Works as-is; just use `model_directory` in YAML (don't use `models_directory`)
 
 ### Missing Model Artifacts
 **Error:** `FileNotFoundError: models/WDO$_prod_lstm.keras`

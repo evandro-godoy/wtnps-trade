@@ -1,59 +1,158 @@
 # ===================================================================
-# CONFIGURAÇÕES PARA TREINAMENTO DE MODELOS ML - NEWAPP
+# CONFIGURAÇÕES GLOBAIS DO FRAMEWORK
 # ===================================================================
 
 global_settings:
-  # Diretório para salvar os modelos treinados no newapp
-  model_directory: "c:/projects/wtnps-trade/newapp/models"
-  
-  # Diretório para relatórios de treinamento
-  reports_directory: "c:/projects/wtnps-trade/newapp/reports/models"
+  # Diretório para salvar os modelos treinados. Os arquivos serão nomeados com o ticker.
+  model_directory: "c:/projects/wtnps-trade/models"
+
+  # Nomes dos arquivos de relatório (use {ticker} para substituição automática).
+  reporting:
+    performance_report_path: "c:/projects/reports/{ticker}_performance_report.html"
+    trades_report_path: "c:/projects/reports/{ticker}_trades_report.html"
+
 
 # ===================================================================
-# LISTA DE ATIVOS PARA TREINAMENTO
+# LISTA DE ATIVOS PARA OPERAÇÃO
+# Cada item é uma configuração completa e independente para um ativo.
 # ===================================================================
 
 assets:
   - ticker: "WDO$"
+    enabled: true  # Habilita ou desabilita este ativo para treino e live trading.
+    
+    strategies:
+      # Estratégia LSTM com foco em predição de volatilidade (explosões)
+      - name: "LSTMVolatilityStrategy"
+        module: "lstm_volatility"
+        provider: "MetaTrader5"
+
+        data:
+          start_date: "2022-05-01"
+          end_date: "2025-12-31"
+          timeframe_model: "M5"  # Timeframe usado para treinar o modelo (M15 = ~96 períodos por dia)
+
+        strategy_params:
+          lookback: 108              # Janela de lookback (~1 dia de dados em M15)
+          lstm_units: 64             # Unidades LSTM
+          dropout_rate: 0.2          # Taxa de dropout
+          epochs: 30                 # Número de épocas para treinamento
+          batch_size: 256            # Tamanho do batch
+          target_period: 12          # Horizonte de previsão (12 períodos à frente)
+          volatility_multiplier: 2.5 # Multiplicador do ATR para definir explosão
+
+        training_trading_rules:
+          initial_capital: 2000
+          stop_loss_pct: 0.02
+          take_profit_pct: 0.05
+
+    trading_rules:
+      initial_capital: 10000
+      stop_loss_ticks: 20 # Stop loss em ticks
+      stop_loss_pct: 0.02
+      take_profit_pct: 0.05          
+    
+    backtesting:
+      enabled: false
+      strategie_name: "LSTMVolatilityStrategy"
+      start_date: "2025-11-01"
+      end_date: "2025-12-31"
+      timeframe_str: "M5"    # Timeframe para backtesting (M1, M5, H1, D1, etc.)
+      threshold: 0.65        # Limiar de volatilidade para gerar sinais
+      trading_initial_capital: 2000
+      stop_loss_pct: 0.002
+      take_profit_pct: 0.005      
+
+    live_trading:
+      enabled: true
+      ticker_order: "WDOX25"
+      timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
+      execution_mode: "suggest" # "suggest" ou "execute"
+      trade_volume: 3.0       # quantidade de contratos
+
+    setup:
+      - condition: 'COMPRA'  # Esta regra só se aplica se o sinal da IA for de COMPRA
+        type: 'price_above_ma' # Critério: O preço deve estar acima da Média Móvel Simples
+        ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
+        period: 20              # Período da MA
+
+      - condition: 'VENDA' # Esta regra só se aplica se o sinal da IA for de VENDA
+        type: 'price_below_ma' # Critério: O preço deve estar abaixo da Média Móvel Simples
+        ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
+        period: 20        # Período da MA
+
+  - ticker: "WIN$"
     enabled: true
     
     strategies:
       - name: "LSTMVolatilityStrategy"
         module: "lstm_volatility"
-        provider: "HybridDataLoader"  # Usa hybrid_data_loader do newapp
+        provider: "MetaTrader5"
 
         data:
           start_date: "2022-05-01"
           end_date: "2025-12-31"
-          timeframe_model: "M5"
+          timeframe_model: "M5"  # Timeframe usado para treinar o modelo (M15 = ~96 períodos por dia)
 
         strategy_params:
-          lookback: 108
-          lstm_units: 64
-          dropout_rate: 0.2
-          epochs: 30
-          batch_size: 256
-          target_period: 12
-          volatility_multiplier: 2.5
+          lookback: 108              # Janela de lookback (~1 dia de dados em M15)
+          lstm_units: 64             # Unidades LSTM
+          dropout_rate: 0.2          # Taxa de dropout
+          epochs: 30                 # Número de épocas para treinamento
+          batch_size: 256            # Tamanho do batch
+          target_period: 12          # Horizonte de previsão (12 períodos à frente)
+          volatility_multiplier: 2.5 # Multiplicador do ATR para definir explosão
 
-  - ticker: "WIN$"
-    enabled: false
-    
-    strategies:
-      - name: "LSTMVolatilityStrategy"
-        module: "lstm_volatility"
-        provider: "HybridDataLoader"
+        training_trading_rules:
+          initial_capital: 2000
+          stop_loss_pct: 0.02
+          take_profit_pct: 0.05
+
+      - name: "DRLStrategy"
+        module: "drl_strategy"
+        provider: "MetaTrader5"
 
         data:
-          start_date: "2022-05-01"
-          end_date: "2025-12-31"
-          timeframe_model: "M5"
+          start_date: "2023-01-01"
+          end_date: "2025-10-31"
+          timeframe_model: "D1"  # Timeframe usado para treinar o ambiente DRL
 
-        strategy_params:
-          lookback: 108
-          lstm_units: 64
-          dropout_rate: 0.2
-          epochs: 30
-          batch_size: 256
-          target_period: 12
-          volatility_multiplier: 2.5
+        training_trading_rules:
+          initial_capital: 5000
+          stop_loss_pct: 0.01  # Usado pelo ambiente para custos de transação
+          take_profit_pct: 0.03
+
+    backtesting:
+      enabled: false
+      strategie_name: "LSTMVolatilityStrategy"
+      start_date: "2025-01-01"
+      end_date: "2025-11-19"
+      timeframe_str: "M15"    # Timeframe para backtesting (M1, M5, H1, D1, etc.)
+      threshold: 0.65        # Limiar de volatilidade para gerar sinais
+      trading_initial_capital: 5000
+      stop_loss_pct: 0.02
+      take_profit_pct: 0.05      
+
+    trading_rules:
+      initial_capital: 5000
+      stop_loss_ticks: 20 # Stop loss em ticks
+      stop_loss_pct: 0.01
+      take_profit_pct: 0.03
+
+    live_trading:
+      enabled: false
+      ticker_order: "WINZ25"
+      timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
+      execution_mode: "suggest" # "suggest" ou "execute"
+      trade_volume: 1.0       # quantidade de contratos
+
+    setup:
+      - condition: 'COMPRA'  # Esta regra só se aplica se o sinal da IA for de COMPRA
+        type: 'price_above_ma' # Critério: O preço deve estar acima da Média Móvel Simples
+        ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
+        period: 20              # Período da MA
+
+      - condition: 'VENDA' # Esta regra só se aplica se o sinal da IA for de VENDA
+        type: 'price_below_ma' # Critério: O preço deve estar abaixo da Média Móvel Simples
+        ma_type: 'sma'   # Tipo de MA: 'sma' ou 'ema'
+        period: 20        # Período da MA      

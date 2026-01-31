@@ -12,6 +12,10 @@
   <!-- Bokeh for charts -->
   <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-3.8.1.min.css">
   <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.8.1.min.js"></script>
+  <!-- Virtual Scroll for large tables -->
+  <script src="/static/js/virtual-scroll.js?v=1.0"></script>
+  <!-- Split.js for drag-to-resize -->
+  <script src="https://cdn.jsdelivr.net/npm/split.js@1.6.4/dist/split.min.js"></script>
 </head>
 <body class="layout-with-sidebar charts-clean">
   <!-- Sidebar (apenas ícones) -->
@@ -128,11 +132,49 @@
   {{ bokeh_script | safe }}
   
   <script>
+    // ========== BOKEH RESPONSIVE RESIZE ==========
+    function initBokehResize() {
+      const chartContainer = document.querySelector('.chart-container');
+      if (!chartContainer) return;
+      
+      // Use ResizeObserver para detectar mudanças de tamanho
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (let entry of entries) {
+          const { width, height } = entry.contentRect;
+          console.log(`Chart container resized: ${width.toFixed(0)}x${height.toFixed(0)}px`);
+          
+          // Trigger Bokeh to re-render
+          const bokehRoot = chartContainer.querySelector('.bk-root');
+          if (bokehRoot && window.Bokeh) {
+            try {
+              window.Bokeh.documents[0]?.receiver()?.trigger('document_ready');
+            } catch (e) {
+              console.debug('Bokeh resize handled');
+            }
+          }
+        }
+      });
+      
+      resizeObserver.observe(chartContainer);
+      return resizeObserver;
+    }
+    
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(initBokehResize, 100);
+    });
+  </script>
+  
+  <script>
     // ========== STATE MANAGEMENT ==========
     let lastCandleTime = null;
     let autoRefreshInterval = null;
     let isMarketOpen = false;
     let predictionHistory = []; // Store all predictions with technical data
+    
+    // Virtual Scroll instances
+    let mlSignalsVirtualScroll = null;
+    let technicalAnalysisVirtualScroll = null;
     
     // Fixed parameters (no longer user-selectable)
     const FIXED_SYMBOL = 'WDO$';
@@ -247,6 +289,165 @@
       return `<span style="font-weight: 600;">${rsi.toFixed(0)}</span><br><span style="font-size: 10px; color: ${color};">${condition}</span>`;
     }
     
+    // ========== ROW CREATION HELPERS ==========
+    
+    /**
+     * Helper: Get probability class for color coding
+     */
+    function getProbClass(prob) {
+      if (prob >= 75) return 'high';
+      if (prob >= 65) return 'medium-high';
+      if (prob >= 55) return 'medium';
+      return 'low';
+    }
+    
+    /**
+     * Create ML Signal row element
+     */
+    function createMLSignalRow(pred) {
+      const row = document.createElement('tr');
+      
+      // Determine signal type and class
+      let tipoClass = 'neutral';
+      let tipoText = pred.tipo || 'N/A';
+      
+      if (tipoText === 'COMPRA') {
+        tipoClass = 'buy';
+      } else if (tipoText === 'VENDA') {
+        tipoClass = 'sell';
+      }
+      
+      // Get direction (CALL/PUT)
+      const direction = pred.direction || 'N/A';
+      let directionClass = 'neutral';
+      let directionIcon = '⬌';
+      
+      if (direction === 'CALL') {
+        directionClass = 'buy';
+        directionIcon = '↑ CALL';
+      } else if (direction === 'PUT') {
+        directionClass = 'sell';
+        directionIcon = '↓ PUT';
+      }
+      
+      // Format timestamp
+      const formattedTime = formatTimestamp(pred.timestamp);
+      
+      // Determine row tag based on probability
+      let rowTag = '';
+      const prob = pred.prob_ml || 0;
+      
+      if (prob >= 65) {
+        rowTag = 'ALERT';
+      } else if (prob >= 55) {
+        rowTag = 'INFO';
+      } else {
+        rowTag = 'TICK';
+      }
+      
+      row.className = `log-row log-${rowTag.toLowerCase()}`;
+      
+      // Format price
+      const preco = pred.preco || 0;
+      const precoStr = preco.toLocaleString('pt-BR');
+      
+      // Get validation status from analysis
+      const analysis = pred.analysis || {};
+      const signalValid = analysis.signal_valid !== false;
+      const statusIcon = signalValid ? '✅' : '⚠️';
+      const statusText = signalValid ? 'Válido' : 'Inválido';
+      
+      row.innerHTML = `
+        <td>${formattedTime}</td>
+        <td><span class="signal-badge signal-${tipoClass}">${tipoText}</span></td>
+        <td><span class="signal-badge signal-${directionClass}">${directionIcon}</span></td>
+        <td>${precoStr}</td>
+        <td><span class="prob-badge prob-${getProbClass(prob)}">${prob.toFixed(1)}%</span></td>
+        <td style="text-align: center; font-size: 12px;">${statusIcon} ${statusText}</td>
+        <td>${pred.mensagem || 'N/A'}</td>
+      `;
+      
+      return row;
+    }
+    
+    /**
+     * Create Technical Analysis row element
+     */
+    function createTechnicalAnalysisRow(pred) {
+      const row = document.createElement('tr');
+      const tech = extractTechnicalData(pred);
+      
+      const formattedTime = formatTimestamp(tech.timestamp);
+      
+      // Determine row tag
+      let rowTag = '';
+      const prob = pred.prob_ml || 0;
+      
+      if (prob >= 65) {
+        rowTag = 'ALERT';
+      } else if (prob >= 55) {
+        rowTag = 'INFO';
+      } else {
+        rowTag = 'TICK';
+      }
+      
+      row.className = `log-row log-${rowTag.toLowerCase()}`;
+      
+      // Format support/resistance
+      const supportResistance = (
+        (tech.support > 0 ? `S: ${tech.support.toFixed(0)}` : 'S: N/A') + ' / ' +
+        (tech.resistance > 0 ? `R: ${tech.resistance.toFixed(0)}` : 'R: N/A')
+      );
+      
+      row.innerHTML = `
+        <td>${formattedTime}</td>
+        <td>${formatTrend(tech.trend, tech.trend_strength)}</td>
+        <td>${formatRSI(tech.rsi, tech.rsi_condition)}</td>
+        <td>${tech.ema20 > 0 ? tech.ema20.toFixed(0) : 'N/A'}</td>
+        <td>${tech.sma20 > 0 ? tech.sma20.toFixed(0) : 'N/A'}</td>
+        <td>${tech.sma50 > 0 ? tech.sma50.toFixed(0) : 'N/A'}</td>
+        <td style="font-size: 11px;">${tech.pattern}</td>
+        <td style="font-size: 11px;">${supportResistance}</td>
+      `;
+      
+      return row;
+    }
+    
+    /**
+     * Initialize or refresh virtual scroll instances
+     */
+    function initVirtualScroll() {
+      const mlTable = document.getElementById('predictions-table');
+      const techTable = document.getElementById('analysis-table');
+      
+      if (!mlSignalsVirtualScroll && mlTable) {
+        mlSignalsVirtualScroll = new PredictionVirtualScroll(mlTable, 30, 5);
+        mlSignalsVirtualScroll.setRowFactory(createMLSignalRow);
+        console.log('✅ ML Signals virtual scroll initialized');
+      }
+      
+      if (!technicalAnalysisVirtualScroll && techTable) {
+        technicalAnalysisVirtualScroll = new PredictionVirtualScroll(techTable, 30, 5);
+        technicalAnalysisVirtualScroll.setRowFactory(createTechnicalAnalysisRow);
+        console.log('✅ Technical Analysis virtual scroll initialized');
+      }
+    }
+    
+    /**
+     * Update virtual scroll data
+     */
+    function updateVirtualScroll() {
+      if (mlSignalsVirtualScroll) {
+        mlSignalsVirtualScroll.setData(predictionHistory);
+        console.log(`📊 ML Signals updated: ${predictionHistory.length} items`);
+      }
+      
+      if (technicalAnalysisVirtualScroll) {
+        technicalAnalysisVirtualScroll.setData(predictionHistory);
+        console.log(`📊 Technical Analysis updated: ${predictionHistory.length} items`);
+      }
+    }
+    
     // ========== LOAD PREDICTIONS ==========
     async function loadPredictions() {
       try {
@@ -291,120 +492,20 @@
             }
           });
           
-          // Limit history to 50 items
-          predictionHistory = predictionHistory.slice(0, 50);
+          // Limit history to 100 items (virtual scroll handles large lists efficiently)
+          predictionHistory = predictionHistory.slice(0, 100);
           
-          // ===== POPULATE ML SIGNALS TAB =====
-          mlBody.innerHTML = '';
-          predictionHistory.forEach(pred => {
-            const row = document.createElement('tr');
-            
-            // Determine signal type and class
-            let tipoClass = 'neutral';
-            let tipoText = pred.tipo || 'N/A';
-            
-            if (tipoText === 'COMPRA') {
-              tipoClass = 'buy';
-            } else if (tipoText === 'VENDA') {
-              tipoClass = 'sell';
-            }
-            
-            // Get direction (CALL/PUT)
-            const direction = pred.direction || 'N/A';
-            let directionClass = 'neutral';
-            let directionIcon = '⬌';
-            
-            if (direction === 'CALL') {
-              directionClass = 'buy';
-              directionIcon = '↑ CALL';
-            } else if (direction === 'PUT') {
-              directionClass = 'sell';
-              directionIcon = '↓ PUT';
-            }
-            
-            // Format timestamp
-            const formattedTime = formatTimestamp(pred.timestamp);
-            
-            // Determine row tag based on probability
-            let rowTag = '';
-            const prob = pred.prob_ml || 0;
-            
-            if (prob >= 65) {
-              rowTag = 'ALERT';
-            } else if (prob >= 55) {
-              rowTag = 'INFO';
-            } else {
-              rowTag = 'TICK';
-            }
-            
-            row.className = `log-row log-${rowTag.toLowerCase()}`;
-            
-            // Format price
-            const preco = pred.preco || 0;
-            const precoStr = preco.toLocaleString('pt-BR');
-            
-            // Get validation status from analysis
-            const analysis = pred.analysis || {};
-            const signalValid = analysis.signal_valid !== false;
-            const statusIcon = signalValid ? '✅' : '⚠️';
-            const statusText = signalValid ? 'Válido' : 'Inválido';
-            
-            row.innerHTML = `
-              <td>${formattedTime}</td>
-              <td><span class="signal-badge signal-${tipoClass}">${tipoText}</span></td>
-              <td><span class="signal-badge signal-${directionClass}">${directionIcon}</span></td>
-              <td>${precoStr}</td>
-              <td><span class="prob-badge prob-${getProbClass(prob)}">${prob.toFixed(1)}%</span></td>
-              <td style="text-align: center; font-size: 12px;">${statusIcon} ${statusText}</td>
-              <td>${pred.mensagem || 'N/A'}</td>
-            `;
-            
-            mlBody.appendChild(row);
-          });
+          // Initialize virtual scroll on first load
+          if (!mlSignalsVirtualScroll) {
+            setTimeout(initVirtualScroll, 50);
+          }
           
-          // ===== POPULATE TECHNICAL ANALYSIS TAB =====
-          analysisBody.innerHTML = '';
-          predictionHistory.forEach(pred => {
-            const row = document.createElement('tr');
-            const tech = extractTechnicalData(pred);
-            
-            const formattedTime = formatTimestamp(tech.timestamp);
-            
-            // Determine row tag
-            let rowTag = '';
-            const prob = pred.prob_ml || 0;
-            
-            if (prob >= 65) {
-              rowTag = 'ALERT';
-            } else if (prob >= 55) {
-              rowTag = 'INFO';
-            } else {
-              rowTag = 'TICK';
-            }
-            
-            row.className = `log-row log-${rowTag.toLowerCase()}`;
-            
-            // Format support/resistance
-            const supportResistance = (
-              (tech.support > 0 ? `S: ${tech.support.toFixed(0)}` : 'S: N/A') + ' / ' +
-              (tech.resistance > 0 ? `R: ${tech.resistance.toFixed(0)}` : 'R: N/A')
-            );
-            
-            row.innerHTML = `
-              <td>${formattedTime}</td>
-              <td>${formatTrend(tech.trend, tech.trend_strength)}</td>
-              <td>${formatRSI(tech.rsi, tech.rsi_condition)}</td>
-              <td>${tech.ema20 > 0 ? tech.ema20.toFixed(0) : 'N/A'}</td>
-              <td>${tech.sma20 > 0 ? tech.sma20.toFixed(0) : 'N/A'}</td>
-              <td>${tech.sma50 > 0 ? tech.sma50.toFixed(0) : 'N/A'}</td>
-              <td style="font-size: 11px;">${tech.pattern}</td>
-              <td style="font-size: 11px;">${supportResistance}</td>
-            `;
-            
-            analysisBody.appendChild(row);
-          });
+          // ===== UPDATE VIRTUAL SCROLL DATA =====
+          updateVirtualScroll();
           
         } else {
+          const mlBody = document.getElementById('predictions-body');
+          const analysisBody = document.getElementById('analysis-body');
           mlBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #76838f;">Nenhuma predição disponível</td></tr>';
           analysisBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #76838f;">Nenhuma análise disponível</td></tr>';
         }
@@ -421,19 +522,10 @@
       }
     }
     
-    // Helper: Get probability class for color coding
-    function getProbClass(prob) {
-      if (prob >= 75) return 'high';
-      if (prob >= 65) return 'medium-high';
-      if (prob >= 55) return 'medium';
-      return 'low';
-    }
-    
     // ========== CLEAR LOGS ==========
     function clearLogs() {
       predictionHistory = [];
-      document.getElementById('predictions-body').innerHTML = '<tr><td colspan="7" style="text-align: center; color: #76838f;">Logs limpos</td></tr>';
-      document.getElementById('analysis-body').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #76838f;">Logs limpos</td></tr>';
+      updateVirtualScroll();
       console.log('📋 Logs cleared');
     }
     
@@ -527,10 +619,79 @@
       setupAutoRefresh();
     });
     
+    // ========== SPLIT.JS RESIZE ==========
+    /**
+     * Initialize Split.js for chart/predictions resizing
+     */
+    function initSplitResize() {
+      // Only on desktop (1200px+)
+      const mediaQuery = window.matchMedia('(min-width: 1200px)');
+      if (!mediaQuery.matches) {
+        console.log('⏭️ Split.js: Skipping on mobile/tablet');
+        return;
+      }
+      
+      try {
+        // Load saved sizes from localStorage
+        const savedChartWidth = parseFloat(localStorage.getItem('split-chart-width')) || 70;
+        const savedPredWidth = parseFloat(localStorage.getItem('split-pred-width')) || 30;
+        
+        const chartSection = document.querySelector('.chart-section');
+        const predSection = document.querySelector('.predictions-section');
+        
+        if (!chartSection || !predSection) {
+          console.warn('⚠️ Split.js: Chart or predictions section not found');
+          return;
+        }
+        
+        // Wrap in a flex container for split.js
+        const contentWrapper = chartSection.parentElement;
+        
+        // Initialize Split.js
+        Split([chartSection, predSection], {
+          direction: 'horizontal',
+          sizes: [savedChartWidth, savedPredWidth],
+          minSize: [20, 20],        // Min 20% each
+          maxSize: [80, 80],        // Max 80% each
+          gutterSize: 8,
+          onDrag: (sizes) => {
+            // Save to localStorage
+            localStorage.setItem('split-chart-width', sizes[0].toFixed(2));
+            localStorage.setItem('split-pred-width', sizes[1].toFixed(2));
+            
+            console.log(`📊 Split resize: ${sizes[0].toFixed(1)}% | ${sizes[1].toFixed(1)}%`);
+            
+            // Trigger Bokeh re-render if needed
+            if (window.Bokeh) {
+              try {
+                window.dispatchEvent(new Event('resize'));
+              } catch (e) {
+                // Bokeh may not have resize handler
+              }
+            }
+            
+            // Update virtual scroll if active
+            if (mlSignalsVirtualScroll) {
+              mlSignalsVirtualScroll.render();
+            }
+            if (technicalAnalysisVirtualScroll) {
+              technicalAnalysisVirtualScroll.render();
+            }
+          }
+        });
+        
+        console.log(`✅ Split.js initialized: ${savedChartWidth.toFixed(1)}% | ${savedPredWidth.toFixed(1)}%`);
+      } catch (error) {
+        console.error('❌ Split.js initialization error:', error);
+      }
+    }
+    
     // Load predictions on page load
     document.addEventListener('DOMContentLoaded', () => {
       loadPredictions().then(() => {
         setupAutoRefresh();
+        // Initialize Split.js after Virtual Scroll
+        setTimeout(initSplitResize, 100);
       });
     });
   </script>
@@ -559,28 +720,30 @@
     display: none !important;
   }
   
-  /* Maximize content wrapper */
+  /* Maximize content wrapper - use GRID layout (70/30 split) */
   .charts-clean .content-wrapper {
     padding: 8px !important;
-    flex: 1 !important;
-    display: flex !important;
-    flex-direction: column !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: 1fr !important;
+    gap: 8px !important;
+    height: calc(100vh - 88px) !important; /* 100vh - 80px sidebar - ~8px padding */
     overflow: hidden !important;
-    gap: 8px;
   }
   
   .charts-clean .chart-section {
-    flex: 0 0 auto !important;
     display: flex !important;
     flex-direction: column !important;
     min-height: 0 !important;
+    overflow: hidden !important;
   }
   
   .charts-clean .chart-container {
-    flex: 0 0 auto !important;
+    flex: 1 !important;
     min-height: 0 !important;
-    height: auto !important;
-    max-height: 58vh !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
   }
   
   /* Ensure Bokeh plot fills available space */
@@ -594,9 +757,8 @@
     height: 100% !important;
   }
   
-  /* Predictions section - FIT REMAINING SPACE */
+  /* Predictions section - GRID COLUMN 2 */
   .charts-clean .predictions-section {
-    flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
     min-height: 0 !important;

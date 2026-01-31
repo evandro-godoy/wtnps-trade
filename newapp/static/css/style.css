@@ -132,8 +132,9 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   width: calc(100% - 220px);
+  overflow: hidden;
 }
 
 .page-header {
@@ -519,7 +520,11 @@ body {
 }
 
 .chart-section {
-  margin-bottom: 30px;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chart-card {
@@ -527,6 +532,10 @@ body {
   border: 1px solid #242f38;
   border-radius: 10px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
 }
 
 .chart-card-header {
@@ -572,6 +581,151 @@ body {
   min-height: 600px;
   padding: 20px;
   background: #101418;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.chart-container .bk-root {
+  width: 100% !important;
+  height: 100% !important;
+  flex: 1 !important;
+}
+
+.chart-container .bk-root .bk-pane-manager {
+  height: 100% !important;
+}
+
+.chart-container .bk-root > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* =========================
+   RESPONSIVE GRID LAYOUT
+========================= */
+.content-wrapper {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  gap: 20px;
+  padding: 15px 20px;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Desktop: 2 Column Grid (70% chart / 30% predictions) */
+@media (min-width: 1200px) {
+  .content-wrapper {
+    grid-template-columns: 1.4fr 0.6fr;
+    grid-template-rows: 1fr;
+    gap: 15px;
+  }
+  
+  .chart-section {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .predictions-section {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Split.js Gutter Styling */
+.gutter {
+  background-color: #242f38;
+  background-repeat: no-repeat;
+  background-position: 50%;
+  position: relative;
+}
+
+.gutter.gutter-horizontal {
+  cursor: col-resize;
+  width: 8px;
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAeCAYAAADkftS9AAAAIklEQVQoU2M4c+bMfwYKwOiDMRVDRmhmGBkYGP7z//8DAJduBATqy6JJZQAAAABJRU5ErkJggg==');
+  margin: 0 -4px;
+  padding: 0 4px;
+  border-left: 1px solid #1f2a33;
+  border-right: 1px solid #1f2a33;
+}
+
+.gutter.gutter-horizontal:hover {
+  background-color: #2d3a44;
+}
+
+/* Resizable sections */
+.chart-section,
+.predictions-section {
+  user-select: none;
+  transition: none;  /* Disable transition during drag */
+}
+
+/* Tablet: 2 Column Grid (60% chart / 40% predictions) */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .content-wrapper {
+    grid-template-columns: 1.2fr 0.8fr;
+    grid-template-rows: 1fr;
+    gap: 15px;
+  }
+  
+  .chart-section {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .predictions-section {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Mobile: Stack Vertical */
+@media (max-width: 767px) {
+  .content-wrapper {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 10px;
+    padding: 10px;
+  }
+  
+  .chart-section {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+  }
+  
+  .predictions-section {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 0;
+  }
 }
 
 /* =========================
@@ -645,6 +799,131 @@ footer {
 /* =========================
    RESPONSIVE DESIGN
 ========================= */
+/* =========================
+   PREDICTIONS TABLE STYLES
+========================= */
+.predictions-section {
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.predictions-card {
+  background: #182027;
+  border: 1px solid #242f38;
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.predictions-table-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  min-height: 0;
+  border: 1px solid #242f38;
+  border-radius: 8px;
+}
+
+.predictions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  min-width: 600px;
+}
+
+.predictions-table thead {
+  position: sticky;
+  top: 0;
+  background-color: #1e2936;
+  z-index: 10;
+  border-bottom: 2px solid #242f38;
+}
+
+.predictions-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: #b3b8bd;
+  border-right: 1px solid #242f38;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.predictions-table th:last-child {
+  border-right: none;
+}
+
+.predictions-table td {
+  padding: 6px 10px;
+  color: #e8eaed;
+  border-bottom: 1px solid #242f38;
+  border-right: 1px solid #242f38;
+  word-break: break-word;
+  max-width: 200px;
+}
+
+.predictions-table td:last-child {
+  border-right: none;
+  max-width: none;
+}
+
+.predictions-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.predictions-table tbody tr:hover {
+  background-color: #1f2a33;
+}
+
+.predictions-table tbody tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Scrollbar styling */
+.predictions-table-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.predictions-table-container::-webkit-scrollbar-track {
+  background: #0a0e1a;
+}
+
+.predictions-table-container::-webkit-scrollbar-thumb {
+  background: #242f38;
+  border-radius: 4px;
+}
+
+.predictions-table-container::-webkit-scrollbar-thumb:hover {
+  background: #2d3a44;
+}
+
+/* Virtual Scroll Support */
+.predictions-table-container {
+  /* Enable virtual scrolling with fixed height */
+  max-height: 400px;  /* Adjust as needed */
+}
+
+.virtual-scroll-spacer {
+  /* Invisible rows used for virtual scroll spacing */
+  height: 0;
+  padding: 0;
+  border: none;
+}
+
+.virtual-scroll-spacer td {
+  padding: 0;
+  border: none;
+  height: 0;
+}
+
 @media (max-width: 768px) {
   .sidebar {
     width: 70px;

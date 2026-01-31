@@ -1,0 +1,59 @@
+# ===================================================================
+# CONFIGURAÇÕES PARA TREINAMENTO DE MODELOS ML - NEWAPP
+# ===================================================================
+
+global_settings:
+  # Diretório para salvar os modelos treinados no newapp
+  model_directory: "c:/projects/wtnps-trade/newapp/models"
+  
+  # Diretório para relatórios de treinamento
+  reports_directory: "c:/projects/wtnps-trade/newapp/reports/models"
+
+# ===================================================================
+# LISTA DE ATIVOS PARA TREINAMENTO
+# ===================================================================
+
+assets:
+  - ticker: "WDO$"
+    enabled: true
+    
+    strategies:
+      - name: "LSTMVolatilityStrategy"
+        module: "lstm_volatility"
+        provider: "HybridDataLoader"  # Usa hybrid_data_loader do newapp
+
+        data:
+          start_date: "2022-05-01"
+          end_date: "2025-12-31"
+          timeframe_model: "M5"
+
+        strategy_params:
+          lookback: 108
+          lstm_units: 64
+          dropout_rate: 0.2
+          epochs: 30
+          batch_size: 256
+          target_period: 12
+          volatility_multiplier: 2.5
+
+  - ticker: "WIN$"
+    enabled: false
+    
+    strategies:
+      - name: "LSTMVolatilityStrategy"
+        module: "lstm_volatility"
+        provider: "HybridDataLoader"
+
+        data:
+          start_date: "2022-05-01"
+          end_date: "2025-12-31"
+          timeframe_model: "M5"
+
+        strategy_params:
+          lookback: 108
+          lstm_units: 64
+          dropout_rate: 0.2
+          epochs: 30
+          batch_size: 256
+          target_period: 12
+          volatility_multiplier: 2.5
