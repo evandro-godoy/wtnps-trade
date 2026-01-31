@@ -1,0 +1,86 @@
+# src/main.py
+import time
+import logging
+import signal
+import sys
+from typing import List
+
+from src.core.config import settings
+from src.core.event_bus import event_bus
+# Importação condicional para não quebrar se o QUANT ainda não terminou
+try:
+    from src.modules.strategy.lstm_adapter import LSTMVolatilityAdapter
+    STRATEGY_AVAILABLE = True
+except ImportError:
+    STRATEGY_AVAILABLE = False
+
+# Configuração de Logs
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(settings.LOGS_DIR / "system.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger("MAIN")
+
+class TradingSystem:
+    """Orquestrador principal do sistema Monolítico."""
+    
+    def __init__(self):
+        self.running = False
+        self.adapters = []
+        logger.info(f"🚀 Inicializando {settings.PROJECT_NAME} v{settings.VERSION}")
+
+    def _register_signals(self):
+        """Captura Ctrl+C para shutdown gracioso."""
+        signal.signal(signal.SIGINT, self.shutdown)
+        signal.signal(signal.SIGTERM, self.shutdown)
+
+    def _load_modules(self):
+        """Instancia e registra os adaptadores no EventBus."""
+        # 1. Adaptador de Estratégia (QUANT)
+        if STRATEGY_AVAILABLE:
+            try:
+                # O prefixo do modelo deve bater com o que temos na pasta models/
+                # Ex: WDO$_LSTMVolatilityStrategy_M5_prod
+                model_prefix = settings.MODELS_DIR / f"{settings.TICKER_TARGET}_LSTMVolatilityStrategy_M5_prod"
+                
+                strategy = LSTMVolatilityAdapter(str(model_prefix))
+                
+                # Inscreve a estratégia para ouvir dados de mercado
+                event_bus.subscribe("MARKET_DATA", strategy.on_market_data)
+                
+                self.adapters.append(strategy)
+                logger.info("✅ Módulo QUANT (LSTM Adapter) carregado e ouvindo 'MARKET_DATA'.")
+            except Exception as e:
+                logger.error(f"❌ Falha ao carregar Módulo QUANT: {e}")
+        else:
+            logger.warning("⚠️ Módulo QUANT ainda não implementado ou com erro de importação.")
+
+    def start(self):
+        """Inicia o loop principal."""
+        self._register_signals()
+        self._load_modules()
+        
+        self.running = True
+        logger.info("🟢 Sistema ONLINE. Aguardando eventos...")
+        
+        try:
+            while self.running:
+                # Aqui futuramente podemos ter health-checks ou interface TUI
+                time.sleep(1)
+        except KeyboardInterrupt:
+            self.shutdown()
+
+    def shutdown(self, signum=None, frame=None):
+        """Encerramento seguro."""
+        logger.info("🛑 Recebido sinal de parada. Desligando sistema...")
+        self.running = False
+        # Aqui fecharíamos conexões de DB ou corretora se tivéssemos
+        sys.exit(0)
+
+if __name__ == "__main__":
+    system = TradingSystem()
+    system.start()

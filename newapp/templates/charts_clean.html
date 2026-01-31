@@ -619,6 +619,130 @@
       setupAutoRefresh();
     });
     
+    // ========== UTILITY: DEBOUNCE ==========
+    /**
+     * Debounce function - prevents function from being called too frequently
+     * @param {Function} func - Function to debounce
+     * @param {number} wait - Milliseconds to wait
+     * @returns {Function} Debounced function
+     */
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+    
+    // ========== BOKEH MULTI-SCREEN FIX (FASE 4) ==========
+    /**
+     * Force Bokeh to recalculate layout dimensions
+     * Useful after screen changes or zoom events
+     */
+    function forceBokehRelayout() {
+      if (!window.Bokeh) {
+        return;
+      }
+
+      try {
+        const bokehDoc = window.Bokeh.documents?.[0];
+        if (bokehDoc && typeof bokehDoc.resize === 'function') {
+          bokehDoc.resize();
+          console.log('📐 Bokeh relayout triggered');
+        }
+      } catch (e) {
+        console.warn('⚠️ Bokeh relayout failed:', e.message);
+      }
+      
+      // Fallback: dispatch resize event
+      window.dispatchEvent(new Event('resize'));
+    }
+    
+    /**
+     * Initialize MutationObserver to detect Bokeh DOM changes
+     * Fixes multi-screen overlay issues
+     */
+    function initBokehMutationObserver() {
+      const bokehRoot = document.querySelector('.bk-root');
+      if (!bokehRoot) {
+        console.log('⏭️ Bokeh MutationObserver: No .bk-root found');
+        return;
+      }
+
+      const observer = new MutationObserver(debounce((mutations) => {
+        let needsRelayout = false;
+        
+        mutations.forEach(mutation => {
+          if (mutation.attributeName === 'style') {
+            // Check if width or height changed significantly
+            const style = bokehRoot.getAttribute('style');
+            if (style && (style.includes('width') || style.includes('height'))) {
+              needsRelayout = true;
+            }
+          }
+        });
+        
+        if (needsRelayout) {
+          console.log('🔄 Bokeh style mutation detected');
+          
+          // Re-render virtual scroll if necessary
+          if (mlSignalsVirtualScroll) {
+            mlSignalsVirtualScroll.render();
+          }
+          if (technicalAnalysisVirtualScroll) {
+            technicalAnalysisVirtualScroll.render();
+          }
+        }
+      }, 100));
+
+      observer.observe(bokehRoot, {
+        attributes: true,
+        attributeFilter: ['style']
+      });
+
+      console.log('✅ Bokeh MutationObserver initialized');
+    }
+    
+    /**
+     * Initialize Visual Viewport API for zoom detection
+     * Fixes browser zoom overlay issues
+     */
+    function initZoomDetection() {
+      if (!window.visualViewport) {
+        console.log('⏭️ Visual Viewport API not supported (Firefox < 91)');
+        return;
+      }
+
+      let previousScale = window.visualViewport.scale;
+
+      window.visualViewport.addEventListener('resize', debounce(() => {
+        const currentScale = window.visualViewport.scale;
+        
+        if (Math.abs(currentScale - previousScale) > 0.01) {
+          console.log(`🔍 Zoom detected: ${previousScale.toFixed(2)}x → ${currentScale.toFixed(2)}x`);
+          
+          // Force Bokeh to recalculate
+          forceBokehRelayout();
+          
+          // Update virtual scroll
+          if (mlSignalsVirtualScroll) {
+            mlSignalsVirtualScroll.render();
+          }
+          if (technicalAnalysisVirtualScroll) {
+            technicalAnalysisVirtualScroll.render();
+          }
+          
+          previousScale = currentScale;
+        }
+      }, 150));
+
+      console.log('✅ Zoom detection initialized');
+    }
+    
     // ========== SPLIT.JS RESIZE ==========
     /**
      * Initialize Split.js for chart/predictions resizing
@@ -661,14 +785,8 @@
             
             console.log(`📊 Split resize: ${sizes[0].toFixed(1)}% | ${sizes[1].toFixed(1)}%`);
             
-            // Trigger Bokeh re-render if needed
-            if (window.Bokeh) {
-              try {
-                window.dispatchEvent(new Event('resize'));
-              } catch (e) {
-                // Bokeh may not have resize handler
-              }
-            }
+            // FASE 4: Use new force relayout function
+            forceBokehRelayout();
             
             // Update virtual scroll if active
             if (mlSignalsVirtualScroll) {
@@ -690,8 +808,15 @@
     document.addEventListener('DOMContentLoaded', () => {
       loadPredictions().then(() => {
         setupAutoRefresh();
-        // Initialize Split.js after Virtual Scroll
-        setTimeout(initSplitResize, 100);
+        
+        // FASE 4: Initialize multi-screen fixes
+        setTimeout(() => {
+          initBokehMutationObserver();
+          initZoomDetection();
+        }, 200);
+        
+        // Initialize Split.js after observers
+        setTimeout(initSplitResize, 300);
       });
     });
   </script>
