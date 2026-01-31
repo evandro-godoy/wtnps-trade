@@ -564,6 +564,27 @@ Substituir componentes mock por implementações reais, conectando o sistema ao 
 **Sprint 1 (✅ COMPLETE):** MVP Mock - Interface funcional com dados simulados
 **Sprint 2 (🔄 CURRENT):** Integração Real - MetaTrader5 Provider + Model Loading + Dependency Injection
 
+### 🎯 Princípios da Sprint 2
+
+1. **Fail Fast:** Sistema para imediatamente se dependências críticas falharem
+   - MT5 não conecta → `sys.exit(1)` com log claro
+   - Modelo não carrega → `sys.exit(1)` com log claro
+   - Shape mismatch → `ValueError` + exit
+
+2. **Zero Tolerância a Erros Silenciosos:**
+   - NÃO usar try/except que continua após erro
+   - NÃO usar valores default quando dados críticos faltam
+   - Logar erros com `logger.critical()` antes de exit
+
+3. **Validação Estrita:**
+   - input_shape validado antes de inferência
+   - dtypes validados em contract tests
+   - Configuração .env validada ao startup
+
+4. **Sem Retry Loops (Nesta Sprint):**
+   - Reconexão automática é complexidade para Sprint 3
+   - MVP deve falhar rápido e claro
+
 ---
 
 ## 📊 RESUMO DO SPRINT

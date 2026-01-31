@@ -8,10 +8,19 @@ Criar classe MetaTraderProvider que conecta ao MT5 e publica dados reais no Even
 - **Dependências:** `MetaTrader5`, `src/core/event_bus.py`, `src/events.py`
 
 ## 🛠️ Especificações Técnicas
-1. **Interface:** Implementar método `get_latest_candles(symbol, timeframe, count)`
-2. **Conexão MT5:** Usar `mt5.initialize()`, validar conexão
-3. **Publicação:** Converter candles MT5 → `MarketDataEvent` → `event_bus.publish()`
-4. **Configuração:** Ler credenciais MT5 de `.env` (path, login, server)
+1. **Biblioteca:** Usar `MetaTrader5` (import mt5)
+2. **Inicialização:** `mt5.initialize()`
+   - Se falhar → lançar `ConnectionError` com mensagem clara
+   - NÃO implementar retry loops (Fail Fast)
+3. **Buscar Candles:** `mt5.copy_rates_from_pos(symbol, MT5_TIMEFRAME_M5, start_pos, count)`
+   - Converter para pandas DataFrame
+   - Validar colunas: time, open, high, low, close, volume
+4. **Publicação EventBus:**
+   - Para cada candle → criar `MarketDataEvent`
+   - `event_bus.publish(event)`
+5. **Estratégia Fail Fast:** 
+   - Qualquer erro de conexão/dados → lançar exceção
+   - Logar erro com logger.critical() antes de lançar
 
 ## 🔗 Dependências & Bloqueios
 - [ ] MT5 terminal instalado e rodando
@@ -19,11 +28,14 @@ Criar classe MetaTraderProvider que conecta ao MT5 e publica dados reais no Even
 - [ ] EventBus operacional (Sprint 1 ✅)
 
 ## 📦 Definition of Done (DoD)
-- [ ] Classe implementada e documentada (Docstrings)
-- [ ] Conexão MT5 validada (testa com terminal ativo)
-- [ ] Dados reais publicados no EventBus
-- [ ] Testes de integração básicos passando
-- [ ] README atualizado com instruções de setup MT5
+- [ ] Classe implementada com método `get_latest_candles(symbol, timeframe, count)`
+- [ ] `mt5.initialize()` lança `ConnectionError` se falhar (sem retry)
+- [ ] DataFrame convertido para `MarketDataEvent` corretamente
+- [ ] Validação de dtypes: float64 para OHLC, int64 para volume, datetime64 para time
+- [ ] Teste unitário simula MT5 offline → exceção capturada
+- [ ] Teste de integração com MT5 real (requer terminal ativo)
+- [ ] Docstrings explicam exceções que podem ser lançadas
+- [ ] README atualizado: "Se MT5 não conectar, sistema para imediatamente"
 
 ## 📊 Estimativa
 - **Story Points:** 13
