@@ -2,7 +2,7 @@
 
 **Data:** 2026-01-30  
 **Status:** ✅ **PRONTO PARA FASE 3.3 (Testes Finais)**  
-**Branch:** `feature/newapp-ui`  
+**Branch:** `main`  
 **Progresso:** 80% do projeto (Fases 1-3.2 completas de 10 fases planejadas)
 
 ---

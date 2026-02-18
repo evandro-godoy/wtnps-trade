@@ -1,7 +1,7 @@
 # ✅ FASE 3.3: TESTES FINAIS - RESULTADOS
 
 **Data:** 2026-01-30  
-**Status:** ✅ **TESTES COMPLETOS - PRONTO PARA PRODUÇÃO**
+**Status:** ✅ **TESTES COMPLETOS (15 ITENS, 2 LIMITAÇÕES CONHECIDAS)**
 
 ---
 
@@ -162,7 +162,7 @@ DevTools → Console:
 
 ---
 
-### ✅ Teste 12: Cross-Browser (Chrome)
+### ✅ Teste 12: Browser Base (Chrome/Edge)
 **Resultado:** ✅ **PASSOU**
 
 - ✅ Layout renderizado corretamente
@@ -173,11 +173,38 @@ DevTools → Console:
 
 ---
 
+### ⚠️ Teste 13: Segunda Tela (Multi-Monitor)
+**Resultado:** ⚠️ **LIMITAÇÃO CONHECIDA (DOCUMENTADA)**
+
+- ⚠️ Sobreposição em monitor secundário com DPI diferente
+- ✅ Issue registrada em `ISSUES/BUG_BOKEH_RESIZE_MULTI_SCREEN.md`
+- ✅ Não bloqueante para uso single-screen
+
+---
+
+### ⚠️ Teste 14: Zoom do Navegador
+**Resultado:** ⚠️ **LIMITAÇÃO CONHECIDA (DOCUMENTADA)**
+
+- ⚠️ Bokeh não recalcula corretamente com Ctrl++/Ctrl+-
+- ✅ Issue registrada em `ISSUES/BUG_BOKEH_RESIZE_MULTI_SCREEN.md`
+- ✅ Workaround documentado
+
+---
+
+### ✅ Teste 15: Histórico Grande (100+ predições)
+**Resultado:** ✅ **PASSOU**
+
+- ✅ Virtual scroll mantém ~15 linhas visíveis
+- ✅ Scroll suave mesmo com 1000+ itens
+- ✅ DOM não cresce linearmente
+
+---
+
 ## 📊 Resumo Executivo
 
 | Aspecto | Resultado | Detalhes |
 |---------|-----------|----------|
-| **Funcionalidade** | ✅ 100% | Todos os 12 testes passaram |
+| **Funcionalidade** | ✅ 100% | 15 testes executados (2 limitações conhecidas) |
 | **Performance** | ✅ Excelente | 60fps mantido, <100ms resposta |
 | **Memory** | ✅ Otimizado | 40% redução via virtual scroll |
 | **Responsividade** | ✅ 3 resoluções | Desktop/Tablet/Mobile ok |
@@ -189,7 +216,8 @@ DevTools → Console:
 
 ## 🎯 Critério de Sucesso
 
-- ✅ Todos os 12 testes: **PASSARAM**
+- ✅ 15 testes executados
+- ⚠️ 2 limitações conhecidas (multi-monitor e zoom)
 - ✅ Performance: **60fps** em todos cenários
 - ✅ Sem erros: **Console limpo**
 - ✅ Responsividade: **3+ resoluções** OK
@@ -243,7 +271,7 @@ DevTools → Console:
 
 **FASE CONCLUÍDA COM SUCESSO**
 
-- ✅ Testes funcionais: 12/12 passaram
+- ✅ Testes funcionais: 15 itens executados (2 limitações conhecidas)
 - ✅ Performance validada: 60fps
 - ✅ Documentação criada
 - ✅ Zero blockers
@@ -257,7 +285,7 @@ DevTools → Console:
 - [x] Executar todos os testes
 - [x] Validar performance
 - [x] Documentar resultados
-- [ ] Merge em `main` (se aprovado)
+- [ ] Validar `main` estavel apos aprovacao
 
 ### Futuro (Fases 4+)
 - [ ] Multi-screen bug fix (Fase 4)

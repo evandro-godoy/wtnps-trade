@@ -18,7 +18,7 @@ Este índice é seu **mapa de navegação** dos 7 prompts de orquestração para
 
 ### 🏆 **Prompt 0: Mestre (Orquestrador Central)**
 
-**Arquivo:** `0_Master_Orchestration_Prompt.md`  
+**Arquivo:** `plan-masterOrchestration.prompt.md`  
 **Agent:** 🎯 PLAN (Orchestrator)  
 **Escopo:** Sincronismo de 3 workstreams + consolidação final  
 **Prazo:** 2-3 dias (aguarda inputs)
@@ -27,10 +27,10 @@ Este índice é seu **mapa de navegação** dos 7 prompts de orquestração para
 - Coordena 6 agents em paralelo
 - Monitora dependências entre workstreams
 - Validação de critérios consolidados
-- Sincroniza merge PR + release
+- Sincroniza estabilizacao da `main` + release
 
 **Inputs recebidos de:** DEVOPS, ARCHITECT, FULLSTACK, QUANT, GUARDIAN  
-**Outputs fornecidos para:** Consolidação final + PR ready
+**Outputs fornecidos para:** Consolidação final + main estavel
 
 ---
 
@@ -38,22 +38,22 @@ Este índice é seu **mapa de navegação** dos 7 prompts de orquestração para
 
 ### 🔧 **Prompt 1: DEVOPS - CI/CD & Infraestrutura**
 
-**Arquivo:** `1_Devops_CI_Infrastructure.md`  
+**Arquivo:** `plan-devopsCI.prompt.md`  
 **Agent:** 🔧 DEVOPS  
-**Escopo:** Resolver CI failure + Validar pipeline GitHub Actions  
+**Escopo:** Validar CI na `main` + Monitorar pipeline GitHub Actions  
 **Prazo:** 1-2 dias  
-**Status:** 🔴 BLOQUEADOR (CI falha no PR #2)
+**Status:** 🟢 CI green na `main`
 
 **3 Tarefas principais:**
-1. **Investigar CI failure** → Root cause documentation
-2. **Fix + Validate locally** → Commit em PR branch
-3. **GitHub Actions rerun** → CI verde ✅
+1. **Verificar CI na main** → Status e evidencias
+2. **Hardening do pipeline** → Ajustes preventivos
+3. **Monitoramento continuo** → Alertas de regressao
 
 **Deliverables:**
-- ✅ Root cause document
-- ✅ Fix commited
-- ✅ CI green no PR
-- ✅ PR comment aprovação
+- ✅ Registro do status atual
+- ✅ Pipeline estabilizado
+- ✅ CI green na `main`
+- ✅ Alerta rapido em regressao
 
 **Depende de:** Nenhum (paralelo)  
 **Fornece input para:** PLAN (consolidação), FULLSTACK (não bloqueador)
@@ -62,7 +62,7 @@ Este índice é seu **mapa de navegação** dos 7 prompts de orquestração para
 
 ### 🏛️ **Prompt 2: ARCHITECT - BUG Analysis & Design**
 
-**Arquivo:** `2_Architect_Bug_Analysis.md`  
+**Arquivo:** `plan-architectBugAnalysis.prompt.md`  
 **Agent:** 🏛️ ARCHITECT  
 **Escopo:** Analisar BUG multi-screen Bokeh + Desenhar padrão Fase 4  
 **Prazo:** 1-2 dias  
@@ -89,22 +89,22 @@ Este índice é seu **mapa de navegação** dos 7 prompts de orquestração para
 
 ### 💻 **Prompt 3: FULLSTACK - Phase 3.3 Testing**
 
-**Arquivo:** `3_Fullstack_Phase3.3_Testing.md`  
+**Arquivo:** `plan-fullstackPhase3.3.prompt.md`  
 **Agent:** 💻 FULLSTACK  
-**Escopo:** Executar 12 testes fase 3.3 + performance benchmarking  
+**Escopo:** Executar 15 testes fase 3.3 + performance benchmarking  
 **Prazo:** 2-3 dias  
 **Status:** 🟢 PRONTO (não depende DEVOPS CI)
 
 **6 Tarefas principais:**
 1. **Setup teste local** → Ambiente pronto
-2. **Executar 12 testes** → Manual validation (checklist)
+2. **Executar 15 testes** → Manual validation (checklist)
 3. **Performance benchmarking** → 60fps target
 4. **Responsividade** → 3 breakpoints (desktop/tablet/mobile)
 5. **localStorage persistence** → State reload test
 6. **Cross-browser** → Chrome, Firefox, Safari, Edge
 
 **Deliverables:**
-- ✅ 12/12 testes executados
+- ✅ 15/15 testes executados
 - ✅ 60fps benchmark validado
 - ✅ 5-6 screenshots key moments
 - ✅ Relatório FASE_3.3_TESTES_RESULTADOS_FINAL.md
@@ -117,7 +117,7 @@ Este índice é seu **mapa de navegação** dos 7 prompts de orquestração para
 
 ### 📊 **Prompt 4: QUANT - ML Validation**
 
-**Arquivo:** `4_Quant_ML_Validation.md`  
+**Arquivo:** `plan-quantMLValidation.prompt.md`  
 **Agent:** 📊 QUANT  
 **Escopo:** Validar LSTM strategies + Configs + Data providers  
 **Prazo:** 2-3 dias  
@@ -148,7 +148,7 @@ Este índice é seu **mapa de navegação** dos 7 prompts de orquestração para
 
 ### 📋 **Prompt 5: PLAN - Roadmap Phases 4-10**
 
-**Arquivo:** `5_Plan_Roadmap_Phases4-10.md`  
+**Arquivo:** `plan-planRoadmapPhases.prompt.md`  
 **Agent:** 📋 PLAN  
 **Escopo:** Estruturar épicos + velocidade sprint + milestones  
 **Prazo:** 2-3 dias (aguarda ARCHITECT + FULLSTACK + QUANT)  
@@ -177,7 +177,7 @@ Este índice é seu **mapa de navegação** dos 7 prompts de orquestração para
 
 ### 🛡️ **Prompt 6: GUARDIAN - QA Audit & Compliance**
 
-**Arquivo:** `6_Guardian_QA_Audit.md`  
+**Arquivo:** `plan-guardianQAaudit.prompt.md`  
 **Agent:** 🛡️ GUARDIAN  
 **Escopo:** Auditar testes Fases 1-3.2 + Risk matrix Fases 4-10  
 **Prazo:** 2-3 dias  
@@ -238,9 +238,9 @@ Sincronismo:
 | Workstream | Prazo | Status | Deliverables |
 |-----------|-------|--------|-------------|
 | **WS1** (CI+Design) | 1-2 dias | 🟢 Pronto | CI ✅, BUG design ✅ |
-| **WS2** (Tests+ML) | 2-3 dias | 🟢 Pronto | 12 tests ✅, ML valid ✅ |
+| **WS2** (Tests+ML) | 2-3 dias | 🟢 Pronto | 15 tests ✅, ML valid ✅ |
 | **WS3** (Planning+QA) | 2-3 dias | 🟡 Aguarda | Roadmap ✅, Risk matrix ✅ |
-| **Consolidação** | 1 dia | 🟡 Após WS | PR ready ✅ |
+| **Consolidação** | 1 dia | 🟡 Após WS | main estavel ✅ |
 | **TOTAL** | **3-4 dias** | 🟡 Em curso | Fase 3.3 COMPLETE ✅ |
 
 ---
@@ -248,30 +248,30 @@ Sincronismo:
 ## 📖 Read Order by Role
 
 **👨‍💼 Para Gestores / PMs:**
-1. [0_Master_Orchestration_Prompt.md](0_Master_Orchestration_Prompt.md) (overview)
-2. [5_Plan_Roadmap_Phases4-10.md](5_Plan_Roadmap_Phases4-10.md) (roadmap)
-3. [6_Guardian_QA_Audit.md](6_Guardian_QA_Audit.md) (risk matrix)
+1. [plan-masterOrchestration.prompt.md](plan-masterOrchestration.prompt.md) (overview)
+2. [plan-planRoadmapPhases.prompt.md](plan-planRoadmapPhases.prompt.md) (roadmap)
+3. [plan-guardianQAaudit.prompt.md](plan-guardianQAaudit.prompt.md) (risk matrix)
 
 **👨‍💻 Para Engineers:**
-1. Seu prompt específico (ex: [3_Fullstack_Phase3.3_Testing.md](3_Fullstack_Phase3.3_Testing.md))
-2. [0_Master_Orchestration_Prompt.md](0_Master_Orchestration_Prompt.md) (dependencies)
+1. Seu prompt específico (ex: [plan-fullstackPhase3.3.prompt.md](plan-fullstackPhase3.3.prompt.md))
+2. [plan-masterOrchestration.prompt.md](plan-masterOrchestration.prompt.md) (dependencies)
 
 **🏗️ Para Arquitetura:**
-1. [2_Architect_Bug_Analysis.md](2_Architect_Bug_Analysis.md) (design)
-2. [0_Master_Orchestration_Prompt.md](0_Master_Orchestration_Prompt.md) (sync)
-3. [5_Plan_Roadmap_Phases4-10.md](5_Plan_Roadmap_Phases4-10.md) (phase 4 impact)
+1. [plan-architectBugAnalysis.prompt.md](plan-architectBugAnalysis.prompt.md) (design)
+2. [plan-masterOrchestration.prompt.md](plan-masterOrchestration.prompt.md) (sync)
+3. [plan-planRoadmapPhases.prompt.md](plan-planRoadmapPhases.prompt.md) (phase 4 impact)
 
 ---
 
 ## ✅ Critérios de Sucesso
 
-- [ ] CI verde (DEVOPS)
-- [ ] 12/12 testes passando (FULLSTACK)
+- [ ] CI verde na `main` (DEVOPS)
+- [ ] 15/15 testes passando (FULLSTACK)
 - [ ] ML strategies validadas (QUANT)
 - [ ] BUG design aprovado (ARCHITECT)
 - [ ] Roadmap Fases 4-10 (PLAN)
 - [ ] QA audit + risk matrix (GUARDIAN)
-- [ ] PR #2 ready merge
+- [ ] main estavel para continuidade
 - [ ] Fase 3.3 COMPLETE ✅
 
 ---
@@ -280,13 +280,13 @@ Sincronismo:
 
 | Problema | Agent | Arquivo |
 |----------|-------|---------|
-| ❌ CI falha? | DEVOPS | `1_Devops_CI_Infrastructure.md` |
-| 🐛 BUG multi-screen? | ARCHITECT | `2_Architect_Bug_Analysis.md` |
-| 🧪 Testes não passam? | FULLSTACK | `3_Fullstack_Phase3.3_Testing.md` |
-| ⚙️ ML strategy fails? | QUANT | `4_Quant_ML_Validation.md` |
-| 📋 Roadmap priority? | PLAN | `5_Plan_Roadmap_Phases4-10.md` |
-| 🛡️ Risk concerns? | GUARDIAN | `6_Guardian_QA_Audit.md` |
-| 🎯 Sync issue? | MESTRE | `0_Master_Orchestration_Prompt.md` |
+| ❌ CI falha? | DEVOPS | `plan-devopsCI.prompt.md` |
+| 🐛 BUG multi-screen? | ARCHITECT | `plan-architectBugAnalysis.prompt.md` |
+| 🧪 Testes não passam? | FULLSTACK | `plan-fullstackPhase3.3.prompt.md` |
+| ⚙️ ML strategy fails? | QUANT | `plan-quantMLValidation.prompt.md` |
+| 📋 Roadmap priority? | PLAN | `plan-planRoadmapPhases.prompt.md` |
+| 🛡️ Risk concerns? | GUARDIAN | `plan-guardianQAaudit.prompt.md` |
+| 🎯 Sync issue? | MESTRE | `plan-masterOrchestration.prompt.md` |
 
 ---
 
@@ -295,13 +295,13 @@ Sincronismo:
 ```
 .github/prompts/
 ├── INDEX_Prompts.md (este arquivo)
-├── 0_Master_Orchestration_Prompt.md
-├── 1_Devops_CI_Infrastructure.md
-├── 2_Architect_Bug_Analysis.md
-├── 3_Fullstack_Phase3.3_Testing.md
-├── 4_Quant_ML_Validation.md
-├── 5_Plan_Roadmap_Phases4-10.md
-└── 6_Guardian_QA_Audit.md
+├── plan-masterOrchestration.prompt.md
+├── plan-devopsCI.prompt.md
+├── plan-architectBugAnalysis.prompt.md
+├── plan-fullstackPhase3.3.prompt.md
+├── plan-quantMLValidation.prompt.md
+├── plan-planRoadmapPhases.prompt.md
+└── plan-guardianQAaudit.prompt.md
 ```
 
 **Salve todos os 8 arquivos** (7 prompts + INDEX) nesta pasta.

@@ -1,7 +1,7 @@
 # 📋 FASE 2: GRID LAYOUT RESPONSIVO - STATUS FINAL
 
 **Data:** 2026-01-30  
-**Branch:** `feature/newapp-ui`  
+**Branch:** `main`  
 **Status:** ✅ **COMPLETA (COM LIMITAÇÃO CONHECIDA)**
 
 ---

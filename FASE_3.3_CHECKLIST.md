@@ -228,7 +228,7 @@ Após completar Fase 3.3:
 
 1. Atualizar `RESUMO_GERAL_FASES_1_3.2.md` com resultados finais
 2. Decidir se continua com Fase 4+ ou finaliza release
-3. Prepare branch para merge em `main` (se aprovado)
+3. Confirmar `main` estavel apos os testes
 
 ---
 

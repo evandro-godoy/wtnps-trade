@@ -1,64 +1,49 @@
 # 🔧 Prompt DEVOPS - CI/CD & Infraestrutura Sprint 3
 
 **Agent:** DEVOPS  
-**Escopo:** Resolver CI failure + Validar infraestrutura  
+**Escopo:** Validar CI na `main` + Hardening do pipeline  
 **Prazo:** 1-2 dias  
-**Status:** Fase 3.3 bloqueada por CI ❌
+**Status:** CI green na `main`
 
 ---
 
 ## 📋 Missão
 
-O PR feature/newapp-ui (#2) falha em CI test. Investigar root cause, resolver, validar merge-readiness. Garantir GitHub Actions pipeline está green antes de FULLSTACK executar testes Fase 3.3.
+Validar que o CI permanece green na `main`, revisar pipeline por regressões e garantir monitoramento contínuo durante a Fase 3.3.
 
 ---
 
 ## 🎯 Tarefas Específicas
 
-### Task 1: Investigar CI Failure
-**Objetivo:** Identificar why test falhou, não é erro em código  
-**Entrada:** PR #2 metadata + workflow logs  
-**Saída:** Root cause document + fix recomendado
+### Task 1: Verificar CI na main
+**Objetivo:** Confirmar status green e registrar evidência do workflow atual  
+**Entrada:** Workflow logs da `main`  
+**Saída:** Registro do status atual e pontos de atenção
 
 **Passo a passo:**
-1. Acessar https://github.com/evandro-godoy/wtnps-trade/pull/2
-2. Revisar "Checks" tab → ver qual test falhou (test job)
-3. Coletar logs completos do workflow falho
-4. Verificar se é:
-   - Dependência não instalada (requirements.txt)?
-   - Ambiente CI diferente (Python version, OS)?
-   - Configuração fixtures (banco de dados, timeouts)?
-   - Arquivo não staged (.gitignore)?
+1. Revisar o último workflow do CI na branch `main`
+2. Confirmar que todos os jobs passaram (tests, lint, type)
+3. Registrar logs e anotar qualquer warning recorrente
 
-### Task 2: Fix + Validate Locally
-**Objetivo:** Replicar falha local, aplicar fix, validar  
-**Entrada:** Root cause + PR code  
-**Saída:** Commit fixado, CI verde
+### Task 2: Hardening do pipeline
+**Objetivo:** Prevenir regressões e garantir consistência do ambiente  
+**Entrada:** Configs de workflow e dependencias  
+**Saída:** Ajustes de robustez (se necessarios)
 
 **Passo a passo:**
-1. Checkout PR branch localmente:
-   ```bash
-   git fetch origin feature/newapp-ui
-   git checkout feature/newapp-ui
-   ```
-2. Replicar env pipeline (poetry install, test command)
-3. Aplicar fix mínimo (pode ser .gitignore, requirements.txt, test config)
-4. Validar:
-   ```bash
-   poetry run pytest tests/ -v
-   ```
-5. Push fix para PR branch
+1. Validar o workflow atual (.github/workflows/ci.yml)
+2. Checar versoes de Python e dependencias em `pyproject.toml`
+3. Se necessario, propor ajustes leves (cache, timeouts, pin de deps)
 
-### Task 3: GitHub Actions Validation
-**Objetivo:** Confirmar CI workflow rerun passa  
-**Entrada:** Commit fixado + Actions config  
-**Saída:** CI green ✅ + aprovação merge
+### Task 3: Monitoramento continuo
+**Objetivo:** Garantir estabilidade do CI durante a execucao da Fase 3.3  
+**Entrada:** Status do GitHub Actions na `main`  
+**Saída:** Alerta rapido se houver regressao
 
 **Passo a passo:**
-1. No GitHub, trigger manual rerun de failed job
-2. Monitorar workflow até complete
-3. Validar ALL checks passam (tests, lint, type)
-4. Documentar em PR comment: "CI resolved - ready for Fullstack testing"
+1. Monitorar os proximos runs do CI na `main`
+2. Validar que todos os checks continuam green
+3. Alertar a squad caso haja falha
 
 ---
 
@@ -92,17 +77,16 @@ O PR feature/newapp-ui (#2) falha em CI test. Investigar root cause, resolver, v
 
 ## ✅ Critérios de Aceitação
 
-- [ ] Root cause documentado (1-3 linhas explicativo)
-- [ ] Fix aplicado + commited
-- [ ] CI verde no PR (all checks passing)
-- [ ] GitHub Actions workflow logs salvos em referência
-- [ ] PR comment com "DEVOPS cleared for merge"
+- [ ] CI confirmado green na `main`
+- [ ] Logs e warnings registrados
+- [ ] Ajustes de robustez propostos (se necessario)
+- [ ] Monitoramento continuo estabelecido
 
 ---
 
 ## 📌 Referências
 
-- PR: https://github.com/evandro-godoy/wtnps-trade/pull/2
+- Branch: `main`
 - Copilot Instructions: [.github/copilot-instructions.md](../../.github/copilot-instructions.md)
 - Mestre Orchestration: `plan-masterOrchestration.prompt.md`
 

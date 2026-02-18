@@ -26,7 +26,7 @@ Estruturar épicos, story points, velocidade sprint, milestones. Artefato final:
 **Entrada:** 
 - DEVOPS: CI ✅ ou não
 - ARCHITECT: BUG design + timeline Fase 4
-- FULLSTACK: 12 test results
+- FULLSTACK: 15 test results
 - QUANT: ML validation report
 - GUARDIAN: QA audit + risk matrix
 
@@ -34,7 +34,8 @@ Estruturar épicos, story points, velocidade sprint, milestones. Artefato final:
 
 **Passo a passo:**
 1. Aguardar todos 3 workstreams fornecerem outputs (2-3 dias)
-2. Coletar em template:
+2. Atualizar referencias de docs para `main` e reconciliar contagem de testes (15 itens)
+3. Coletar em template:
    ```markdown
    ## Workstream Summary
    
@@ -45,7 +46,7 @@ Estruturar épicos, story points, velocidade sprint, milestones. Artefato final:
    - Risk: [baixa]
    
    ### Testing (FULLSTACK + QUANT)
-   - Testes 12/12: ✅ [ou N/12 com falhas]
+   - Testes 15/15: ✅ [ou N/15 com falhas]
    - Performance: 60fps ✅
    - ML validation: ✅ All signals valid
    - Cross-browser: 4/4 passing
@@ -302,7 +303,7 @@ Ref: [.github/copilot-instructions.md](../../.github/copilot-instructions.md)
 
 | Sprint | Bloqueador? | Depende de |
 |--------|-------------|-----------|
-| 1 (Fases 4+5) | Não | PR #2 merge ✅ |
+| 1 (Fases 4+5) | Não | main estabilizada ✅ |
 | 2 (Fases 6+8) | Fase 5 DB | Sprint 1 completo |
 | 3 (Fases 7+9) | Fase 5 API | Sprint 1 API ready |
 | 4 (Fase 10) | Releases | Sprints 1-3 ✅ |

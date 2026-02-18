@@ -1,15 +1,15 @@
 # 💻 Prompt FULLSTACK - Execução Fase 3.3 Testes
 
 **Agent:** FULLSTACK  
-**Escopo:** 12 testes Phase 3.3 + Validação Performance  
+**Escopo:** 15 testes Phase 3.3 + Validação Performance  
 **Prazo:** 2-3 dias  
-**Deliverable:** 12/12 testes ✅ + Relatório
+**Deliverable:** 15/15 testes ✅ + Relatório
 
 ---
 
 ## 📋 Missão
 
-Executar 12 testes funcionais Fase 3.3 conforme [FASE_3.3_CHECKLIST.md](../../FASE_3.3_CHECKLIST.md). Validar:
+Executar 15 testes funcionais Fase 3.3 conforme [FASE_3.3_CHECKLIST.md](../../FASE_3.3_CHECKLIST.md). Validar:
 - ✅ Virtual Scroll (1000+ linhas @ 60fps)
 - ✅ Drag-to-resize (Split.js + localStorage)
 - ✅ Responsividade (Desktop/Tablet/Mobile)
@@ -27,10 +27,10 @@ Executar 12 testes funcionais Fase 3.3 conforme [FASE_3.3_CHECKLIST.md](../../FA
 **Saída:** Ambiente validated, checklist aberto
 
 **Passo a passo:**
-1. Clonar/pull branch feature/newapp-ui:
+1. Atualizar branch main:
    ```bash
-   git checkout feature/newapp-ui
-   git pull origin feature/newapp-ui
+   git checkout main
+   git pull origin main
    ```
 
 2. Start newapp:
@@ -45,12 +45,12 @@ Executar 12 testes funcionais Fase 3.3 conforme [FASE_3.3_CHECKLIST.md](../../FA
    - Performance tab ready
    - Network throttle → "Slow 3G" para testes
 
-### Task 2: Executar 12 Testes (Sem Pytest)
+### Task 2: Executar 15 Testes (Sem Pytest)
 **Objetivo:** Validação manual + observação  
-**Entrada:** 12 test cases  
+**Entrada:** 15 test cases  
 **Saída:** Checklist completo (pass/fail + screenshot)
 
-**Referência:** [FASE_3.3_CHECKLIST.md](../../FASE_3.3_CHECKLIST.md) deve listar todos 12.
+**Referência:** [FASE_3.3_CHECKLIST.md](../../FASE_3.3_CHECKLIST.md) deve listar todos 15.
 
 **Padrão esperado:**
 ```
@@ -178,8 +178,8 @@ Mas **foco em manual para agora** — relatório visual mais valioso que número
 
 ## 📊 Relatório Final
 
-Após completas os 12 testes, gerar **FASE_3.3_TESTES_RESULTADOS_FINAL.md** com:
-- ✅ 12/12 test results (pass/fail)
+Após completas os 15 testes, gerar **FASE_3.3_TESTES_RESULTADOS_FINAL.md** com:
+- ✅ 15/15 test results (pass/fail)
 - ✅ Performance metrics (FPS, load times)
 - ✅ Screenshots (5-6 key moments)
 - ✅ Cross-browser matrix
@@ -195,13 +195,13 @@ Após completas os 12 testes, gerar **FASE_3.3_TESTES_RESULTADOS_FINAL.md** com:
 | QUANT | ML validation | Independente (paralelo) |
 | GUARDIAN | QA audit | Recebe outputs FULLSTACK |
 
-**Não aguarde DEVOPS.** Comece testes agora se código feature/newapp-ui esteja pronto.
+**Não aguarde DEVOPS.** Comece testes agora com a `main` estabilizada.
 
 ---
 
 ## ✅ Critérios de Aceitação
 
-- [ ] 12/12 testes executados (manual validation)
+- [ ] 15/15 testes executados (manual validation)
 - [ ] 60fps benchmark validado
 - [ ] Responsividade (3 breakpoints) ✅
 - [ ] Cross-browser matrix completa (4+ browsers)

@@ -15,7 +15,7 @@ Embora o layout funcione corretamente em **Desktop Full HD na tela primária**, 
 - **Navegadores afetados:** Chrome, Edge (todos baseados em Chromium)
 - **Versão do Bokeh:** 3.8.1
 - **FastAPI/Python:** Python 3.12+, Poetry
-- **Branch:** `feature/newapp-ui`
+- **Branch:** `main`
 - **Arquivo afetado:** `newapp/templates/charts_clean.html`, `newapp/plotting.py`, `newapp/static/css/style.css`
 
 ---

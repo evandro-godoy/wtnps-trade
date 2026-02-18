@@ -2,7 +2,7 @@
 
 **Data:** 2026-01-30  
 **Status:** ✅ **IMPLEMENTAÇÃO CONCLUÍDA E TESTADA**  
-**Branch:** `feature/newapp-ui`
+**Branch:** `main`
 
 ---
 

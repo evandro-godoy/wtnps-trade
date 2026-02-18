@@ -161,7 +161,7 @@ UI atualizada suavemente
 ---
 
 **Versão UI:** v1.2.0 (Fases 1-3.2)  
-**Branch:** `feature/newapp-ui`  
+**Branch:** `main`  
 **Status:** ✅ **PRODUÇÃO-READY** (single-screen) ✅
 
 ---

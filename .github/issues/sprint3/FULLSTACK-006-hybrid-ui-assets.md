@@ -7,14 +7,13 @@ assignees: ""
 ---
 
 ## Objective
-Enhance the Plotly monitor UI with virtualized signal history, resizable panes, and a grid-based layout.
+Enhance the Bokeh monitor UI with virtualized signal history, resizable panes, and a grid-based layout.
 
 ## Context & Files
-- Target: templates/charts_clean.html
-- Target: templates/static/css/charts_clean.css
-- Target: templates/static/js/live_chart.js
-- New: templates/static/js/virtual-scroll.js
-- Related: src/api/main.py
+- Target: newapp/templates/charts_clean.html
+- Target: newapp/static/css/style.css
+- Target: newapp/static/js/virtual-scroll.js
+- Related: newapp/main.py
 
 ## Technical Scope
 1. Add Split.js CDN and initialize split panes for chart + sidebar.
