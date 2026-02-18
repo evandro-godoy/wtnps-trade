@@ -43,3 +43,7 @@ venv.bak/
 .poetry-virtualenvs/
 archive/tests/monitor_ui.html
 archive/tests/test_ui.py
+newapp/.cache_data/MT5_WDO_M5_20251210_20260126.parquet
+newapp/.cache_data/MT5_WDO_M5_20260126_20260127.parquet
+newapp/.cache_data/MT5_WDO_M5_20260127_20260127.parquet
+newapp/.cache_data/MT5_WDO_M5_20260127_20260130.parquet
