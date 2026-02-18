@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WTNPS Trade - Gráficos</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <link rel="stylesheet" href="/static/css/style.css?v=clean2" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Bokeh for charts -->
+  <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-3.8.1.min.css">
+  <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.8.1.min.js"></script>
+  <!-- Virtual Scroll for large tables -->
+  <script src="/static/js/virtual-scroll.js?v=1.0"></script>
+  <!-- Split.js for drag-to-resize -->
+  <script src="https://cdn.jsdelivr.net/npm/split.js@1.6.4/dist/split.min.js"></script>
+</head>
+<body class="layout-with-sidebar charts-clean">
+  <!-- Sidebar (apenas ícones) -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <h2 class="sidebar-logo" title="WTNPS Trade">
+        <i class="fas fa-chart-line"></i>
+        <span>WTNPS</span>
+      </h2>
+    </div>
+    <ul class="sidebar-menu">
+      <li class="menu-item"><a href="/home-clean"><i class="fas fa-home"></i><span>Home</span></a></li>
+      <li class="menu-item active"><a href="/charts-clean"><i class="fas fa-chart-line"></i><span>Gráficos</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-tv"></i><span>Monitor</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-brain"></i><span>Análise</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-clock-rotate-left"></i><span>Backtest</span></a></li>
+      <li class="menu-item"><a><i class="fas fa-gear"></i><span>Configurações</span></a></li>
+    </ul>
+    <div class="sidebar-footer"></div>
+  </nav>
+
+  <!-- Main Content com gráfico apenas -->
+  <main class="main-content">
+    <div class="content-wrapper">
+      <!-- Apenas o gráfico, sem cabeçalho -->
+      <section class="chart-section">      
+        <div class="chart-container">
+          {{ bokeh_div | safe }}
+        </div>      
+      </section>
+      
+      <!-- Grid de Predições ML com Análise Técnica -->
+      <section class="predictions-section">
+        <!-- Notebook com 2 tabs: Sinais ML e Análise Técnica -->
+        <div class="predictions-card">
+          <div class="predictions-header">
+            <h3><i class="fas fa-brain"></i> Monitor em Tempo Real - WDO$ M5</h3>
+            <div class="header-controls">
+              <button id="refresh-predictions" class="btn btn-sm">
+                <i class="fas fa-sync"></i>
+              </button>
+              <button id="clear-logs" class="btn btn-sm btn-danger">
+                <i class="fas fa-trash"></i> Limpar
+              </button>
+            </div>
+          </div>
+          
+          <!-- Tabs Navigation -->
+          <div class="tabs-container">
+            <div class="tabs-nav">
+              <button class="tab-btn active" data-tab="ml-signals">
+                <i class="fas fa-chart-line"></i> Sinais ML
+              </button>
+              <button class="tab-btn" data-tab="technical">
+                <i class="fas fa-chart-bar"></i> Análise Técnica
+              </button>
+            </div>
+            
+            <!-- Tab Content: Sinais ML -->
+            <div id="ml-signals" class="tab-content active">
+              <div class="predictions-table-container">
+                <table id="predictions-table" class="predictions-table">
+                  <thead>
+                    <tr>
+                      <th>Data/Hora</th>
+                      <th>Tipo</th>
+                      <th>Direção</th>
+                      <th>Preço</th>
+                      <th>Prob. ML (%)</th>
+                      <th>Status</th>
+                      <th>Mensagem</th>
+                    </tr>
+                  </thead>
+                  <tbody id="predictions-body">
+                    <tr>
+                      <td colspan="7" style="text-align: center; color: #76838f;">Carregando predições...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <!-- Tab Content: Análise Técnica -->
+            <div id="technical" class="tab-content">
+              <div class="predictions-table-container">
+                <table id="analysis-table" class="predictions-table">
+                  <thead>
+                    <tr>
+                      <th>Data/Hora</th>
+                      <th>Tendência</th>
+                      <th>RSI</th>
+                      <th>EMA20</th>
+                      <th>SMA20</th>
+                      <th>SMA50</th>
+                      <th>Padrão</th>
+                      <th>Suporte/Resistência</th>
+                    </tr>
+                  </thead>
+                  <tbody id="analysis-body">
+                    <tr>
+                      <td colspan="8" style="text-align: center; color: #76838f;">Carregando análises...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Embed Bokeh Script -->
+  {{ bokeh_script | safe }}
+  
+  <script>
+    // ========== BOKEH RESPONSIVE RESIZE ==========
+    function initBokehResize() {
+      const chartContainer = document.querySelector('.chart-container');
+      if (!chartContainer) return;
+      
+      // Use ResizeObserver para detectar mudanças de tamanho
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (let entry of entries) {
+          const { width, height } = entry.contentRect;
+          console.log(`Chart container resized: ${width.toFixed(0)}x${height.toFixed(0)}px`);
+          
+          // Trigger Bokeh to re-render
+          const bokehRoot = chartContainer.querySelector('.bk-root');
+          if (bokehRoot && window.Bokeh) {
+            try {
+              window.Bokeh.documents[0]?.receiver()?.trigger('document_ready');
+            } catch (e) {
+              console.debug('Bokeh resize handled');
+            }
+          }
+        }
+      });
+      
+      resizeObserver.observe(chartContainer);
+      return resizeObserver;
+    }
+    
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(initBokehResize, 100);
+    });
+  </script>
+  
+  <script>
+    // ========== STATE MANAGEMENT ==========
+    let lastCandleTime = null;
+    let autoRefreshInterval = null;
+    let isMarketOpen = false;
+    let predictionHistory = []; // Store all predictions with technical data
+    
+    // Virtual Scroll instances
+    let mlSignalsVirtualScroll = null;
+    let technicalAnalysisVirtualScroll = null;
+    
+    // Fixed parameters (no longer user-selectable)
+    const FIXED_SYMBOL = 'WDO$';
+    const FIXED_TIMEFRAME = 'M5';
+    
+    // Get timeframe in seconds for interval calculation
+    function getTimeframeSeconds(tf) {
+      const mapping = {
+        'M1': 60, 'M5': 300, 'M15': 900, 'M30': 1800,
+        'H1': 3600, 'H4': 14400, 'D1': 86400
+      };
+      return mapping[tf] || 300;
+    }
+    
+    // Format timestamp to local timezone
+    function formatTimestamp(isoString) {
+      const date = new Date(isoString);
+      return date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    }
+    
+    // Calculate technical indicators from prediction data
+    function extractTechnicalData(pred) {
+      const indicators = pred.indicators || {};
+      const analysis = pred.analysis || {};
+      
+      return {
+        timestamp: pred.timestamp,
+        trend: analysis.trend || getTrend(indicators),
+        trend_strength: analysis.trend_strength || getTrendStrength(indicators),
+        rsi: analysis.rsi || indicators.rsi_14 || 0,
+        rsi_condition: analysis.rsi_condition || getRSICondition(indicators.rsi_14 || 0),
+        ema9: indicators.ema_9 || 0,
+        ema20: indicators.ema_20 || 0,
+        sma20: indicators.sma_20 || 0,
+        sma50: indicators.sma_50 || 0,
+        support: analysis.support || 0,
+        resistance: analysis.resistance || 0,
+        pattern: analysis.pattern || 'N/A'
+      };
+    }
+    
+    // Determine trend from indicators
+    function getTrend(indicators) {
+      const close = indicators.close || 0;
+      const ema9 = indicators.ema_9 || 0;
+      const sma20 = indicators.sma_20 || 0;
+      
+      if (!close || !ema9 || !sma20) return 'N/A';
+      
+      if (ema9 > sma20 && close > ema9) return 'ALTA';
+      if (ema9 < sma20 && close < ema9) return 'BAIXA';
+      return 'LATERAL';
+    }
+    
+    // Determine trend strength
+    function getTrendStrength(indicators) {
+      const sma20 = indicators.sma_20 || 0;
+      const sma50 = indicators.sma_50 || 0;
+      
+      if (!sma20 || !sma50) return 'N/A';
+      
+      const slope = Math.abs((sma50 - sma20) / sma20 * 100);
+      
+      if (slope > 1.0) return 'FORTE';
+      if (slope > 0.3) return 'MODERADA';
+      return 'FRACA';
+    }
+    
+    // Determine RSI condition
+    function getRSICondition(rsi) {
+      if (rsi > 70) return 'SOBRECOMPRADO';
+      if (rsi < 30) return 'SOBREVENDIDO';
+      return 'NEUTRO';
+    }
+    
+    // Format trend display with strength
+    function formatTrend(trend, strength) {
+      if (trend === 'N/A') return 'N/A';
+      
+      let icon = '';
+      let color = '#95a5a6';
+      
+      if (trend === 'ALTA') {
+        icon = '▲';
+        color = '#2ecc71';
+      } else if (trend === 'BAIXA') {
+        icon = '▼';
+        color = '#e74c3c';
+      } else {
+        icon = '⬌';
+        color = '#f39c12';
+      }
+      
+      return `<span style="color: ${color}; font-weight: 600;">${icon} ${trend}</span><br><span style="font-size: 10px; color: #76838f;">${strength}</span>`;
+    }
+    
+    // Format RSI display with condition
+    function formatRSI(rsi, condition) {
+      if (!rsi || rsi === 0) return 'N/A';
+      
+      let color = '#95a5a6';
+      if (condition === 'SOBRECOMPRADO') color = '#e74c3c';
+      else if (condition === 'SOBREVENDIDO') color = '#2ecc71';
+      
+      return `<span style="font-weight: 600;">${rsi.toFixed(0)}</span><br><span style="font-size: 10px; color: ${color};">${condition}</span>`;
+    }
+    
+    // ========== ROW CREATION HELPERS ==========
+    
+    /**
+     * Helper: Get probability class for color coding
+     */
+    function getProbClass(prob) {
+      if (prob >= 75) return 'high';
+      if (prob >= 65) return 'medium-high';
+      if (prob >= 55) return 'medium';
+      return 'low';
+    }
+    
+    /**
+     * Create ML Signal row element
+     */
+    function createMLSignalRow(pred) {
+      const row = document.createElement('tr');
+      
+      // Determine signal type and class
+      let tipoClass = 'neutral';
+      let tipoText = pred.tipo || 'N/A';
+      
+      if (tipoText === 'COMPRA') {
+        tipoClass = 'buy';
+      } else if (tipoText === 'VENDA') {
+        tipoClass = 'sell';
+      }
+      
+      // Get direction (CALL/PUT)
+      const direction = pred.direction || 'N/A';
+      let directionClass = 'neutral';
+      let directionIcon = '⬌';
+      
+      if (direction === 'CALL') {
+        directionClass = 'buy';
+        directionIcon = '↑ CALL';
+      } else if (direction === 'PUT') {
+        directionClass = 'sell';
+        directionIcon = '↓ PUT';
+      }
+      
+      // Format timestamp
+      const formattedTime = formatTimestamp(pred.timestamp);
+      
+      // Determine row tag based on probability
+      let rowTag = '';
+      const prob = pred.prob_ml || 0;
+      
+      if (prob >= 65) {
+        rowTag = 'ALERT';
+      } else if (prob >= 55) {
+        rowTag = 'INFO';
+      } else {
+        rowTag = 'TICK';
+      }
+      
+      row.className = `log-row log-${rowTag.toLowerCase()}`;
+      
+      // Format price
+      const preco = pred.preco || 0;
+      const precoStr = preco.toLocaleString('pt-BR');
+      
+      // Get validation status from analysis
+      const analysis = pred.analysis || {};
+      const signalValid = analysis.signal_valid !== false;
+      const statusIcon = signalValid ? '✅' : '⚠️';
+      const statusText = signalValid ? 'Válido' : 'Inválido';
+      
+      row.innerHTML = `
+        <td>${formattedTime}</td>
+        <td><span class="signal-badge signal-${tipoClass}">${tipoText}</span></td>
+        <td><span class="signal-badge signal-${directionClass}">${directionIcon}</span></td>
+        <td>${precoStr}</td>
+        <td><span class="prob-badge prob-${getProbClass(prob)}">${prob.toFixed(1)}%</span></td>
+        <td style="text-align: center; font-size: 12px;">${statusIcon} ${statusText}</td>
+        <td>${pred.mensagem || 'N/A'}</td>
+      `;
+      
+      return row;
+    }
+    
+    /**
+     * Create Technical Analysis row element
+     */
+    function createTechnicalAnalysisRow(pred) {
+      const row = document.createElement('tr');
+      const tech = extractTechnicalData(pred);
+      
+      const formattedTime = formatTimestamp(tech.timestamp);
+      
+      // Determine row tag
+      let rowTag = '';
+      const prob = pred.prob_ml || 0;
+      
+      if (prob >= 65) {
+        rowTag = 'ALERT';
+      } else if (prob >= 55) {
+        rowTag = 'INFO';
+      } else {
+        rowTag = 'TICK';
+      }
+      
+      row.className = `log-row log-${rowTag.toLowerCase()}`;
+      
+      // Format support/resistance
+      const supportResistance = (
+        (tech.support > 0 ? `S: ${tech.support.toFixed(0)}` : 'S: N/A') + ' / ' +
+        (tech.resistance > 0 ? `R: ${tech.resistance.toFixed(0)}` : 'R: N/A')
+      );
+      
+      row.innerHTML = `
+        <td>${formattedTime}</td>
+        <td>${formatTrend(tech.trend, tech.trend_strength)}</td>
+        <td>${formatRSI(tech.rsi, tech.rsi_condition)}</td>
+        <td>${tech.ema20 > 0 ? tech.ema20.toFixed(0) : 'N/A'}</td>
+        <td>${tech.sma20 > 0 ? tech.sma20.toFixed(0) : 'N/A'}</td>
+        <td>${tech.sma50 > 0 ? tech.sma50.toFixed(0) : 'N/A'}</td>
+        <td style="font-size: 11px;">${tech.pattern}</td>
+        <td style="font-size: 11px;">${supportResistance}</td>
+      `;
+      
+      return row;
+    }
+    
+    /**
+     * Initialize or refresh virtual scroll instances
+     */
+    function initVirtualScroll() {
+      const mlTable = document.getElementById('predictions-table');
+      const techTable = document.getElementById('analysis-table');
+      
+      if (!mlSignalsVirtualScroll && mlTable) {
+        mlSignalsVirtualScroll = new PredictionVirtualScroll(mlTable, 30, 5);
+        mlSignalsVirtualScroll.setRowFactory(createMLSignalRow);
+        console.log('✅ ML Signals virtual scroll initialized');
+      }
+      
+      if (!technicalAnalysisVirtualScroll && techTable) {
+        technicalAnalysisVirtualScroll = new PredictionVirtualScroll(techTable, 30, 5);
+        technicalAnalysisVirtualScroll.setRowFactory(createTechnicalAnalysisRow);
+        console.log('✅ Technical Analysis virtual scroll initialized');
+      }
+    }
+    
+    /**
+     * Update virtual scroll data
+     */
+    function updateVirtualScroll() {
+      if (mlSignalsVirtualScroll) {
+        mlSignalsVirtualScroll.setData(predictionHistory);
+        console.log(`📊 ML Signals updated: ${predictionHistory.length} items`);
+      }
+      
+      if (technicalAnalysisVirtualScroll) {
+        technicalAnalysisVirtualScroll.setData(predictionHistory);
+        console.log(`📊 Technical Analysis updated: ${predictionHistory.length} items`);
+      }
+    }
+    
+    // ========== LOAD PREDICTIONS ==========
+    async function loadPredictions() {
+      try {
+        const response = await fetch(`/api/monitor-predictions?symbol=${FIXED_SYMBOL}&timeframe=${FIXED_TIMEFRAME}&count=10`);
+        const data = await response.json();
+        
+        console.log('📊 API Response:', {
+          predictions_count: data.predictions?.length || 0,
+          latest_candle: data.latest_candle_time,
+          is_market_open: data.is_market_open,
+          source: data.source,
+          error: data.error
+        });
+        
+        // Log first prediction for debugging
+        if (data.predictions && data.predictions.length > 0) {
+          console.log('📈 First prediction:', data.predictions[0]);
+        }
+        
+        const mlBody = document.getElementById('predictions-body');
+        const analysisBody = document.getElementById('analysis-body');
+        
+        // Update market status
+        isMarketOpen = data.is_market_open || false;
+        
+        // Check if new candle arrived
+        const newCandleTime = data.latest_candle_time;
+        const hasNewCandle = newCandleTime && newCandleTime !== lastCandleTime;
+        
+        if (hasNewCandle) {
+          console.log(`🕯️ New candle detected: ${newCandleTime}`);
+          lastCandleTime = newCandleTime;
+        }
+        
+        if (data.predictions && data.predictions.length > 0) {
+          // Store predictions in history (prepend new ones)
+          data.predictions.forEach(pred => {
+            // Check if not already in history
+            const exists = predictionHistory.find(p => p.timestamp === pred.timestamp);
+            if (!exists) {
+              predictionHistory.unshift(pred);
+            }
+          });
+          
+          // Limit history to 100 items (virtual scroll handles large lists efficiently)
+          predictionHistory = predictionHistory.slice(0, 100);
+          
+          // Initialize virtual scroll on first load
+          if (!mlSignalsVirtualScroll) {
+            setTimeout(initVirtualScroll, 50);
+          }
+          
+          // ===== UPDATE VIRTUAL SCROLL DATA =====
+          updateVirtualScroll();
+          
+        } else {
+          const mlBody = document.getElementById('predictions-body');
+          const analysisBody = document.getElementById('analysis-body');
+          mlBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #76838f;">Nenhuma predição disponível</td></tr>';
+          analysisBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #76838f;">Nenhuma análise disponível</td></tr>';
+        }
+        
+        // Update status indicator in header
+        updateMarketStatus(isMarketOpen, newCandleTime);
+        
+      } catch (error) {
+        console.error('Error loading predictions:', error);
+        const mlBody = document.getElementById('predictions-body');
+        const analysisBody = document.getElementById('analysis-body');
+        mlBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #e74c3c;">Erro ao carregar predições</td></tr>';
+        analysisBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #e74c3c;">Erro ao carregar análises</td></tr>';
+      }
+    }
+    
+    // ========== CLEAR LOGS ==========
+    function clearLogs() {
+      predictionHistory = [];
+      updateVirtualScroll();
+      console.log('📋 Logs cleared');
+    }
+    
+    document.getElementById('clear-logs')?.addEventListener('click', clearLogs);
+    
+    // ========== MARKET STATUS ==========
+    function updateMarketStatus(isOpen, lastCandle) {
+      const header = document.querySelector('.predictions-header h3');
+      if (!header) return;
+      
+      // Remove existing status
+      const existingStatus = header.querySelector('.market-status');
+      if (existingStatus) existingStatus.remove();
+      
+      // Add new status
+      const statusSpan = document.createElement('span');
+      statusSpan.className = 'market-status';
+      statusSpan.style.cssText = `
+        font-size: 11px;
+        margin-left: 8px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 500;
+      `;
+      
+      if (isOpen) {
+        statusSpan.textContent = '● Live';
+        statusSpan.style.color = '#2ecc71';
+        statusSpan.style.backgroundColor = 'rgba(46, 204, 113, 0.15)';
+      } else {
+        statusSpan.textContent = '● Fechado';
+        statusSpan.style.color = '#95a5a6';
+        statusSpan.style.backgroundColor = 'rgba(149, 165, 166, 0.15)';
+      }
+      
+      header.appendChild(statusSpan);
+    }
+    
+    // ========== AUTO-REFRESH ==========
+    function setupAutoRefresh() {
+      // Clear existing interval
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
+      
+      // Only auto-refresh if market is open
+      if (!isMarketOpen) {
+        console.log('⏸️ Market closed, auto-refresh paused');
+        return;
+      }
+      
+      const intervalSeconds = getTimeframeSeconds(FIXED_TIMEFRAME);
+      
+      // Poll every 5 seconds to detect new candles
+      const pollInterval = 5000;
+      
+      console.log(`🔄 Auto-refresh enabled: checking every ${pollInterval/1000}s for new ${FIXED_TIMEFRAME} candles`);
+      
+      autoRefreshInterval = setInterval(async () => {
+        if (!isMarketOpen) {
+          clearInterval(autoRefreshInterval);
+          console.log('⏸️ Market closed, stopping auto-refresh');
+          return;
+        }
+        
+        await loadPredictions();
+      }, pollInterval);
+    }
+    
+    // ========== TABS NAVIGATION ==========
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Remove active from all
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        
+        // Add active to clicked
+        btn.classList.add('active');
+        const tabId = btn.getAttribute('data-tab');
+        document.getElementById(tabId)?.classList.add('active');
+      });
+    });
+    
+    // ========== EVENT LISTENERS ==========
+    // Refresh predictions button
+    document.getElementById('refresh-predictions')?.addEventListener('click', () => {
+      loadPredictions();
+      setupAutoRefresh();
+    });
+    
+    // ========== SPLIT.JS RESIZE ==========
+    /**
+     * Initialize Split.js for chart/predictions resizing
+     */
+    function initSplitResize() {
+      // Only on desktop (1200px+)
+      const mediaQuery = window.matchMedia('(min-width: 1200px)');
+      if (!mediaQuery.matches) {
+        console.log('⏭️ Split.js: Skipping on mobile/tablet');
+        return;
+      }
+      
+      try {
+        // Load saved sizes from localStorage
+        const savedChartWidth = parseFloat(localStorage.getItem('split-chart-width')) || 70;
+        const savedPredWidth = parseFloat(localStorage.getItem('split-pred-width')) || 30;
+        
+        const chartSection = document.querySelector('.chart-section');
+        const predSection = document.querySelector('.predictions-section');
+        
+        if (!chartSection || !predSection) {
+          console.warn('⚠️ Split.js: Chart or predictions section not found');
+          return;
+        }
+        
+        // Wrap in a flex container for split.js
+        const contentWrapper = chartSection.parentElement;
+        
+        // Initialize Split.js
+        Split([chartSection, predSection], {
+          direction: 'horizontal',
+          sizes: [savedChartWidth, savedPredWidth],
+          minSize: [20, 20],        // Min 20% each
+          maxSize: [80, 80],        // Max 80% each
+          gutterSize: 8,
+          onDrag: (sizes) => {
+            // Save to localStorage
+            localStorage.setItem('split-chart-width', sizes[0].toFixed(2));
+            localStorage.setItem('split-pred-width', sizes[1].toFixed(2));
+            
+            console.log(`📊 Split resize: ${sizes[0].toFixed(1)}% | ${sizes[1].toFixed(1)}%`);
+            
+            // Trigger Bokeh re-render if needed
+            if (window.Bokeh) {
+              try {
+                window.dispatchEvent(new Event('resize'));
+              } catch (e) {
+                // Bokeh may not have resize handler
+              }
+            }
+            
+            // Update virtual scroll if active
+            if (mlSignalsVirtualScroll) {
+              mlSignalsVirtualScroll.render();
+            }
+            if (technicalAnalysisVirtualScroll) {
+              technicalAnalysisVirtualScroll.render();
+            }
+          }
+        });
+        
+        console.log(`✅ Split.js initialized: ${savedChartWidth.toFixed(1)}% | ${savedPredWidth.toFixed(1)}%`);
+      } catch (error) {
+        console.error('❌ Split.js initialization error:', error);
+      }
+    }
+    
+    // Load predictions on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPredictions().then(() => {
+        setupAutoRefresh();
+        // Initialize Split.js after Virtual Scroll
+        setTimeout(initSplitResize, 100);
+      });
+    });
+  </script>
+</body>
+<style>
+  /* Escopo apenas para charts-clean - OPTIMIZED FOR NO SCROLL */
+  .charts-clean .sidebar { width: 80px; }
+  .charts-clean .main-content { 
+    margin-left: 80px; 
+    width: calc(100% - 80px); 
+    background: #101418; 
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .charts-clean .menu-item a { justify-content: center; padding: 12px; }
+  .charts-clean .menu-item a span { display: none; }
+  .charts-clean .menu-item a i { font-size: 18px; }
+  .charts-clean .sidebar-logo span { display: none; }
+  .charts-clean .sidebar-logo { justify-content: center; }
+  .charts-clean .sidebar-footer { padding: 10px; }
+  
+  /* Remove page header completely */
+  .charts-clean .page-header {
+    display: none !important;
+  }
+  
+  /* Maximize content wrapper - use GRID layout (70/30 split) */
+  .charts-clean .content-wrapper {
+    padding: 8px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: 1fr !important;
+    gap: 8px !important;
+    height: calc(100vh - 88px) !important; /* 100vh - 80px sidebar - ~8px padding */
+    overflow: hidden !important;
+  }
+  
+  .charts-clean .chart-section {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  
+  .charts-clean .chart-container {
+    flex: 1 !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+  
+  /* Ensure Bokeh plot fills available space */
+  .charts-clean .chart-container .bk-root {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  .charts-clean .chart-container .bk-root > div {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  /* Predictions section - GRID COLUMN 2 */
+  .charts-clean .predictions-section {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  
+  .charts-clean .predictions-card {
+    background-color: #182027;
+    border: 1px solid #242f38;
+    border-radius: 8px;
+    padding: 6px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  
+  .charts-clean .predictions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #242f38;
+    flex-shrink: 0;
+  }
+  
+  .charts-clean .predictions-header h3 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #e8eaed;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .charts-clean .predictions-header h3 i {
+    color: #5ebcf3;
+    flex-shrink: 0;
+  }
+  
+  .charts-clean .header-controls {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  
+  .charts-clean .btn-sm {
+    padding: 2px 4px !important;
+    font-size: 10px !important;
+    height: 22px !important;
+  }
+  
+  .charts-clean .btn-danger {
+    background-color: #dc3545 !important;
+    color: white !important;
+  }
+  
+  .charts-clean .btn-danger:hover {
+    background-color: #c82333 !important;
+  }
+  
+  /* Tabs Navigation */
+  .charts-clean .tabs-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  
+  .charts-clean .tabs-nav {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #242f38;
+    flex-shrink: 0;
+  }
+  
+  .charts-clean .tab-btn {
+    background: transparent;
+    border: none;
+    padding: 4px 8px;
+    color: #b3b8bd;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+  }
+  
+  .charts-clean .tab-btn:hover {
+    color: #e8eaed;
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  .charts-clean .tab-btn.active {
+    color: #5ebcf3;
+    border-bottom-color: #5ebcf3;
+  }
+  
+  .charts-clean .tab-btn i {
+    margin-right: 3px;
+  }
+  
+  .charts-clean .tab-content {
+    display: none;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  
+  .charts-clean .tab-content.active {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .charts-clean .predictions-table-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+  }
+  
+  .charts-clean .predictions-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+  }
+  
+  .charts-clean .predictions-table thead {
+    position: sticky;
+    top: 0;
+    background-color: #1e2936;
+    z-index: 1;
+  }
+  
+  .charts-clean .predictions-table th {
+    padding: 4px;
+    text-align: left;
+    font-weight: 600;
+    color: #b3b8bd;
+    border-bottom: 1px solid #242f38;
+    font-size: 9px;
+  }
+  
+  .charts-clean .predictions-table td {
+    padding: 3px 4px;
+    color: #e8eaed;
+    border-bottom: 1px solid #242f38;
+    font-size: 10px;
+  }
+  
+  .charts-clean .predictions-table tbody tr:hover {
+    background-color: #1e2936;
+  }
+  
+  /* Log row styling (like monitor_ui.py) */
+  .charts-clean .log-row.log-alert {
+    background-color: rgba(255, 243, 205, 0.1);
+    border-left: 2px solid #ffc107;
+  }
+  
+  .charts-clean .log-row.log-info {
+    background-color: rgba(209, 236, 241, 0.1);
+    border-left: 2px solid #17a2b8;
+  }
+  
+  .charts-clean .log-row.log-tick {
+    background-color: transparent;
+    border-left: 2px solid transparent;
+  }
+  
+  .charts-clean .signal-badge {
+    display: inline-block;
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-weight: 600;
+    font-size: 9px;
+    text-transform: uppercase;
+  }
+  
+  .charts-clean .signal-buy {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    border: 1px solid #2ecc71;
+  }
+  
+  .charts-clean .signal-sell {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+    border: 1px solid #e74c3c;
+  }
+  
+  .charts-clean .signal-neutral {
+    background-color: rgba(149, 165, 166, 0.2);
+    color: #95a5a6;
+    border: 1px solid #95a5a6;
+  }
+  
+  /* Probability badge styling */
+  .charts-clean .prob-badge {
+    display: inline-block;
+    padding: 1px 3px;
+    border-radius: 2px;
+    font-weight: 600;
+    font-size: 9px;
+  }
+  
+  .charts-clean .prob-high {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+  }
+  
+  .charts-clean .prob-medium-high {
+    background-color: rgba(243, 156, 18, 0.2);
+    color: #f39c12;
+  }
+  
+  .charts-clean .prob-medium {
+    background-color: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+  }
+  
+  .charts-clean .prob-low {
+    background-color: rgba(149, 165, 166, 0.2);
+    color: #95a5a6;
+  }
+  
+  /* Scrollbar styling */
+  .charts-clean .predictions-table-container::-webkit-scrollbar {
+    width: 5px;
+  }
+  
+  .charts-clean .predictions-table-container::-webkit-scrollbar-track {
+    background: #1e2936;
+    border-radius: 2px;
+  }
+  
+  .charts-clean .predictions-table-container::-webkit-scrollbar-thumb {
+    background: #242f38;
+    border-radius: 2px;
+  }
+  
+  .charts-clean .predictions-table-container::-webkit-scrollbar-thumb:hover {
+    background: #2d3a44;
+  }
+</style>
+</html>

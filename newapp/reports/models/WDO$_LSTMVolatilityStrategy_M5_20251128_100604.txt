@@ -1,0 +1,17 @@
+Relatório de Treino - WDO$/LSTMVolatilityStrategy/M5 - 20251128_100604
+================================================================================
+Métricas Treino:
+  Acurácia: 73.20%
+  Precisão: 74.41%
+  Recall: 78.06%
+  F1: 0.7619
+Métricas Teste:
+  Acurácia: 69.55%
+  Precisão: 70.04%
+  Recall: 74.33%
+  F1: 0.7212
+
+Distribuição Classes (Treino): {'counts': {0: 35797, 1: 43639}, 'percents': {0: 45.0639508535173, 1: 54.9360491464827}, 'total': 79436}
+Distribuição Classes (Teste): {'counts': {0: 9299, 1: 10479}, 'percents': {0: 47.0168874507028, 1: 52.983112549297196}, 'total': 19778}
+================================================================================
+Fim do Relatório TXT

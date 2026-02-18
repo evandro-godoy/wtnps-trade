@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WTNPS Trade - Home</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/static/css/style.css?v={{ version }}" />
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body class="layout-with-sidebar">
+  <!-- Sidebar Navigation -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <h2 class="sidebar-logo">
+        <i class="fas fa-chart-line"></i>
+        <span>WTNPS</span>
+      </h2>
+    </div>
+    
+    <ul class="sidebar-menu">
+      <li class="menu-item active">
+        <a href="/home">
+          <i class="fas fa-home"></i>
+          <span>Home</span>
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="/charts">
+          <i class="fas fa-chart-candlestick"></i>
+          <span>Gráficos</span>
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="/monitor">
+          <i class="fas fa-tv"></i>
+          <span>Monitor</span>
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="/analysis">
+          <i class="fas fa-brain"></i>
+          <span>Análise</span>
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="/backtest">
+          <i class="fas fa-clock-rotate-left"></i>
+          <span>Backtest</span>
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="/settings">
+          <i class="fas fa-gear"></i>
+          <span>Configurações</span>
+        </a>
+      </li>
+    </ul>
+    
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <i class="fas fa-user-circle"></i>
+        <span>Trader Pro</span>
+      </div>
+      <div class="version-info">v{{ app_version }}</div>
+    </div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1>
+        <i class="fas fa-home"></i>
+        Dashboard Principal
+      </h1>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="fetchLatestData(); fetchAnalysis();">
+          <i class="fas fa-sync"></i>
+          Atualizar
+        </button>
+      </div>
+    </header>
+
+    <div class="content-wrapper">
+      <!-- Welcome Section -->
+      <section class="welcome-section">
+        <div class="welcome-card">
+          <h2>Bem-vindo ao WTNPS Trade</h2>
+          <p>Sistema de Trading Algorítmico Híbrido com ML/DRL e integração MetaTrader 5</p>
+        </div>
+      </section>
+
+      <!-- Quick Stats Grid -->
+      <section class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-database"></i>
+          </div>
+          <div class="stat-content">
+            <h3>Registros no DB</h3>
+            <p class="stat-value" id="total-records">--</p>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-chart-line"></i>
+          </div>
+          <div class="stat-content">
+            <h3>Ativos Monitorados</h3>
+            <p class="stat-value">2</p>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-robot"></i>
+          </div>
+          <div class="stat-content">
+            <h3>Modelos Treinados</h3>
+            <p class="stat-value">3</p>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-clock"></i>
+          </div>
+          <div class="stat-content">
+            <h3>Última Atualização</h3>
+            <p class="stat-value" id="last-update">--</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick Access Cards -->
+      <section class="quick-access">
+        <h2>Acesso Rápido</h2>
+        <div class="access-grid">
+          <a href="/charts" class="access-card">
+            <div class="access-icon">
+              <i class="fas fa-chart-candlestick"></i>
+            </div>
+            <h3>Visualizar Gráficos</h3>
+            <p>Análise técnica com candles interativos</p>
+          </a>
+
+          <a href="/analysis" class="access-card">
+            <div class="access-icon">
+              <i class="fas fa-brain"></i>
+            </div>
+            <h3>Análise de Contexto</h3>
+            <p>Indicadores técnicos e sinais de mercado</p>
+          </a>
+
+          <a href="/backtest" class="access-card">
+            <div class="access-icon">
+              <i class="fas fa-clock-rotate-left"></i>
+            </div>
+            <h3>Backtesting</h3>
+            <p>Teste suas estratégias em dados históricos</p>
+          </a>
+
+          <a href="/settings" class="access-card">
+            <div class="access-icon">
+              <i class="fas fa-gear"></i>
+            </div>
+            <h3>Configurações</h3>
+            <p>Ajuste parâmetros e preferências</p>
+          </a>
+        </div>
+      </section>
+
+      <!-- System Status -->
+      <section class="system-status">
+        <h2>Status do Sistema</h2>
+        <div class="status-grid">
+          <div class="status-item">
+            <span class="status-label">Database:</span>
+            <span class="status-badge status-ok">
+              <i class="fas fa-check-circle"></i> Conectado
+            </span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">MetaTrader 5:</span>
+            <span class="status-badge status-unknown">
+              <i class="fas fa-question-circle"></i> Verificando...
+            </span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Data Provider:</span>
+            <span class="status-badge status-ok">
+              <i class="fas fa-check-circle"></i> Hybrid (Cache + MT5)
+            </span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Modelos ML:</span>
+            <span class="status-badge status-ok">
+              <i class="fas fa-check-circle"></i> Carregados
+            </span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/js/app.js?v={{ version }}"></script>
+  <script>
+    // Load home page stats
+    document.addEventListener('DOMContentLoaded', () => {
+      loadHomeStats();
+    });
+
+    async function loadHomeStats() {
+      try {
+        // Fetch DB stats (example endpoint - needs to be implemented)
+        const lastUpdate = new Date().toLocaleString('pt-BR');
+        document.getElementById('last-update').textContent = lastUpdate;
+        document.getElementById('total-records').textContent = '100,000+';
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
+    }
+  </script>
+</body>
+</html>

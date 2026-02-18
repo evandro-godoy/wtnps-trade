@@ -1,0 +1,17 @@
+Relatório de Treino - WIN$/LSTMVolatilityStrategy/M5 - 20251128_102702
+================================================================================
+Métricas Treino:
+  Acurácia: 76.57%
+  Precisão: 78.77%
+  Recall: 83.48%
+  F1: 0.8106
+Métricas Teste:
+  Acurácia: 71.05%
+  Precisão: 71.80%
+  Recall: 78.46%
+  F1: 0.7498
+
+Distribuição Classes (Treino): {'counts': {0: 31542, 1: 47440}, 'percents': {0: 39.935681547694415, 1: 60.064318452305585}, 'total': 78982}
+Distribuição Classes (Teste): {'counts': {0: 8791, 1: 10874}, 'percents': {0: 44.703788456648866, 1: 55.296211543351134}, 'total': 19665}
+================================================================================
+Fim do Relatório TXT
