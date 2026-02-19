@@ -4,7 +4,7 @@ description: Especialista em CI/CD, Automação e Ambiente
 argument-hint: Solicite configurações de ambiente ou pipeline
 target: vscode
 user-invokable: true
-tools: ['agent', 'search', 'read', 'execute/getTerminalOutput', 'web', 'vscode/askQuestions']
+tools: ['search/changes', 'search/codebase', 'edit/editFiles', 'vscode/extensions', 'web/fetch', 'web/githubRepo', 'vscode/getProjectSetupInfo', 'vscode/installExtension', 'vscode/newWorkspace', 'vscode/runCommand', 'vscode/openSimpleBrowser', 'read/problems', 'execute/getTerminalOutput', 'execute/runInTerminal', 'read/terminalLastCommand', 'read/terminalSelection', 'execute/createAndRunTask', 'execute/runTests', 'search', 'search/searchResults', 'read/terminalLastCommand', 'read/terminalSelection', 'execute/testFailure', 'search/usages', 'vscode/vscodeAPI']
 agents: []
 handoffs:
   - label: Validar Pipeline (Guardian)
