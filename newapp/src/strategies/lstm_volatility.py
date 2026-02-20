@@ -19,6 +19,27 @@ from tensorflow.keras.callbacks import EarlyStopping # type: ignore
 
 from newapp.src.strategies.base import BaseStrategy
 
+# --- Exceção Customizada para Erro de Shape ---
+
+class InputShapeValidationError(ValueError):
+    """Exceção lançada quando os dados de entrada não possuem o shape esperado.
+    
+    Fornece informação detalhada sobre o shape recebido vs o shape esperado
+    para facilitar debug e implementar o padrão "Fail-Fast".
+    """
+    def __init__(self, expected_shape: tuple, received_shape: tuple, context: str = ""):
+        self.expected_shape = expected_shape
+        self.received_shape = received_shape
+        self.context = context
+        
+        message = (
+            f"Shape validation failed.\n"
+            f"  Context: {context}\n"
+            f"  Expected shape: {expected_shape}\n"
+            f"  Received shape: {received_shape}"
+        )
+        super().__init__(message)
+
 # Configuração do logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -41,6 +62,8 @@ def create_sequences(X_data, y_data, lookback):
     """
     Transforma um array de features e um array de targets em sequências
     para alimentar a LSTM.
+    
+    Retorna arrays vazios se dados insuficientes.
     """
     X, y = [], []
     # Garante que X_data e y_data não estão vazios e têm comprimento suficiente
@@ -51,6 +74,69 @@ def create_sequences(X_data, y_data, lookback):
         X.append(X_data[i:(i + lookback), :])
         y.append(y_data[i + lookback])
     return np.array(X), np.array(y)
+
+
+def validate_lstm_input_shape(X_seq: np.ndarray, expected_lookback: int, expected_n_features: int) -> None:
+    """Valida o shape do tensor de entrada antes de chamar model.predict().
+    
+    Implementa o padrão "Fail-Fast" para evitar crashes silenciosos ou
+    retornos inconsistentes durante a inferência ML.
+    
+    Args:
+        X_seq: Tensor de sequências com shape (n_samples, lookback, n_features)
+        expected_lookback: Número esperado de timesteps (barras) por sequência
+        expected_n_features: Número esperado de features por timestep
+        
+    Raises:
+        InputShapeValidationError: Se o shape não corresponder ao esperado
+    """
+    if X_seq is None:
+        raise InputShapeValidationError(
+            expected_shape=("N", expected_lookback, expected_n_features),
+            received_shape="None",
+            context="Input tensor is None"
+        )
+    
+    if not isinstance(X_seq, np.ndarray):
+        raise InputShapeValidationError(
+            expected_shape=("N", expected_lookback, expected_n_features),
+            received_shape=f"non-ndarray ({type(X_seq).__name__})",
+            context="Input is not a numpy array"
+        )
+    
+    # Verificar dimensionalidade
+    if len(X_seq.shape) != 3:
+        raise InputShapeValidationError(
+            expected_shape=("N", expected_lookback, expected_n_features),
+            received_shape=f"{X_seq.shape} (wrong number of dimensions: {len(X_seq.shape)})",
+            context="Tensor must be 3D (n_samples, lookback, n_features)"
+        )
+    
+    n_samples, n_timesteps, n_features = X_seq.shape
+    
+    # Validar lookback (número de timesteps)
+    if n_timesteps != expected_lookback:
+        raise InputShapeValidationError(
+            expected_shape=(n_samples, expected_lookback, expected_n_features),
+            received_shape=(n_samples, n_timesteps, expected_n_features),
+            context=f"Lookback mismatch: expected {expected_lookback} timesteps, got {n_timesteps}"
+        )
+    
+    # Validar n_features
+    if n_features != expected_n_features:
+        raise InputShapeValidationError(
+            expected_shape=(n_samples, expected_lookback, expected_n_features),
+            received_shape=(n_samples, expected_lookback, n_features),
+            context=f"Feature mismatch: expected {expected_n_features} features, got {n_features}"
+        )
+    
+    # Validar que temos pelo menos uma amostra
+    if n_samples == 0:
+        raise InputShapeValidationError(
+            expected_shape=(">=1", expected_lookback, expected_n_features),
+            received_shape=X_seq.shape,
+            context="No samples in input (n_samples=0)"
+        )
 
 
 # --- Wrapper para compatibilidade com Scikit-Learn ---
@@ -167,56 +253,139 @@ class LSTMVolatilityWrapper(BaseEstimator, ClassifierMixin):
         return self
 
     def predict(self, X):
+        """Faz previsões binárias (0 ou 1) com validação de shape estrita.
+        
+        Implementa validação "Fail-Fast" antes de chamar model.predict() para
+        evitar crashes silenciosos ou retornos inconsistentes.
+        
+        Args:
+            X: Features com shape (n_samples, n_features) - DataFrame ou ndarray
+            
+        Returns:
+            Array numpy de predições binárias com shape (n_sequences,)
+            
+        Raises:
+            InputShapeValidationError: Se o tensor de entrada não passar na validação de shape
+            ValueError: Se X tiver tipo compatível ou número insuficiente de features
         """
-        Faz previsões binárias (0 ou 1).
-        """
+        # --- Passo 1: Converter entrada para array numpy ---
         if isinstance(X, pd.DataFrame):
             X_values = X.values
         elif isinstance(X, np.ndarray):
             X_values = X
         else:
             raise ValueError(f"X deve ser DataFrame ou ndarray, recebido: {type(X)}")
-            
+        
+        # --- Passo 2: Validar número de features ---
         if X_values.shape[1] != self.scaler.n_features_in_:
-            raise ValueError(f"Número de features incompatível: esperado {self.scaler.n_features_in_}, recebido {X_values.shape[1]}")
-
+            raise ValueError(
+                f"Número de features incompatível: "
+                f"esperado {self.scaler.n_features_in_}, recebido {X_values.shape[1]}"
+            )
+        
+        # --- Passo 3: Escalar e criar sequências ---
         X_scaled = self.scaler.transform(X_values)
         y_dummy = np.zeros(len(X_scaled))
         X_seq, _ = create_sequences(X_scaled, y_dummy, self.lookback)
         
-        if len(X_seq) == 0:
-            logging.warning("Nenhuma sequência para predição. Retornando array vazio.")
+        # --- Passo 4: Validar shape ANTES de inferência ---
+        if len(X_seq) > 0:
+            # Validação estrita: Fail-Fast
+            try:
+                validate_lstm_input_shape(
+                    X_seq=X_seq,
+                    expected_lookback=self.lookback,
+                    expected_n_features=self.n_features
+                )
+            except InputShapeValidationError as e:
+                logging.error(f"Input shape validation failed in predict(): {e}")
+                raise
+        else:
+            logging.warning(
+                f"Insuficientes dados para criar sequências. "
+                f"Recebido {len(X_values)} amostras, "
+                f"precisa de pelo menos {self.lookback + 1} para gerar 1 sequência."
+            )
             return np.array([])
-            
-        predictions_proba = self.model.predict(X_seq)
-        predictions = (predictions_proba > 0.5).astype(int)
-        return predictions.flatten()
+        
+        # --- Passo 5: Chamar model.predict() (agora com shape validado) ---
+        try:
+            predictions_proba = self.model.predict(X_seq, verbose=0)
+            predictions = (predictions_proba > 0.5).astype(int)
+            return predictions.flatten()
+        except Exception as e:
+            logging.error(f"Error during model.predict() in predict(): {e}", exc_info=True)
+            raise
 
     def predict_proba(self, X):
-        """Retorna probabilidades da classe positiva (explosão de volatilidade).
-        Compatível com interface scikit-learn (n_samples, 2) onde a segunda coluna é a classe 1.
+        """Retorna probabilidades da classe positiva com validação de shape estrita.
+        
+        Compatível com interface scikit-learn: retorna array com shape (n_sequences, 2)
+        onde:
+        - coluna 0: probabilidade da classe 0 (mercado normal)
+        - coluna 1: probabilidade da classe 1 (explosão de volatilidade)
+        
+        Implementa validação "Fail-Fast" antes de chamar model.predict() para
+        evitar crashes silenciosos ou retornos inconsistentes.
+        
+        Args:
+            X: Features com shape (n_samples, n_features) - DataFrame ou ndarray
+            
+        Returns:
+            Array numpy com shape (n_sequences, 2) contendo probabilidades
+            
+        Raises:
+            InputShapeValidationError: Se o tensor de entrada não passar na validação de shape
+            ValueError: Se X tiver tipo incompatível ou número insuficiente de features
         """
+        # --- Passo 1: Converter entrada para array numpy ---
         if isinstance(X, pd.DataFrame):
             X_values = X.values
         elif isinstance(X, np.ndarray):
             X_values = X
         else:
             raise ValueError(f"X deve ser DataFrame ou ndarray, recebido: {type(X)}")
-
+        
+        # --- Passo 2: Validar número de features ---
         if X_values.shape[1] != self.scaler.n_features_in_:
-            raise ValueError(f"Número de features incompatível: esperado {self.scaler.n_features_in_}, recebido {X_values.shape[1]}")
-
+            raise ValueError(
+                f"Número de features incompatível: "
+                f"esperado {self.scaler.n_features_in_}, recebido {X_values.shape[1]}"
+            )
+        
+        # --- Passo 3: Escalar e criar sequências ---
         X_scaled = self.scaler.transform(X_values)
         y_dummy = np.zeros(len(X_scaled))
         X_seq, _ = create_sequences(X_scaled, y_dummy, self.lookback)
-
-        if len(X_seq) == 0:
-            logging.warning("Nenhuma sequência para predição. Retornando array vazio.")
+        
+        # --- Passo 4: Validar shape ANTES de inferência ---
+        if len(X_seq) > 0:
+            # Validação estrita: Fail-Fast
+            try:
+                validate_lstm_input_shape(
+                    X_seq=X_seq,
+                    expected_lookback=self.lookback,
+                    expected_n_features=self.n_features
+                )
+            except InputShapeValidationError as e:
+                logging.error(f"Input shape validation failed in predict_proba(): {e}")
+                raise
+        else:
+            logging.warning(
+                f"Insuficientes dados para criar sequências. "
+                f"Recebido {len(X_values)} amostras, "
+                f"precisa de pelo menos {self.lookback + 1} para gerar 1 sequência."
+            )
             return np.empty((0, 2))
-
-        proba_pos = self.model.predict(X_seq).flatten()
-        proba_neg = 1.0 - proba_pos
-        return np.vstack([proba_neg, proba_pos]).T
+        
+        # --- Passo 5: Chamar model.predict() (agora com shape validado) ---
+        try:
+            proba_pos = self.model.predict(X_seq, verbose=0).flatten()
+            proba_neg = 1.0 - proba_pos
+            return np.vstack([proba_neg, proba_pos]).T
+        except Exception as e:
+            logging.error(f"Error during model.predict() in predict_proba(): {e}", exc_info=True)
+            raise
 
     def get_params(self, deep=True):
         """Retorna os parâmetros do wrapper."""

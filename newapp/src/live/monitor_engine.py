@@ -138,9 +138,9 @@ class RealtimeMarketMonitor:
         
         try:
             data = self.provider.get_latest_candles(
-                symbol=self.ticker,
+                ticker=self.ticker,
                 timeframe=self.timeframe_str,
-                limit=self.buffer_size
+                count=self.buffer_size
             )
             
             if data.empty:

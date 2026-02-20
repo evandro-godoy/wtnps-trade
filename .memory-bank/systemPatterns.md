@@ -41,3 +41,80 @@ Localizado em `newapp/src/live/monitor_engine.py`, este é o loop principal do n
 O ML não treina em tempo de execução, atua apenas em **modo de inferência**.
 * **Carregamento de Artefatos:** A classe `LSTMVolatilityStrategy` (`newapp/src/strategies/lstm_volatility.py`) deve instanciar o modelo `keras` (`*_lstm.keras`) e os scalers do `joblib` (`*_scaler.joblib`) no método `__init__` para mantê-los em memória. 
 * **Validação de Shape:** Antes de chamar `model.predict()`, os dados formatados devem obrigatoriamente validar o *input_shape* (ex: `(1, 108, n_features)`) para evitar crashes silenciosos ou retornos inconsistentes.
+
+## 🔗 7. Contrato de Assinaturas de Dados (Data Contract)
+
+**Este padrão previne divergências de interface entre módulos.** Toda chamada entre Provider → Repository → Service deve respeitar os follow:
+
+### 7.1 Nomenclatura Unificada
+
+| Contexto | Nome Correto | Uso |
+|----------|-------------|-----|
+| **Data Provider** | `ticker` | Símbolo do ativo (ex: `WDO$`) |
+| **Repository** | `symbol` | Símbolo no banco de dados |
+| **Parameter Count** | `count` | Número de registros a buscar (Provider→Cache) |
+| **Parameter Limit** | `limit` | Número máximo de registros (Repository/DB) |
+
+**Regra de Ouro:** Ao cruzar limites de camada (Provider → Repository), adaptar nomes de parâmetro conforme necessário, mas NUNCA passar `symbol` para Provider ou `ticker` para Repository sem tradução explícita.
+
+### 7.2 Assinaturas de Contrato Críticas
+
+#### **A. HybridProvider.get_latest_candles()**
+```python
+Location: newapp/src/data_handler/provider.py (line 735)
+
+def get_latest_candles(
+    self,
+    ticker: str,        # ✅ Always "ticker" (not "symbol")
+    timeframe: Any,     # Timeframe object or string (M1, M5, H1, etc.)
+    count: int          # ✅ Always "count" (not "limit")
+) -> pd.DataFrame:
+```
+
+**Retorno:** DataFrame com colunas `[open, high, low, close, volume]`, index timezone-aware (UTC).
+
+**Fallback:** MT5 → Cache Parquet → Synthetic (nunca falha).
+
+---
+
+#### **B. AssetsRatesRepository.get_latest_candles()**
+```python
+Location: newapp/src/database/repository.py (line 438)
+
+@staticmethod
+def get_latest_candles(
+    db: Session,
+    symbol: str,        # ✅ Always "symbol" at Repository level
+    timeframe: str,
+    limit: int = 500    # ✅ Always "limit" (database constraint)
+) -> pd.DataFrame:
+```
+
+**Retorno:** DataFrame com OHLCV histórico do banco, chronological order.
+
+**Nota:** NÃO EXISTE `get_latest_market_data()`. Use `get_latest_candles()` ou `get_all_rates()` conforme contexto.
+
+---
+
+#### **C. MarketContextAnalyzer.analyze()**
+```python
+Location: newapp/src/analysis/context_analyzer.py
+
+def analyze(self, df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Input: DataFrame with columns [open, high, low, close, volume]
+    Output: Same DataFrame + enriched indicator columns
+            (ema_9, sma_20, sma_50, sma_200, rsi_14, etc.)
+    """
+```
+
+**Regra:** O analisador enriquece IN-PLACE; nunca retorna colunas faltantes.
+
+### 7.3 Checklist para Implementadores
+
+- [ ] Ao chamar `HybridProvider.get_latest_candles()`, use `ticker=...`, `count=...`
+- [ ] Ao chamar `AssetsRatesRepository.get_latest_candles()`, use `symbol=...`, `limit=...`
+- [ ] Se necessário converter `ticker` ↔ `symbol`, fazer no ponto de cruzamento (ex: monitor_engine.py)
+- [ ] Nunca passar `None` ou valores não-validados; sempre validar tipos antes de chamar
+- [ ] DataFrame retornado deve validar colunas obrigatórias antes de usar: `['open', 'high', 'low', 'close', 'volume']`
+- [ ] Sempre usar `pd.DataFrame.set_index('time')` e garantir que index é datetime com timezone UTC
