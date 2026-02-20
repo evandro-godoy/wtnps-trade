@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Any
 import pandas as pd
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
+from sqlalchemy.exc import IntegrityError
 
 from newapp.src.database.models import (
     OHLCVData,
@@ -69,63 +70,185 @@ class AssetsRatesRepository:
         Returns:
             Number of records inserted/updated
         """
-        count = 0
-        
+        if df is None or df.empty:
+            return 0
+
+        # Remove duplicate timestamps inside incoming batch.
+        df_to_save = df[~df.index.duplicated(keep='last')].sort_index()
+
+        timestamps = [ts.to_pydatetime() if hasattr(ts, 'to_pydatetime') else ts for ts in df_to_save.index]
+        existing_rows = (
+            db.query(AssetsRates)
+            .filter(
+                and_(
+                    AssetsRates.symbol == symbol,
+                    AssetsRates.timeframe == timeframe,
+                    AssetsRates.timestamp.in_(timestamps)
+                )
+            )
+            .all()
+        )
+        existing_by_timestamp = {row.timestamp: row for row in existing_rows}
+
+        processed_count = 0
+        inserted_count = 0
+
+        for timestamp, row in df_to_save.iterrows():
+            normalized_ts = timestamp.to_pydatetime() if hasattr(timestamp, 'to_pydatetime') else timestamp
+            existing = existing_by_timestamp.get(normalized_ts)
+
+            if existing:
+                AssetsRatesRepository._enrich_existing_rates_row(existing, row, allow_enrich)
+            else:
+                db.add(
+                    AssetsRatesRepository._build_rates_model(
+                        row=row,
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        timeframe_str=timeframe_str,
+                        timestamp=normalized_ts,
+                    )
+                )
+                inserted_count += 1
+
+            processed_count += 1
+
+        try:
+            db.commit()
+        except IntegrityError as exc:
+            # Concurrent requests may insert same candle between pre-check and commit.
+            db.rollback()
+            logger.warning(
+                "IntegrityError while saving rates (possible duplicate race). "
+                "Falling back to conflict-safe row persistence. symbol=%s timeframe=%s error=%s",
+                symbol,
+                timeframe,
+                exc,
+            )
+            processed_count = AssetsRatesRepository._save_rates_dataframe_conflict_safe(
+                db=db,
+                df=df_to_save,
+                symbol=symbol,
+                timeframe=timeframe,
+                timeframe_str=timeframe_str,
+                allow_enrich=allow_enrich,
+            )
+
+        logger.info(
+            "Saved %s AssetsRates records for %s %s (inserted=%s)",
+            processed_count,
+            symbol,
+            timeframe,
+            inserted_count,
+        )
+        return processed_count
+
+    @staticmethod
+    def _build_rates_model(
+        row: pd.Series,
+        symbol: str,
+        timeframe: int,
+        timeframe_str: Optional[str],
+        timestamp: datetime,
+    ) -> AssetsRates:
+        """Build `AssetsRates` model instance from DataFrame row."""
+        return AssetsRates(
+            symbol=symbol,
+            timeframe=timeframe,
+            timeframe_str=timeframe_str,
+            timestamp=timestamp,
+            open=float(row['open']),
+            high=float(row['high']),
+            low=float(row['low']),
+            close=float(row['close']),
+            tick_volume=int(row['tick_volume']) if 'tick_volume' in row else 0,
+            volume=int(row['volume']) if 'volume' in row else 0,
+            spread=int(row['spread']) if 'spread' in row else 0,
+            support_level=bool(row['support_level']) if 'support_level' in row else False,
+            resistance_level=bool(row['resistance_level']) if 'resistance_level' in row else False,
+            ema_9=float(row['ema_9']) if 'ema_9' in row else 0.0,
+            sma_20=float(row['sma_20']) if 'sma_20' in row else 0.0,
+            sma_50=float(row['sma_50']) if 'sma_50' in row else 0.0,
+            sma_200=float(row['sma_200']) if 'sma_200' in row else 0.0,
+        )
+
+    @staticmethod
+    def _enrich_existing_rates_row(
+        existing: AssetsRates,
+        row: pd.Series,
+        allow_enrich: bool,
+    ) -> None:
+        """Apply non-destructive enrichment for existing rows."""
+        if allow_enrich:
+            if 'support_level' in row and existing.support_level is False:
+                existing.support_level = bool(row['support_level'])
+            if 'resistance_level' in row and existing.resistance_level is False:
+                existing.resistance_level = bool(row['resistance_level'])
+            if 'ema_9' in row and (existing.ema_9 is None or existing.ema_9 == 0):
+                existing.ema_9 = float(row['ema_9'])
+            if 'sma_20' in row and (existing.sma_20 is None or existing.sma_20 == 0):
+                existing.sma_20 = float(row['sma_20'])
+            if 'sma_50' in row and (existing.sma_50 is None or existing.sma_50 == 0):
+                existing.sma_50 = float(row['sma_50'])
+            if 'sma_200' in row and (existing.sma_200 is None or existing.sma_200 == 0):
+                existing.sma_200 = float(row['sma_200'])
+
+        if hasattr(existing, 'updated_at'):
+            existing.updated_at = datetime.utcnow()
+
+    @staticmethod
+    def _save_rates_dataframe_conflict_safe(
+        db: Session,
+        df: pd.DataFrame,
+        symbol: str,
+        timeframe: int,
+        timeframe_str: Optional[str],
+        allow_enrich: bool,
+    ) -> int:
+        """Persist rows one-by-one, skipping UNIQUE conflicts safely.
+
+        This fallback is used only when concurrent inserts cause race conditions.
+        """
+        processed_count = 0
+
         for timestamp, row in df.iterrows():
-            # Check if record exists
+            normalized_ts = timestamp.to_pydatetime() if hasattr(timestamp, 'to_pydatetime') else timestamp
             existing = db.query(AssetsRates).filter(
                 and_(
                     AssetsRates.symbol == symbol,
                     AssetsRates.timeframe == timeframe,
-                    AssetsRates.timestamp == timestamp
+                    AssetsRates.timestamp == normalized_ts,
                 )
             ).first()
-            
+
             if existing:
-                # Imutabilidade parcial: não alterar OHLCV já existentes
-                if allow_enrich:
-                    # Atualiza somente campos de indicadores/metadata se estiverem nulos ou zero
-                    if 'support_level' in row and existing.support_level is False:
-                        existing.support_level = bool(row['support_level'])
-                    if 'resistance_level' in row and existing.resistance_level is False:
-                        existing.resistance_level = bool(row['resistance_level'])
-                    if 'ema_9' in row and (existing.ema_9 is None or existing.ema_9 == 0):
-                        existing.ema_9 = float(row['ema_9'])
-                    if 'sma_20' in row and (existing.sma_20 is None or existing.sma_20 == 0):
-                        existing.sma_20 = float(row['sma_20'])
-                    if 'sma_50' in row and (existing.sma_50 is None or existing.sma_50 == 0):
-                        existing.sma_50 = float(row['sma_50'])
-                    if 'sma_200' in row and (existing.sma_200 is None or existing.sma_200 == 0):
-                        existing.sma_200 = float(row['sma_200'])
-                existing.updated_at = datetime.utcnow()
+                AssetsRatesRepository._enrich_existing_rates_row(existing, row, allow_enrich)
             else:
-                # Insert new record
-                rates = AssetsRates(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    timeframe_str=timeframe_str,
-                    timestamp=timestamp,   
-                    open=float(row['open']),
-                    high=float(row['high']),
-                    low=float(row['low']),
-                    close=float(row['close']),
-                    tick_volume=int(row['tick_volume']) if 'tick_volume' in row else 0,
-                    volume=int(row['volume']) if 'volume' in row else 0,
-                    spread=int(row['spread']) if 'spread' in row else 0,
-                    support_level=bool(row['support_level']) if 'support_level' in row else False,
-                    resistance_level=bool(row['resistance_level']) if 'resistance_level' in row else False,
-                    ema_9=float(row['ema_9']) if 'ema_9' in row else 0.0,
-                    sma_20=float(row['sma_20']) if 'sma_20' in row else 0.0,  
-                    sma_50=float(row['sma_50']) if 'sma_50' in row else 0.0,  
-                    sma_200=float(row['sma_200']) if 'sma_200' in row else 0.0,        
+                db.add(
+                    AssetsRatesRepository._build_rates_model(
+                        row=row,
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        timeframe_str=timeframe_str,
+                        timestamp=normalized_ts,
+                    )
                 )
-                db.add(rates)
-            
-            count += 1
-        
-        db.commit()
-        logger.info(f"Saved {count} AssetsRates records for {symbol} {timeframe}")
-        return count
+
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                # Concurrent duplicate already inserted by another worker/request.
+                logger.debug(
+                    "Skipping duplicated candle during conflict-safe persistence: %s %s %s",
+                    symbol,
+                    timeframe,
+                    normalized_ts,
+                )
+
+            processed_count += 1
+
+        return processed_count
 
     @staticmethod
     def get_all_rates(
