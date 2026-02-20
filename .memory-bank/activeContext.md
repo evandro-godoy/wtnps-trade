@@ -14,6 +14,19 @@ A meta é ter uma aplicação executável via VS Code, ponta a ponta, que:
 * Ajustar o frontend (`live_chart.js` / `charts_clean.html`) para consumir o WebSocket de forma performática.
 * Ajustar os agentes de IA na IDE para que utilizem estritamente este Memory Bank e parem de propor refatorações arquiteturais prematuras (ex: EventBus puro).
 
+## 🧭 Sprint Ativa (2026-02-20) — Monitor + Charts Integration
+O foco imediato foi decomposto em 3 handoffs especializados com labels e escopo fechado:
+
+1. **@BackendQuant** — unificação do pipeline de predição (ML + análise técnica) e correção de first tick no monitor realtime.
+2. **@Fullstack** — correção do parser/render da análise técnica no Charts e ajuste de consumo WebSocket no Monitor.
+3. **@Guardian** — validação de contrato do payload combinado e regressão funcional.
+
+Artefatos oficiais desta sprint:
+- `ISSUES/ISSUE_BACKENDQUANT_UNIFICACAO_ML_ANALISE_FIRST_TICK.md`
+- `ISSUES/ISSUE_FULLSTACK_CHARTS_ANALISE_E_MONITOR_WS.md`
+- `ISSUES/ISSUE_GUARDIAN_TESTES_PAYLOAD_COMBINADO.md`
+- `.memory-bank/SPRINT_2026-02-20_MONITOR_CHARTS_HANDOFF.md`
+
 ## ⚠️ Decisões Recentes e Restrições Ativas
 * **ABANDONADA TEMPORARIAMENTE:** A migração completa para o padrão "Canonical Layout" e arquitetura estrita orientada a eventos (`EventBus`).
 * **FOCO EXCLUSIVO:** A pasta `newapp/` e seus subdiretórios representam o código-fonte principal no momento.
