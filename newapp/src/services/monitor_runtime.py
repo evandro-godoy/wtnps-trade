@@ -65,6 +65,8 @@ class MonitorRuntime:
             "ohlcv": data.get("ohlcv", {}),
             "indicators": data.get("indicators", {}),
             "analysis": data.get("analysis", {}),
+            "ml": data.get("ml", {}),
+            "decision": data.get("decision", {}),
         }
 
         dead_connections: list[WebSocket] = []

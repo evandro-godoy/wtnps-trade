@@ -13,16 +13,15 @@ from __future__ import annotations
 import time
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Callable
-from pathlib import Path
 
 import pandas as pd
-import numpy as np
 
 from newapp.src.data_handler.provider import get_default_provider
 from newapp.src.analysis.context_analyzer import MarketContextAnalyzer
 from newapp.src.database.repository import AssetsRatesRepository
+from newapp.src.ml.legacy_monitor_engine import get_legacy_monitor_engine
 from newapp.configs.config import DEFAULT_SYMBOL, DEFAULT_TIMEFRAME
 
 logger = logging.getLogger(__name__)
@@ -83,6 +82,7 @@ class RealtimeMarketMonitor:
         
         logger.info("Initializing market context analyzer...")
         self.analyzer = MarketContextAnalyzer()
+        self.legacy_monitor_engine = get_legacy_monitor_engine()
         
         if enable_db_persistence:
             logger.info("Initializing database repository...")
@@ -164,17 +164,7 @@ class RealtimeMarketMonitor:
             raise
     
     def _process_new_candle(self) -> Dict[str, Any]:
-        """Process latest candle and generate analysis.
-        
-        Returns:
-            Dictionary with processing results:
-            - timestamp: Candle timestamp
-            - ticker: Asset symbol
-            - timeframe: Timeframe string
-            - ohlcv: OHLCV data
-            - analysis: Technical analysis from MarketContextAnalyzer
-            - indicators: Calculated indicators
-        """
+        """Process latest candle and generate canonical combined payload."""
         try:
             if self.buffer_df is None or self.buffer_df.empty:
                 raise ValueError("Buffer not initialized")
@@ -182,42 +172,19 @@ class RealtimeMarketMonitor:
             # Get latest candle
             latest_candle = self.buffer_df.iloc[-1]
             candle_time = self.buffer_df.index[-1]
-            
-            # Run technical analysis
-            analysis_result = self.analyzer.analyze(self.buffer_df.copy())
-            
-            # Extract indicators from last row
-            indicators = {}
-            if 'ema_9' in analysis_result.columns:
-                indicators['ema_9'] = float(analysis_result['ema_9'].iloc[-1])
-            if 'sma_20' in analysis_result.columns:
-                indicators['sma_20'] = float(analysis_result['sma_20'].iloc[-1])
-            if 'sma_50' in analysis_result.columns:
-                indicators['sma_50'] = float(analysis_result['sma_50'].iloc[-1])
-            if 'sma_200' in analysis_result.columns:
-                indicators['sma_200'] = float(analysis_result['sma_200'].iloc[-1])
-            if 'rsi_14' in analysis_result.columns:
-                indicators['rsi_14'] = float(analysis_result['rsi_14'].iloc[-1])
-            
-            # Build result
-            result = {
-                'timestamp': candle_time,
-                'ticker': self.ticker,
-                'timeframe': self.timeframe_str,
-                'ohlcv': {
-                    'open': float(latest_candle['open']),
-                    'high': float(latest_candle['high']),
-                    'low': float(latest_candle['low']),
-                    'close': float(latest_candle['close']),
-                    'volume': int(latest_candle['volume']) if not pd.isna(latest_candle['volume']) else 0
-                },
-                'indicators': indicators,
-                'analysis': {
-                    'trend': 'neutral',  # TODO: Extract from analyzer
-                    'strength': 'medium',
-                    'rsi_condition': self._get_rsi_condition(indicators.get('rsi_14'))
-                }
-            }
+
+            analysis_context = self.analyzer.analyze(self.buffer_df.copy())
+            ml_result = self.legacy_monitor_engine.predict_on_candle(
+                data=self.buffer_df.copy(),
+                symbol=self.ticker,
+                timeframe=self.timeframe_str,
+            )
+            result = self._build_canonical_payload(
+                candle_time=candle_time,
+                latest_candle=latest_candle,
+                analysis_context=analysis_context,
+                ml_result=ml_result,
+            )
             
             # Persist to DB if enabled
             if self.enable_db_persistence and self.repository:
@@ -229,18 +196,19 @@ class RealtimeMarketMonitor:
                         'low': result['ohlcv']['low'],
                         'close': result['ohlcv']['close'],
                         'volume': result['ohlcv']['volume'],
-                        **indicators
+                        **result['indicators']
                     }], index=[candle_time])
                     
                     # Map timeframe to seconds
                     timeframe_seconds = self._timeframe_to_seconds(self.timeframe_str)
                     
-                    self.repository.save_rates_dataframe(
-                        df=df_row,
-                        ticker=self.ticker,
-                        timeframe_seconds=timeframe_seconds
+                    logger.debug(
+                        "DB persistence requested but monitor engine has no scoped Session; skipping write. "
+                        "ticker=%s timeframe=%s timeframe_seconds=%s",
+                        self.ticker,
+                        self.timeframe_str,
+                        timeframe_seconds,
                     )
-                    logger.debug(f"Persisted candle to DB: {candle_time}")
                 except Exception as e:
                     logger.error(f"DB persistence failed: {e}")
             
@@ -249,6 +217,74 @@ class RealtimeMarketMonitor:
         except Exception as e:
             logger.error(f"Error processing candle: {e}", exc_info=True)
             raise
+
+    def _build_canonical_payload(
+        self,
+        candle_time: datetime,
+        latest_candle: pd.Series,
+        analysis_context: Dict[str, Any],
+        ml_result: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Build canonical payload used by realtime monitor and APIs.
+
+        Mandatory contract fields:
+        timestamp, ticker, timeframe, ohlcv, indicators, analysis, ml, decision.
+        """
+        close_series = self.buffer_df["close"] if self.buffer_df is not None else pd.Series(dtype=float)
+        ema_20_value = float(close_series.ewm(span=20, adjust=False).mean().iloc[-1]) if not close_series.empty else 0.0
+
+        ohlcv = {
+            "open": float(latest_candle.get("open", 0.0)),
+            "high": float(latest_candle.get("high", 0.0)),
+            "low": float(latest_candle.get("low", 0.0)),
+            "close": float(latest_candle.get("close", 0.0)),
+            "volume": int(latest_candle.get("volume", 0)) if not pd.isna(latest_candle.get("volume", 0)) else 0,
+        }
+
+        indicators = {
+            "ema_9": float(ml_result.get("ema_9", analysis_context.get("ema_fast", 0.0))) if ml_result else float(analysis_context.get("ema_fast", 0.0)),
+            "ema_20": float(ml_result.get("ema_20", ema_20_value)) if ml_result else ema_20_value,
+            "sma_20": float(ml_result.get("sma_20", analysis_context.get("sma_fast", 0.0))) if ml_result else float(analysis_context.get("sma_fast", 0.0)),
+            "sma_50": float(ml_result.get("sma_50", analysis_context.get("sma_slow", 0.0))) if ml_result else float(analysis_context.get("sma_slow", 0.0)),
+            "rsi_14": float(ml_result.get("rsi", analysis_context.get("rsi", 0.0))) if ml_result else float(analysis_context.get("rsi", 0.0)),
+        }
+
+        analysis = {
+            "trend": str(analysis_context.get("trend", "INDEFINIDO")),
+            "trend_strength": str(analysis_context.get("trend_strength", "INDEFINIDO")),
+            "support": float(analysis_context.get("support", 0.0)),
+            "resistance": float(analysis_context.get("resistance", 0.0)),
+            "pattern": str(analysis_context.get("pattern", "INDEFINIDO")),
+            "rsi_condition": str(analysis_context.get("rsi_condition", "INDEFINIDO")),
+        }
+
+        ml = {
+            "signal": str(ml_result.get("signal", "HOLD")) if ml_result else "HOLD",
+            "direction": str(ml_result.get("direction", "HOLD")) if ml_result else "HOLD",
+            "probability": float(ml_result.get("probability", 0.0)) if ml_result else 0.0,
+        }
+
+        if ml_result:
+            decision = {
+                "signal_valid": bool(ml_result.get("signal_valid", False)),
+                "validation_reason": str(ml_result.get("validation_reason", "")),
+            }
+        else:
+            decision = {
+                "signal_valid": False,
+                "validation_reason": "Sem resultado ML para o candle atual",
+            }
+
+        return {
+            "timestamp": candle_time,
+            "ticker": self.ticker,
+            "timeframe": self.timeframe_str,
+            "ohlcv": ohlcv,
+            "indicators": indicators,
+            "analysis": analysis,
+            "ml": ml,
+            "decision": decision,
+        }
     
     def _get_rsi_condition(self, rsi: Optional[float]) -> str:
         """Get RSI condition label.
@@ -324,6 +360,15 @@ class RealtimeMarketMonitor:
         
         # Warm up
         self._warm_up()
+
+        # First tick immediately after warm-up
+        try:
+            first_tick = self._process_new_candle()
+            self.last_processed_time = first_tick["timestamp"]
+            self._notify_callbacks(first_tick)
+            logger.info("✅ First tick emitted immediately: %s", first_tick["timestamp"])
+        except Exception as exc:
+            logger.error("Failed to emit first tick after warm-up: %s", exc, exc_info=True)
         
         logger.info(f"""
 Monitor configured and ready!
@@ -349,9 +394,9 @@ Press Ctrl+C to stop.
                     
                     # Fetch new candle
                     new_data = self.provider.get_latest_candles(
-                        symbol=self.ticker,
+                        ticker=self.ticker,
                         timeframe=self.timeframe_str,
-                        limit=1
+                        count=1
                     )
                     
                     if new_data.empty:
@@ -365,6 +410,8 @@ Press Ctrl+C to stop.
                     # Update buffer
                     new_candle = new_data.iloc[-1:]
                     self.buffer_df = pd.concat([self.buffer_df, new_candle])
+                    self.buffer_df = self.buffer_df[~self.buffer_df.index.duplicated(keep='last')]
+                    self.buffer_df = self.buffer_df.sort_index()
                     
                     # Maintain buffer size
                     if len(self.buffer_df) > self.buffer_size:
@@ -372,6 +419,11 @@ Press Ctrl+C to stop.
                     
                     # Process candle
                     result = self._process_new_candle()
+
+                    if self.last_processed_time is not None and result['timestamp'] <= self.last_processed_time:
+                        logger.debug("Skipping duplicated candle timestamp: %s", result['timestamp'])
+                        continue
+
                     self.last_processed_time = result['timestamp']
                     
                     # Notify callbacks
@@ -426,6 +478,15 @@ Press Ctrl+C to stop.
         
         # Warm up in thread pool to avoid blocking
         await asyncio.to_thread(self._warm_up)
+
+        # First tick immediately after warm-up
+        try:
+            first_tick = await asyncio.to_thread(self._process_new_candle)
+            self.last_processed_time = first_tick["timestamp"]
+            self._notify_callbacks(first_tick)
+            logger.info("✅ Async first tick emitted immediately: %s", first_tick["timestamp"])
+        except Exception as exc:
+            logger.error("Failed to emit async first tick after warm-up: %s", exc, exc_info=True)
         
         consecutive_errors = 0
         max_errors = 5
@@ -440,9 +501,9 @@ Press Ctrl+C to stop.
                     # Fetch new candle (blocking I/O in thread)
                     new_data = await asyncio.to_thread(
                         self.provider.get_latest_candles,
-                        symbol=self.ticker,
+                        ticker=self.ticker,
                         timeframe=self.timeframe_str,
-                        limit=1
+                        count=1
                     )
                     
                     if new_data.empty:
@@ -455,12 +516,19 @@ Press Ctrl+C to stop.
                     # Update buffer
                     new_candle = new_data.iloc[-1:]
                     self.buffer_df = pd.concat([self.buffer_df, new_candle])
+                    self.buffer_df = self.buffer_df[~self.buffer_df.index.duplicated(keep='last')]
+                    self.buffer_df = self.buffer_df.sort_index()
                     
                     if len(self.buffer_df) > self.buffer_size:
                         self.buffer_df = self.buffer_df.iloc[-self.buffer_size:]
                     
                     # Process in thread pool
                     result = await asyncio.to_thread(self._process_new_candle)
+
+                    if self.last_processed_time is not None and result['timestamp'] <= self.last_processed_time:
+                        logger.debug("Skipping duplicated async candle timestamp: %s", result['timestamp'])
+                        continue
+
                     self.last_processed_time = result['timestamp']
                     
                     # Notify callbacks

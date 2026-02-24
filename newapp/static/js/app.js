@@ -82,56 +82,48 @@ async function fetchAnalysis() {
       return;
     }
     
-    // Format price action patterns
-    const patterns = analysis.price_action?.patterns || [];
-    const patternHtml = patterns.length > 0
-      ? patterns.map(p => `<span class="pattern-badge">${p}</span>`).join(' ')
-      : '<span class="pattern-badge neutral">Nenhum padrão detectado</span>';
-    
-    // Format support/resistance levels
-    const supports = analysis.levels?.supports || [];
-    const resistances = analysis.levels?.resistances || [];
-    
-    const supportHtml = supports.length > 0
-      ? supports.map(s => `<li>${s.toFixed(2)}</li>`).join('')
-      : '<li>Não detectado</li>';
-    
-    const resistanceHtml = resistances.length > 0
-      ? resistances.map(r => `<li>${r.toFixed(2)}</li>`).join('')
-      : '<li>Não detectado</li>';
+    const trend = analysis.trend || analysis.trend?.direction || 'N/A';
+    const trendStrength = analysis.trend_strength || analysis.trend?.strength || 'N/A';
+    const rsi = Number(analysis.rsi ?? analysis.rsi_14 ?? 0);
+    const ema9 = Number(analysis.ema_9 ?? analysis.ema_fast ?? 0);
+    const sma20 = Number(analysis.sma_20 ?? analysis.sma_fast ?? 0);
+    const sma50 = Number(analysis.sma_50 ?? analysis.sma_slow ?? 0);
+    const pattern = analysis.pattern || 'Nenhum padrão detectado';
+    const support = Number(analysis.support ?? 0);
+    const resistance = Number(analysis.resistance ?? 0);
     
     document.getElementById('analysis').innerHTML = `
       <div class="analysis-card">
         <h3>Tendência</h3>
-        <p class="trend-value">${analysis.trend?.direction || 'N/A'}</p>
-        <p class="trend-strength">Força: ${analysis.trend?.strength?.toFixed(2) || 'N/A'}</p>
+        <p class="trend-value">${trend}</p>
+        <p class="trend-strength">Força: ${trendStrength}</p>
       </div>
       
       <div class="analysis-card">
         <h3>RSI (14)</h3>
-        <p class="rsi-value">${analysis.rsi?.toFixed(2) || 'N/A'}</p>
+        <p class="rsi-value">${rsi > 0 ? rsi.toFixed(2) : 'N/A'}</p>
       </div>
       
       <div class="analysis-card">
         <h3>Médias Móveis</h3>
-        <p><strong>EMA(9):</strong> ${analysis.moving_averages?.ema9?.toFixed(2) || 'N/A'}</p>
-        <p><strong>SMA(20):</strong> ${analysis.moving_averages?.sma20?.toFixed(2) || 'N/A'}</p>
-        <p><strong>SMA(50):</strong> ${analysis.moving_averages?.sma50?.toFixed(2) || 'N/A'}</p>
+        <p><strong>EMA(9):</strong> ${ema9 > 0 ? ema9.toFixed(2) : 'N/A'}</p>
+        <p><strong>SMA(20):</strong> ${sma20 > 0 ? sma20.toFixed(2) : 'N/A'}</p>
+        <p><strong>SMA(50):</strong> ${sma50 > 0 ? sma50.toFixed(2) : 'N/A'}</p>
       </div>
       
       <div class="analysis-card">
         <h3>Padrões de Price Action</h3>
-        <div class="patterns-container">${patternHtml}</div>
+        <div class="patterns-container"><span class="pattern-badge">${pattern}</span></div>
       </div>
       
       <div class="analysis-card">
         <h3>Suportes</h3>
-        <ul class="levels-list">${supportHtml}</ul>
+        <ul class="levels-list"><li>${support > 0 ? support.toFixed(2) : 'Não detectado'}</li></ul>
       </div>
       
       <div class="analysis-card">
         <h3>Resistências</h3>
-        <ul class="levels-list">${resistanceHtml}</ul>
+        <ul class="levels-list"><li>${resistance > 0 ? resistance.toFixed(2) : 'Não detectado'}</li></ul>
       </div>
     `;
   } catch (error) {

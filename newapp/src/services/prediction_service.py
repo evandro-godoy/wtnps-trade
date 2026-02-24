@@ -9,30 +9,55 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def _format_prediction_message(pred_result: dict[str, Any], prob_pct: float) -> str:
-    """Format prediction message for charts_clean grid."""
-    if prob_pct >= 65:
-        target = (
-            pred_result["resistance"]
-            if pred_result["direction"] == "CALL"
-            else pred_result["support"]
-        )
-        validation_icon = "✅" if pred_result["signal_valid"] else "⚠️"
-        return (
-            f"{validation_icon} SINAL {pred_result['direction']} ({prob_pct:.1f}%) | "
-            f"Tendência: {pred_result['trend']} ({pred_result['trend_strength']}) | "
-            f"Padrão: {pred_result['pattern']} | "
-            f"Alvo: {target:.2f}"
-        )
+def _build_canonical_prediction_item(
+    pred_result: dict[str, Any],
+    ticker: str,
+    timeframe: str,
+    fallback_close: float,
+) -> dict[str, Any]:
+    """Build canonical monitor payload item from legacy monitor prediction result."""
+    timestamp_value = pred_result.get("timestamp")
+    if hasattr(timestamp_value, "isoformat"):
+        timestamp_out = timestamp_value.isoformat()
+    else:
+        timestamp_out = str(timestamp_value)
 
-    if prob_pct >= 55:
-        return (
-            f"📊 Prob. Moderada ({prob_pct:.1f}%) | "
-            f"Tendência: {pred_result['trend']} | "
-            f"RSI: {pred_result['rsi']:.0f} ({pred_result['rsi_condition']})"
-        )
-
-    return f"Candle processado | Tendência: {pred_result['trend']}"
+    return {
+        "timestamp": timestamp_out,
+        "ticker": ticker,
+        "timeframe": timeframe,
+        "ohlcv": {
+            "open": 0.0,
+            "high": 0.0,
+            "low": 0.0,
+            "close": float(pred_result.get("price", fallback_close)),
+            "volume": 0,
+        },
+        "indicators": {
+            "ema_9": float(pred_result.get("ema_9", 0.0)),
+            "ema_20": float(pred_result.get("ema_20", 0.0)),
+            "sma_20": float(pred_result.get("sma_20", 0.0)),
+            "sma_50": float(pred_result.get("sma_50", 0.0)),
+            "rsi_14": float(pred_result.get("rsi", 0.0)),
+        },
+        "analysis": {
+            "trend": str(pred_result.get("trend", "INDEFINIDO")),
+            "trend_strength": str(pred_result.get("trend_strength", "INDEFINIDO")),
+            "support": float(pred_result.get("support", 0.0)),
+            "resistance": float(pred_result.get("resistance", 0.0)),
+            "pattern": str(pred_result.get("pattern", "INDEFINIDO")),
+            "rsi_condition": str(pred_result.get("rsi_condition", "INDEFINIDO")),
+        },
+        "ml": {
+            "signal": str(pred_result.get("signal", "HOLD")),
+            "direction": str(pred_result.get("direction", "HOLD")),
+            "probability": float(pred_result.get("probability", 0.0)),
+        },
+        "decision": {
+            "signal_valid": bool(pred_result.get("signal_valid", False)),
+            "validation_reason": str(pred_result.get("validation_reason", "")),
+        },
+    }
 
 
 def get_monitor_predictions_payload(
@@ -42,7 +67,7 @@ def get_monitor_predictions_payload(
     provider: Any,
     legacy_monitor_engine: Any,
 ) -> dict[str, Any]:
-    """Generate monitor prediction payload compatible with charts_clean frontend."""
+    """Generate canonical monitor prediction payload for monitor WS/API contract."""
     try:
         safe_count = min(max(1, count), 10)
 
@@ -58,10 +83,11 @@ def get_monitor_predictions_payload(
                 "latest_candle_time": None,
                 "is_market_open": False,
                 "error": "No data available",
+                "source": "legacy_monitor_engine",
             }
 
         latest_candle_time = data.index[-1]
-        latest_candle_time_str = latest_candle_time.strftime("%Y-%m-%d %H:%M:%S")
+        latest_candle_time_str = latest_candle_time.isoformat()
 
         now_utc = datetime.now(timezone.utc)
         if latest_candle_time.tzinfo is None:
@@ -77,43 +103,14 @@ def get_monitor_predictions_payload(
             pred_result = legacy_monitor_engine.predict_on_candle(subset, symbol, timeframe)
             if not pred_result:
                 continue
-
-            timestamp_str = (
-                pred_result["timestamp"].strftime("%Y-%m-%d %H:%M:%S")
-                if hasattr(pred_result["timestamp"], "strftime")
-                else str(pred_result["timestamp"])
-            )
-
-            prob_pct = round(pred_result["probability"] * 100, 2)
-            message = _format_prediction_message(pred_result, prob_pct)
-
+            fallback_close = float(subset.iloc[-1]["close"])
             predictions.append(
-                {
-                    "timestamp": timestamp_str,
-                    "tipo": pred_result["signal"],
-                    "direction": pred_result["direction"],
-                    "preco": int(pred_result["price"]),
-                    "prob_ml": prob_pct,
-                    "mensagem": message,
-                    "indicators": {
-                        "close": pred_result["price"],
-                        "ema_9": pred_result["ema_9"],
-                        "ema_20": pred_result["ema_20"],
-                        "sma_20": pred_result["sma_20"],
-                        "sma_50": pred_result["sma_50"],
-                        "rsi_14": pred_result["rsi"],
-                    },
-                    "analysis": {
-                        "trend": pred_result["trend"],
-                        "trend_strength": pred_result["trend_strength"],
-                        "rsi": pred_result["rsi"],
-                        "rsi_condition": pred_result["rsi_condition"],
-                        "support": pred_result["support"],
-                        "resistance": pred_result["resistance"],
-                        "pattern": pred_result["pattern"],
-                        "signal_valid": pred_result["signal_valid"],
-                    },
-                }
+                _build_canonical_prediction_item(
+                    pred_result=pred_result,
+                    ticker=symbol,
+                    timeframe=timeframe,
+                    fallback_close=fallback_close,
+                )
             )
 
         results = predictions[-safe_count:] if predictions else []

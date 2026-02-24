@@ -260,32 +260,38 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
-        if (!data.indicators) {
+        if (!data.analysis) {
           document.getElementById('quick-analysis').innerHTML = '<p>Análise indisponível</p>';
           return;
         }
         
-        const ind = data.indicators;
+        const analysis = data.analysis;
+        const ema9 = Number(analysis.ema_9 ?? analysis.ema_fast ?? 0);
+        const sma20 = Number(analysis.sma_20 ?? analysis.sma_fast ?? 0);
+        const sma50 = Number(analysis.sma_50 ?? analysis.sma_slow ?? 0);
+        const sma200 = Number(analysis.sma_200 ?? analysis.sma_vslow ?? 0);
+        const rsi14 = Number(analysis.rsi ?? analysis.rsi_14 ?? 0);
+
         document.getElementById('quick-analysis').innerHTML = `
           <div class="indicator-item">
             <span class="indicator-label">EMA(9):</span>
-            <span class="indicator-value">${ind.ema_9?.toFixed(2) || 'N/A'}</span>
+            <span class="indicator-value">${ema9 > 0 ? ema9.toFixed(2) : 'N/A'}</span>
           </div>
           <div class="indicator-item">
             <span class="indicator-label">SMA(20):</span>
-            <span class="indicator-value">${ind.sma_20?.toFixed(2) || 'N/A'}</span>
+            <span class="indicator-value">${sma20 > 0 ? sma20.toFixed(2) : 'N/A'}</span>
           </div>
           <div class="indicator-item">
             <span class="indicator-label">SMA(50):</span>
-            <span class="indicator-value">${ind.sma_50?.toFixed(2) || 'N/A'}</span>
+            <span class="indicator-value">${sma50 > 0 ? sma50.toFixed(2) : 'N/A'}</span>
           </div>
           <div class="indicator-item">
             <span class="indicator-label">SMA(200):</span>
-            <span class="indicator-value">${ind.sma_200?.toFixed(2) || 'N/A'}</span>
+            <span class="indicator-value">${sma200 > 0 ? sma200.toFixed(2) : 'N/A'}</span>
           </div>
           <div class="indicator-item">
             <span class="indicator-label">RSI(14):</span>
-            <span class="indicator-value ${getRsiClass(ind.rsi_14)}">${ind.rsi_14?.toFixed(2) || 'N/A'}</span>
+            <span class="indicator-value ${getRsiClass(rsi14)}">${rsi14 > 0 ? rsi14.toFixed(2) : 'N/A'}</span>
           </div>
         `;
       } catch (error) {

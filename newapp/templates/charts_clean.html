@@ -199,24 +199,65 @@
         second: '2-digit'
       });
     }
+
+    function toNumber(value, fallback = 0) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : fallback;
+    }
+
+    function normalizePrediction(pred) {
+      const canonicalMl = pred.ml || {};
+      const canonicalDecision = pred.decision || {};
+      const canonicalAnalysis = pred.analysis || {};
+      const canonicalIndicators = pred.indicators || {};
+      const canonicalOhlcv = pred.ohlcv || {};
+
+      const signal = canonicalMl.signal || pred.tipo || 'HOLD';
+      const direction = canonicalMl.direction || pred.direction || 'HOLD';
+      const probability = toNumber(canonicalMl.probability ?? pred.prob_ml, 0);
+      const price = toNumber(canonicalOhlcv.close ?? pred.preco ?? pred.price, 0);
+      const signalValid = canonicalDecision.signal_valid ?? canonicalAnalysis.signal_valid ?? true;
+      const validationReason = canonicalDecision.validation_reason || pred.mensagem || 'N/A';
+
+      return {
+        ...pred,
+        indicators: canonicalIndicators,
+        analysis: canonicalAnalysis,
+        ml: canonicalMl,
+        decision: canonicalDecision,
+        timestamp: pred.timestamp,
+        signal,
+        direction,
+        probability,
+        price,
+        signalValid,
+        validationReason
+      };
+    }
     
     // Calculate technical indicators from prediction data
     function extractTechnicalData(pred) {
-      const indicators = pred.indicators || {};
-      const analysis = pred.analysis || {};
+      const normalized = normalizePrediction(pred);
+      const indicators = normalized.indicators || {};
+      const analysis = normalized.analysis || {};
+      const ohlcv = normalized.ohlcv || {};
+      const trendIndicators = {
+        ...indicators,
+        close: toNumber(indicators.close ?? ohlcv.close, 0)
+      };
       
       return {
-        timestamp: pred.timestamp,
-        trend: analysis.trend || getTrend(indicators),
+        timestamp: normalized.timestamp,
+        trend: analysis.trend || getTrend(trendIndicators),
         trend_strength: analysis.trend_strength || getTrendStrength(indicators),
-        rsi: analysis.rsi || indicators.rsi_14 || 0,
-        rsi_condition: analysis.rsi_condition || getRSICondition(indicators.rsi_14 || 0),
-        ema9: indicators.ema_9 || 0,
-        ema20: indicators.ema_20 || 0,
-        sma20: indicators.sma_20 || 0,
-        sma50: indicators.sma_50 || 0,
-        support: analysis.support || 0,
-        resistance: analysis.resistance || 0,
+        rsi: toNumber(analysis.rsi ?? indicators.rsi_14, 0),
+        rsi_condition: analysis.rsi_condition || getRSICondition(toNumber(indicators.rsi_14, 0)),
+        ema9: toNumber(indicators.ema_9, 0),
+        ema20: toNumber(indicators.ema_20 ?? analysis.ema_fast, 0),
+        sma20: toNumber(indicators.sma_20 ?? analysis.sma_fast, 0),
+        sma50: toNumber(indicators.sma_50 ?? analysis.sma_slow, 0),
+        support: toNumber(analysis.support, 0),
+        resistance: toNumber(analysis.resistance, 0),
         pattern: analysis.pattern || 'N/A'
       };
     }
@@ -303,11 +344,12 @@
      * Create ML Signal row element
      */
     function createMLSignalRow(pred) {
+      const normalized = normalizePrediction(pred);
       const row = document.createElement('tr');
       
       // Determine signal type and class
       let tipoClass = 'neutral';
-      let tipoText = pred.tipo || 'N/A';
+      let tipoText = normalized.signal || 'N/A';
       
       if (tipoText === 'COMPRA') {
         tipoClass = 'buy';
@@ -316,7 +358,7 @@
       }
       
       // Get direction (CALL/PUT)
-      const direction = pred.direction || 'N/A';
+      const direction = normalized.direction || 'N/A';
       let directionClass = 'neutral';
       let directionIcon = '⬌';
       
@@ -329,11 +371,11 @@
       }
       
       // Format timestamp
-      const formattedTime = formatTimestamp(pred.timestamp);
+      const formattedTime = formatTimestamp(normalized.timestamp);
       
       // Determine row tag based on probability
       let rowTag = '';
-      const prob = pred.prob_ml || 0;
+      const prob = normalized.probability;
       
       if (prob >= 65) {
         rowTag = 'ALERT';
@@ -346,12 +388,11 @@
       row.className = `log-row log-${rowTag.toLowerCase()}`;
       
       // Format price
-      const preco = pred.preco || 0;
+      const preco = normalized.price;
       const precoStr = preco.toLocaleString('pt-BR');
       
       // Get validation status from analysis
-      const analysis = pred.analysis || {};
-      const signalValid = analysis.signal_valid !== false;
+      const signalValid = normalized.signalValid !== false;
       const statusIcon = signalValid ? '✅' : '⚠️';
       const statusText = signalValid ? 'Válido' : 'Inválido';
       
@@ -362,7 +403,7 @@
         <td>${precoStr}</td>
         <td><span class="prob-badge prob-${getProbClass(prob)}">${prob.toFixed(1)}%</span></td>
         <td style="text-align: center; font-size: 12px;">${statusIcon} ${statusText}</td>
-        <td>${pred.mensagem || 'N/A'}</td>
+        <td>${normalized.validationReason}</td>
       `;
       
       return row;
@@ -372,14 +413,15 @@
      * Create Technical Analysis row element
      */
     function createTechnicalAnalysisRow(pred) {
+      const normalized = normalizePrediction(pred);
       const row = document.createElement('tr');
-      const tech = extractTechnicalData(pred);
+      const tech = extractTechnicalData(normalized);
       
       const formattedTime = formatTimestamp(tech.timestamp);
       
       // Determine row tag
       let rowTag = '';
-      const prob = pred.prob_ml || 0;
+      const prob = normalized.probability;
       
       if (prob >= 65) {
         rowTag = 'ALERT';
