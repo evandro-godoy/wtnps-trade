@@ -59,4 +59,59 @@ Artefatos oficiais desta sprint:
 ## ⚠️ Decisões Recentes e Restrições Ativas
 * **ABANDONADA TEMPORARIAMENTE:** A migração completa para o padrão "Canonical Layout" e arquitetura estrita orientada a eventos (`EventBus`).
 * **FOCO EXCLUSIVO:** A pasta `newapp/` e seus subdiretórios representam o código-fonte principal no momento.
-* **REGRA CRÍTICA:** Não introduzir complexidade desnecessária. Faça funcionar de forma fluida primeiro.
+* **REGRA CRÍTICA:** Não introduzir complexidade desnecessária. Faça funcionar de forma fluida primeiro.## ?? UI/UX Visual Density & Formatting Guidelines
+### Contexto do Problema (Sprint 2026-02-20)
+A UI nova (
+ewapp/templates/monitor.html) apresenta densidade visual insuficiente em compara??o com a UI legada (src/gui/monitor_ui.py):
+- **Legado:** ~20?25 eventos simult?neos vis?veis (Treeview com 2 tabs).
+- **Novo:** ~8 itens vis?veis (Grid com 4 cards compactos).
+**Decis?o:** Implementar tabela densa com 25+ linhas vis?veis, sticky header, resumo cards horizontal (60px), e formata??o rigorosa (2 casas decimais, larguras fixas).
+### Estrutura de Layout Aprovada
+\\\
+???????????????????????????????????????????????????
+? STICKY HEADER (50px)                            ?
+? Status: 5 monitores | Last: 15:30:42 | Eventos: 237
+???????????????????????????????????????????????????
+? RESUMO HORIZONTAL (3 cards, 60px)              ?
+? [?? ML Signals: 156] [?? Decision: 23] [?? Ind: 4]
+???????????????????????????????????????????????????
+? TABELA DENSA (25+ rows, max-h 500px, scroll)   ?
+? TIME    ? TICKER ? TYPE ? PRICE ? PROB ? SINAL ? STATUS
+? 15:30:42? WDO\$   ? ??   ? 95.60 ? 72.00?COMPRA ? ?
+? 15:30:35? WIN\$   ? ??   ? 27.53 ? 62.50?VENDA  ? ??
+? ...     ?        ?      ?       ?      ?       ?
+???????????????????????????????????????????????????
+\\\
+### Especifica??es de Coluna
+| Coluna | Largura | Formato | Alinhamento | Exemplo |
+|--------|---------|---------|-------------|---------|
+| TIME | 70px | HH:MM:SS (2 dig.) | right | 15:30:42 |
+| TICKER | 65px | Symbol | center | WDO\$ |
+| TYPE | 60px | Severity Icon | center | ?? |
+| PRICE | 90px | 2 decimais | right | 95.60 |
+| PROB | 70px | 2 decimais + % | right | 72.00 |
+| SIGNAL | 80px | COMPRA/VENDA/HOLD | center | COMPRA |
+| STATUS | 75px | Icon + state | center | ? / ?? |
+**Total:** ~510px (acomoda telas 1024+ com margem esquerda).
+### Mapeamento de Cores (Severity por Evento)
+| Categoria | ?cone | Background | Text | Regra |
+|-----------|-------|------------|------|-------|
+| ALERT | ?? | #fff3cd | #856404 | prob > 0.65 |
+| INFO | ?? | #d1ecf1 | #0c5460 | 0.55 < prob ? 0.65 |
+| TICK | ? | #ffffff | #6c757d | prob ? 0.55 |
+### Status (Coluna)
+| Status | ?cone | Condi??o |
+|--------|-------|----------|
+| VALID | ? | decision.signal_valid == true |
+| BLOCKED | ?? | decision.signal_valid == false |
+### Requisitos Formata??o
+1. Time: HH:MM:SS com 2 d?gitos
+2. Pre?o: 2 casas decimais
+3. Probabilidade: 2 casas decimais + %
+4. Signal: UPPERCASE (COMPRA/VENDA/HOLD)
+5. Altura linha: 32px
+6. Font-size: 12px
+7. Header sticky com top: 0
+### Implementa??o
+Ver: ISSUES/ISSUE_FULLSTACK_MONITOR_UI_DENSITY_IMPROVEMENT.md
+`

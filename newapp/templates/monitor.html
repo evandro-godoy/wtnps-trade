@@ -79,104 +79,77 @@
     </header>
 
     <div class="content-wrapper monitor-wrapper">
-      <section class="monitor-grid" id="monitors-grid">
-        <article class="monitor-card inactive alert-low" id="monitor-WDO$-M5" data-ticker="WDO$" data-timeframe="M5">
-          <div class="monitor-header">
-            <div class="monitor-title">
-              <span class="status-dot"></span>
-              <span class="asset-label">WDO$ - M5</span>
-            </div>
-            <div class="monitor-controls">
-              <button class="btn btn-sm btn-success" data-action="start" data-ticker="WDO$" data-timeframe="M5" aria-label="Iniciar WDO$ M5">
-                <i class="fas fa-play"></i>
-              </button>
-              <button class="btn btn-sm btn-danger" data-action="stop" data-ticker="WDO$" data-timeframe="M5" disabled aria-label="Parar WDO$ M5">
-                <i class="fas fa-stop"></i>
-              </button>
-            </div>
-          </div>
+      <!-- STICKY HEADER (50px) -->
+      <div class="monitor-sticky-header">
+        <span>Monitores: <strong id="count-monitors">0</strong></span>
+        <span>Último Tick: <strong id="last-tick-time">--:--:--</strong></span>
+        <span>Total Eventos: <strong id="count-events">0</strong></span>
+      </div>
 
-          <div class="monitor-summary">
-            <div class="summary-price" id="close-WDO$-M5">N/A</div>
-            <div class="summary-change alert-low" id="change-WDO$-M5">N/A</div>
-            <div class="summary-time" id="time-WDO$-M5">N/A</div>
-          </div>
-
-          <div class="analytic-grid">
-            <section class="analytic-block" id="ml-WDO$-M5">
-              <h3>ML</h3>
-              <p id="ml-value-WDO$-M5">N/A</p>
-            </section>
-            <section class="analytic-block" id="decision-WDO$-M5">
-              <h3>Decision</h3>
-              <p id="decision-value-WDO$-M5">N/A</p>
-            </section>
-            <section class="analytic-block" id="analysis-WDO$-M5">
-              <h3>Analysis</h3>
-              <p id="analysis-value-WDO$-M5">N/A</p>
-            </section>
-            <section class="analytic-block" id="indicators-WDO$-M5">
-              <h3>Indicators</h3>
-              <p id="indicators-value-WDO$-M5">N/A</p>
-            </section>
-          </div>
-        </article>
-
-        <article class="monitor-card inactive alert-low" id="monitor-WIN$-M5" data-ticker="WIN$" data-timeframe="M5">
-          <div class="monitor-header">
-            <div class="monitor-title">
-              <span class="status-dot"></span>
-              <span class="asset-label">WIN$ - M5</span>
-            </div>
-            <div class="monitor-controls">
-              <button class="btn btn-sm btn-success" data-action="start" data-ticker="WIN$" data-timeframe="M5" aria-label="Iniciar WIN$ M5">
-                <i class="fas fa-play"></i>
-              </button>
-              <button class="btn btn-sm btn-danger" data-action="stop" data-ticker="WIN$" data-timeframe="M5" disabled aria-label="Parar WIN$ M5">
-                <i class="fas fa-stop"></i>
-              </button>
-            </div>
-          </div>
-
-          <div class="monitor-summary">
-            <div class="summary-price" id="close-WIN$-M5">N/A</div>
-            <div class="summary-change alert-low" id="change-WIN$-M5">N/A</div>
-            <div class="summary-time" id="time-WIN$-M5">N/A</div>
-          </div>
-
-          <div class="analytic-grid">
-            <section class="analytic-block" id="ml-WIN$-M5">
-              <h3>ML</h3>
-              <p id="ml-value-WIN$-M5">N/A</p>
-            </section>
-            <section class="analytic-block" id="decision-WIN$-M5">
-              <h3>Decision</h3>
-              <p id="decision-value-WIN$-M5">N/A</p>
-            </section>
-            <section class="analytic-block" id="analysis-WIN$-M5">
-              <h3>Analysis</h3>
-              <p id="analysis-value-WIN$-M5">N/A</p>
-            </section>
-            <section class="analytic-block" id="indicators-WIN$-M5">
-              <h3>Indicators</h3>
-              <p id="indicators-value-WIN$-M5">N/A</p>
-            </section>
-          </div>
-        </article>
-      </section>
-
-      <section class="activity-log-panel">
-        <h2>
-          <i class="fas fa-list"></i>
-          Eventos Recentes
-        </h2>
-        <div class="activity-log" id="activity-log">
-          <div class="log-entry alert-low">
-            <div class="log-timestamp">Aguardando início do monitoramento...</div>
-            <div>Clique em <i class="fas fa-play"></i> para iniciar o monitor de um ativo.</div>
+      <!-- RESUMO HORIZONTAL CARDS (60px) -->
+      <div class="monitor-resumo-cards">
+        <div class="resumo-card">
+          <span class="resumo-icon">📊</span>
+          <div class="resumo-content">
+            <div class="resumo-label">ML Signals</div>
+            <div class="resumo-value" id="count-ml">0</div>
           </div>
         </div>
-      </section>
+        <div class="resumo-card">
+          <span class="resumo-icon">⚙️</span>
+          <div class="resumo-content">
+            <div class="resumo-label">Decision Blocks</div>
+            <div class="resumo-value" id="count-blocks">0</div>
+          </div>
+        </div>
+        <div class="resumo-card">
+          <span class="resumo-icon">📈</span>
+          <div class="resumo-content">
+            <div class="resumo-label">Indicators</div>
+            <div class="resumo-value" id="count-indicators">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTROL ACTIONS -->
+      <div class="monitor-actions">
+        <button class="btn btn-sm btn-success" data-action="start" data-ticker="WDO$" data-timeframe="M5">
+          <i class="fas fa-play"></i> Iniciar WDO$ M5
+        </button>
+        <button class="btn btn-sm btn-success" data-action="start" data-ticker="WIN$" data-timeframe="M5">
+          <i class="fas fa-play"></i> Iniciar WIN$ M5
+        </button>
+        <button class="btn btn-sm btn-danger" data-action="stop" data-ticker="WDO$" data-timeframe="M5">
+          <i class="fas fa-stop"></i> Parar WDO$ M5
+        </button>
+        <button class="btn btn-sm btn-danger" data-action="stop" data-ticker="WIN$" data-timeframe="M5">
+          <i class="fas fa-stop"></i> Parar WIN$ M5
+        </button>
+      </div>
+
+      <!-- DENSE EVENT TABLE -->
+      <div class="monitor-events-table-container">
+        <table class="monitor-events-table">
+          <thead>
+            <tr>
+              <th class="col-time">TIME</th>
+              <th class="col-ticker">TICKER</th>
+              <th class="col-type">TYPE</th>
+              <th class="col-price">PRICE</th>
+              <th class="col-prob">PROB(%)</th>
+              <th class="col-signal">SIGNAL</th>
+              <th class="col-status">STATUS</th>
+            </tr>
+          </thead>
+          <tbody id="events-tbody">
+            <tr class="event-row row-alert-low">
+              <td class="col-time" colspan="7" style="text-align:center;">
+                Aguardando início do monitoramento... Clique nos botões acima para iniciar.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </main>
 

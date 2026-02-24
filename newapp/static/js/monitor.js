@@ -3,7 +3,9 @@
 let ws = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT = 10;
-const MAX_LOG_ITEMS = 120;
+const MAX_EVENT_ROWS = 120;
+let eventCounts = { total: 0, ml: 0, blocks: 0, indicators: 0 };
+let activeMonitors = new Set();
 
 function monitorKey(ticker, timeframe) {
   return `${ticker}-${timeframe}`;
@@ -138,127 +140,78 @@ function formatTimestamp(value) {
   return `${date.getUTCDate().toString().padStart(2, '0')}/${(date.getUTCMonth() + 1).toString().padStart(2, '0')}/${date.getUTCFullYear()} ${date.getUTCHours().toString().padStart(2, '0')}:${date.getUTCMinutes().toString().padStart(2, '0')}:${date.getUTCSeconds().toString().padStart(2, '0')} UTC`;
 }
 
-function createMonitorCard(ticker, timeframe) {
-  const grid = document.getElementById('monitors-grid');
-  if (!grid) return null;
+function appendEventRow(data) {
+  const tbody = document.getElementById('events-tbody');
+  if (!tbody) return;
 
-  const id = monitorCardId(ticker, timeframe);
-  let card = document.getElementById(id);
-  if (card) return card;
+  if (tbody.querySelector('td[colspan="7"]')) {
+    tbody.innerHTML = '';
+  }
 
-  card = document.createElement('article');
-  card.id = id;
-  card.dataset.ticker = ticker;
-  card.dataset.timeframe = timeframe;
-  card.className = 'monitor-card inactive alert-low';
-  card.innerHTML = `
-    <div class="monitor-header">
-      <div class="monitor-title">
-        <span class="status-dot"></span>
-        <span class="asset-label">${escapeHtml(ticker)} - ${escapeHtml(timeframe)}</span>
-      </div>
-      <div class="monitor-controls">
-        <button class="btn btn-sm btn-success" data-action="start" data-ticker="${escapeHtml(ticker)}" data-timeframe="${escapeHtml(timeframe)}" aria-label="Iniciar ${escapeHtml(ticker)} ${escapeHtml(timeframe)}">
-          <i class="fas fa-play"></i>
-        </button>
-        <button class="btn btn-sm btn-danger" data-action="stop" data-ticker="${escapeHtml(ticker)}" data-timeframe="${escapeHtml(timeframe)}" disabled aria-label="Parar ${escapeHtml(ticker)} ${escapeHtml(timeframe)}">
-          <i class="fas fa-stop"></i>
-        </button>
-      </div>
-    </div>
-    <div class="monitor-summary">
-      <div class="summary-price" id="close-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</div>
-      <div class="summary-change alert-low" id="change-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</div>
-      <div class="summary-time" id="time-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</div>
-    </div>
-    <div class="analytic-grid">
-      <section class="analytic-block" id="ml-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">
-        <h3>ML</h3>
-        <p id="ml-value-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</p>
-      </section>
-      <section class="analytic-block" id="decision-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">
-        <h3>Decision</h3>
-        <p id="decision-value-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</p>
-      </section>
-      <section class="analytic-block" id="analysis-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">
-        <h3>Analysis</h3>
-        <p id="analysis-value-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</p>
-      </section>
-      <section class="analytic-block" id="indicators-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">
-        <h3>Indicators</h3>
-        <p id="indicators-value-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</p>
-      </section>
-    </div>
+  const { ticker, timeframe, timestamp, ohlcv, ml, decision } = data;
+  const row = document.createElement('tr');
+  const severityClass = getSeverityClass(ml.probability);
+  row.className = `event-row ${severityClass}`;
+
+  const statusText = decision.signal_valid ? 'VALID' : 'BLOCK';
+  const statusIcon = getStatusIcon(decision.signal_valid);
+
+  row.innerHTML = `
+    <td class="col-time">${formatTime(timestamp)}</td>
+    <td class="col-ticker">${escapeHtml(ticker)}</td>
+    <td class="col-type">${getSeverityIcon(ml.probability)}</td>
+    <td class="col-price">${formatPrice(ohlcv.close)}</td>
+    <td class="col-prob">${formatProbability(ml.probability)}</td>
+    <td class="col-signal">${escapeHtml(ml.signal || 'N/A').toUpperCase()}</td>
+    <td class="col-status">${statusIcon} ${statusText}</td>
   `;
 
-  grid.appendChild(card);
-  return card;
+  tbody.insertBefore(row, tbody.firstChild);
+  pruneOldEvents();
+  updateEventCounts(data);
+  updateStickyHeader(timestamp);
 }
 
-function setAlertClass(element, cssClass) {
-  if (!element) return;
-  element.classList.remove('alert-high', 'alert-medium', 'alert-low');
-  element.classList.add(cssClass);
+function pruneOldEvents() {
+  const tbody = document.getElementById('events-tbody');
+  if (!tbody) return;
+  while (tbody.children.length > MAX_EVENT_ROWS) {
+    tbody.removeChild(tbody.lastChild);
+  }
 }
 
-function setDecisionClass(element, isValid) {
-  if (!element) return;
-  element.classList.remove('decision-valid', 'decision-blocked');
-  element.classList.add(isValid ? 'decision-valid' : 'decision-blocked');
-}
-
-function activateCard(card) {
-  if (!card) return;
-  card.classList.remove('inactive');
-  card.classList.add('active');
-  const dot = card.querySelector('.status-dot');
-  if (dot) dot.classList.add('active');
-  const stopBtn = card.querySelector('[data-action="stop"]');
-  if (stopBtn) stopBtn.disabled = false;
-}
-
-function deactivateCard(card) {
-  if (!card) return;
-  card.classList.remove('active');
-  card.classList.add('inactive');
-  const dot = card.querySelector('.status-dot');
-  if (dot) dot.classList.remove('active');
-  const stopBtn = card.querySelector('[data-action="stop"]');
-  if (stopBtn) stopBtn.disabled = true;
-}
-
-function updateMonitorCard(data) {
-  const { ticker, timeframe, ohlcv, indicators, analysis, ml, decision, timestamp } = data;
-  const card = createMonitorCard(ticker, timeframe);
-  if (!card) return;
-
-  const closeEl = document.getElementById(`close-${ticker}-${timeframe}`);
-  const changeEl = document.getElementById(`change-${ticker}-${timeframe}`);
-  const timeEl = document.getElementById(`time-${ticker}-${timeframe}`);
-  const mlEl = document.getElementById(`ml-value-${ticker}-${timeframe}`);
-  const decisionEl = document.getElementById(`decision-value-${ticker}-${timeframe}`);
-  const analysisEl = document.getElementById(`analysis-value-${ticker}-${timeframe}`);
-  const indicatorsEl = document.getElementById(`indicators-value-${ticker}-${timeframe}`);
-  const decisionBlock = document.getElementById(`decision-${ticker}-${timeframe}`);
-
-  if (closeEl) {
-    closeEl.textContent = toDisplayNumber(ohlcv.close);
+function updateEventCounts(data) {
+  eventCounts.total += 1;
+  if (data.ml && data.ml.signal && data.ml.signal !== 'HOLD') {
+    eventCounts.ml += 1;
+  }
+  if (data.decision && !data.decision.signal_valid) {
+    eventCounts.blocks += 1;
+  }
+  if (data.indicators) {
+    eventCounts.indicators += 1;
   }
 
-  const openValue = ohlcv.open;
-  const closeValue = ohlcv.close;
-  if (changeEl) {
-    if (openValue === null || closeValue === null || openValue === 0) {
-      changeEl.textContent = 'N/A';
-    } else {
-      const change = closeValue - openValue;
-      const changePct = (change / openValue) * 100;
-      changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePct.toFixed(2)}%)`;
-    }
-    setAlertClass(changeEl, decision.severity.cssClass);
-  }
+  const countEventsEl = document.getElementById('count-events');
+  const countMlEl = document.getElementById('count-ml');
+  const countBlocksEl = document.getElementById('count-blocks');
+  const countIndicatorsEl = document.getElementById('count-indicators');
 
-  if (timeEl) {
+  if (countEventsEl) countEventsEl.textContent = eventCounts.total;
+  if (countMlEl) countMlEl.textContent = eventCounts.ml;
+  if (countBlocksEl) countBlocksEl.textContent = eventCounts.blocks;
+  if (countIndicatorsEl) countIndicatorsEl.textContent = eventCounts.indicators;
+}
+
+function updateStickyHeader(timestamp) {
+  const lastTickEl = document.getElementById('last-tick-time');
+  if (lastTickEl) {
+    lastTickEl.textContent = formatTime(timestamp);
+  }
+  const countMonitorsEl = document.getElementById('count-monitors');
+  if (countMonitorsEl) {
+    countMonitorsEl.textContent = activeMonitors.size;
+  }
     timeEl.textContent = formatTimestamp(timestamp);
   }
 
@@ -300,47 +253,7 @@ function updateMonitorCard(data) {
   activateCard(card);
 }
 
-function appendLogEntry(data) {
-  const logEl = document.getElementById('activity-log');
-  if (!logEl) return;
 
-  const { timestamp, ticker, timeframe, ohlcv, ml, decision } = data;
-  const entry = document.createElement('div');
-  entry.className = `log-entry ${decision.severity.cssClass}`;
-
-  const change = ohlcv.close !== null && ohlcv.open !== null
-    ? ohlcv.close - ohlcv.open
-    : null;
-  const changePct = ohlcv.close !== null && ohlcv.open !== null && ohlcv.open !== 0
-    ? (change / ohlcv.open) * 100
-    : null;
-
-  const probabilityText = ml.probability === null ? 'N/A' : `${(ml.probability * 100).toFixed(2)}%`;
-  const decisionState = decision.signal_valid ? '✅ VALIDADO' : '⚠️ NÃO VALIDADO';
-  const reasonSuffix = !decision.signal_valid && decision.validation_reason
-    ? ` | ${decision.validation_reason}`
-    : '';
-  const icon = decision.severity.icon ? `${decision.severity.icon} ` : '';
-
-  entry.innerHTML = `
-    <div class="log-timestamp">${formatTimestamp(timestamp)} | ${escapeHtml(ticker)} ${escapeHtml(timeframe)}</div>
-    <div>
-      ${icon}Close: ${toDisplayNumber(ohlcv.close)} | Var: ${change === null ? 'N/A' : change.toFixed(2)} (${changePct === null ? 'N/A' : `${changePct.toFixed(2)}%`})
-      | ML: ${escapeHtml(ml.signal)} ${escapeHtml(ml.direction)} (${probabilityText})
-      | Decisão: ${decisionState}${reasonSuffix}
-    </div>
-  `;
-
-  logEl.insertBefore(entry, logEl.firstChild);
-
-  while (logEl.querySelectorAll('.log-entry').length > MAX_LOG_ITEMS) {
-    if (logEl.lastChild) {
-      logEl.removeChild(logEl.lastChild);
-    } else {
-      break;
-    }
-  }
-}
 
 function setConnectionStatus(connected) {
   const statusEl = document.getElementById('ws-status');
@@ -408,8 +321,7 @@ function startMonitor(ticker, timeframe) {
       if (json.status === 'started' || json.status === 'already_running') {
         const card = createMonitorCard(ticker, timeframe);
         activateCard(card);
-      }
-    })
+      }appendEventRow
     .catch((error) => console.error('Start monitor failed:', error));
 }
 
@@ -447,8 +359,8 @@ function setupControls() {
     }
     if (action === 'stop') {
       stopMonitor(ticker, timeframe);
-    }
-  });
+    }activeMonitors.add(`${ticker}-${timeframe}`);
+        updateStickyHeader(new Date().toISOString()
 }
 
 function heartbeat() {
@@ -463,7 +375,8 @@ function heartbeat() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  setupControls();
-  connectWebSocket();
+  setupCactiveMonitors.delete(`${ticker}-${timeframe}`);
+        updateStickyHeader(new Date().toISOString()
   heartbeat();
 });
+document.body
