@@ -22,6 +22,7 @@ from newapp.src.data_handler.provider import get_default_provider
 from newapp.src.analysis.context_analyzer import MarketContextAnalyzer
 from newapp.src.database.repository import AssetsRatesRepository
 from newapp.src.ml.legacy_monitor_engine import get_legacy_monitor_engine
+from newapp.src.services.prediction_service import build_canonical_monitor_payload
 from newapp.configs.config import DEFAULT_SYMBOL, DEFAULT_TIMEFRAME
 
 logger = logging.getLogger(__name__)
@@ -258,33 +259,30 @@ class RealtimeMarketMonitor:
             "rsi_condition": str(analysis_context.get("rsi_condition", "INDEFINIDO")),
         }
 
-        ml = {
-            "signal": str(ml_result.get("signal", "HOLD")) if ml_result else "HOLD",
-            "direction": str(ml_result.get("direction", "HOLD")) if ml_result else "HOLD",
-            "probability": float(ml_result.get("probability", 0.0)) if ml_result else 0.0,
-        }
+        ml_signal = str(ml_result.get("signal", "HOLD")) if ml_result else "HOLD"
+        ml_direction = str(ml_result.get("direction", "HOLD")) if ml_result else "HOLD"
+        ml_probability = float(ml_result.get("probability", 0.0)) if ml_result else 0.0
 
         if ml_result:
-            decision = {
-                "signal_valid": bool(ml_result.get("signal_valid", False)),
-                "validation_reason": str(ml_result.get("validation_reason", "")),
-            }
+            base_signal_valid = bool(ml_result.get("signal_valid", False))
+            base_validation_reason = str(ml_result.get("validation_reason", ""))
         else:
-            decision = {
-                "signal_valid": False,
-                "validation_reason": "Sem resultado ML para o candle atual",
-            }
+            base_signal_valid = False
+            base_validation_reason = "Sem resultado ML para o candle atual"
 
-        return {
-            "timestamp": candle_time,
-            "ticker": self.ticker,
-            "timeframe": self.timeframe_str,
-            "ohlcv": ohlcv,
-            "indicators": indicators,
-            "analysis": analysis,
-            "ml": ml,
-            "decision": decision,
-        }
+        return build_canonical_monitor_payload(
+            timestamp_value=candle_time,
+            ticker=self.ticker,
+            timeframe=self.timeframe_str,
+            ohlcv=ohlcv,
+            indicators=indicators,
+            analysis=analysis,
+            ml_signal=ml_signal,
+            ml_direction=ml_direction,
+            ml_probability=ml_probability,
+            base_signal_valid=base_signal_valid,
+            base_validation_reason=base_validation_reason,
+        )
     
     def _get_rsi_condition(self, rsi: Optional[float]) -> str:
         """Get RSI condition label.

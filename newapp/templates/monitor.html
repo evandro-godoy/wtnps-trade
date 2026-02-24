@@ -2,203 +2,12 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>WTNPS Trade - Monitor em Tempo Real</title>
+  <title>WTNPS Trade - Monitor Analítico</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/static/css/style.css?v={{ version }}" />
-  <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-  <style>
-    /* Monitor-specific styles */
-    .monitor-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 20px;
-      margin-bottom: 20px;
-    }
-    
-    .monitor-card {
-      background: #182027;
-      border: 1px solid #242f38;
-      border-radius: 10px;
-      padding: 20px;
-      position: relative;
-      transition: all 0.2s ease;
-    }
-    
-    .monitor-card.active {
-      border-color: #3bbf6b;
-      box-shadow: 0 0 15px rgba(59, 191, 107, 0.2);
-    }
-    
-    .monitor-card.inactive {
-      opacity: 0.7;
-    }
-    
-    .monitor-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid #242f38;
-    }
-    
-    .monitor-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: #5ebcf3;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    
-    .status-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #76838f;
-      animation: pulse 2s infinite;
-    }
-    
-    .status-dot.active {
-      background: #3bbf6b;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-    
-    .monitor-controls {
-      display: flex;
-      gap: 8px;
-    }
-    
-    .btn-sm {
-      padding: 6px 12px;
-      font-size: 12px;
-    }
-    
-    .btn-success {
-      background: #3bbf6b;
-      color: #101418;
-    }
-    
-    .btn-success:hover {
-      background: #32a05a;
-    }
-    
-    .btn-danger {
-      background: #ff4d4d;
-      color: #fff;
-    }
-    
-    .btn-danger:hover {
-      background: #e63939;
-    }
-    
-    .price-display {
-      font-size: 32px;
-      font-weight: 700;
-      color: #e0e3e6;
-      text-align: center;
-      margin: 20px 0;
-    }
-    
-    .price-change {
-      font-size: 16px;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    
-    .price-change.positive {
-      color: #3bbf6b;
-    }
-    
-    .price-change.negative {
-      color: #ff4d4d;
-    }
-    
-    .indicators-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-      margin-top: 15px;
-    }
-    
-    .indicator-box {
-      background: #1f2a33;
-      padding: 10px;
-      border-radius: 6px;
-    }
-    
-    .indicator-label {
-      font-size: 11px;
-      color: #76838f;
-      margin-bottom: 4px;
-    }
-    
-    .indicator-value {
-      font-size: 16px;
-      font-weight: 600;
-      color: #e0e3e6;
-    }
-    
-    .activity-log {
-      background: #182027;
-      border: 1px solid #242f38;
-      border-radius: 10px;
-      padding: 20px;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-    
-    .log-entry {
-      padding: 12px;
-      background: #1f2a33;
-      border-left: 3px solid #5ebcf3;
-      border-radius: 4px;
-      margin-bottom: 10px;
-      font-size: 13px;
-    }
-    
-    .log-entry.alert {
-      border-left-color: #ff4d4d;
-      background: rgba(255, 77, 77, 0.1);
-    }
-    
-    .log-entry.info {
-      border-left-color: #ffc107;
-      background: rgba(255, 193, 7, 0.1);
-    }
-    
-    .log-timestamp {
-      font-size: 11px;
-      color: #76838f;
-      margin-bottom: 4px;
-    }
-    
-    .connection-status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      background: #1f2a33;
-      border-radius: 20px;
-      font-size: 13px;
-    }
-    
-    .connection-status.connected {
-      color: #3bbf6b;
-    }
-    
-    .connection-status.disconnected {
-      color: #ff4d4d;
-    }
-  </style>
 </head>
-<body class="layout-with-sidebar">
-  <!-- Sidebar Navigation -->
+<body class="layout-with-sidebar monitor-page">
   <nav class="sidebar">
     <div class="sidebar-header">
       <h2 class="sidebar-logo">
@@ -206,7 +15,7 @@
         <span>WTNPS</span>
       </h2>
     </div>
-    
+
     <ul class="sidebar-menu">
       <li class="menu-item">
         <a href="/home">
@@ -245,7 +54,7 @@
         </a>
       </li>
     </ul>
-    
+
     <div class="sidebar-footer">
       <div class="user-info">
         <i class="fas fa-user-circle"></i>
@@ -255,139 +64,114 @@
     </div>
   </nav>
 
-  <!-- Main Content Area -->
   <main class="main-content">
     <header class="page-header">
       <h1>
         <i class="fas fa-tv"></i>
-        Monitor em Tempo Real
+        Monitor Analítico em Tempo Real
       </h1>
       <div class="header-actions">
-        <div class="connection-status" id="ws-status">
+        <div class="connection-status disconnected" id="ws-status">
           <i class="fas fa-circle"></i>
           <span>Conectando...</span>
         </div>
       </div>
     </header>
 
-    <div class="content-wrapper">
-      <!-- Monitor Cards Grid -->
+    <div class="content-wrapper monitor-wrapper">
       <section class="monitor-grid" id="monitors-grid">
-        <!-- WDO$ Monitor -->
-        <div class="monitor-card inactive" id="monitor-WDO$-M5">
+        <article class="monitor-card inactive alert-low" id="monitor-WDO$-M5" data-ticker="WDO$" data-timeframe="M5">
           <div class="monitor-header">
             <div class="monitor-title">
               <span class="status-dot"></span>
-              WDO$ - M5
+              <span class="asset-label">WDO$ - M5</span>
             </div>
             <div class="monitor-controls">
-              <button class="btn btn-sm btn-success" onclick="startMonitor('WDO$', 'M5')">
+              <button class="btn btn-sm btn-success" data-action="start" data-ticker="WDO$" data-timeframe="M5" aria-label="Iniciar WDO$ M5">
                 <i class="fas fa-play"></i>
               </button>
-              <button class="btn btn-sm btn-danger" onclick="stopMonitor('WDO$', 'M5')" disabled>
+              <button class="btn btn-sm btn-danger" data-action="stop" data-ticker="WDO$" data-timeframe="M5" disabled aria-label="Parar WDO$ M5">
                 <i class="fas fa-stop"></i>
               </button>
             </div>
           </div>
-          
-          <div class="price-display" id="price-WDO$-M5">
-            ---.--
-          </div>
-          
-          <div class="price-change" id="change-WDO$-M5">
-            <i class="fas fa-minus"></i> ---.-- (--.--%)
-          </div>
-          
-          <div class="indicators-grid">
-            <div class="indicator-box">
-              <div class="indicator-label">EMA(9)</div>
-              <div class="indicator-value" id="ema9-WDO$-M5">--</div>
-            </div>
-            <div class="indicator-box">
-              <div class="indicator-label">SMA(20)</div>
-              <div class="indicator-value" id="sma20-WDO$-M5">--</div>
-            </div>
-            <div class="indicator-box">
-              <div class="indicator-label">RSI(14)</div>
-              <div class="indicator-value" id="rsi-WDO$-M5">--</div>
-            </div>
-            <div class="indicator-box">
-              <div class="indicator-label">Tendência</div>
-              <div class="indicator-value" id="trend-WDO$-M5">--</div>
-            </div>
-            <div class="indicator-box">
-              <div class="indicator-label">ML</div>
-              <div class="indicator-value" id="ml-WDO$-M5">--</div>
-            </div>
-            <div class="indicator-box">
-              <div class="indicator-label">Decisão</div>
-              <div class="indicator-value" id="decision-WDO$-M5">--</div>
-            </div>
-          </div>
-        </div>
 
-        <!-- WIN$ Monitor -->
-        <div class="monitor-card inactive" id="monitor-WIN$-M5">
+          <div class="monitor-summary">
+            <div class="summary-price" id="close-WDO$-M5">N/A</div>
+            <div class="summary-change alert-low" id="change-WDO$-M5">N/A</div>
+            <div class="summary-time" id="time-WDO$-M5">N/A</div>
+          </div>
+
+          <div class="analytic-grid">
+            <section class="analytic-block" id="ml-WDO$-M5">
+              <h3>ML</h3>
+              <p id="ml-value-WDO$-M5">N/A</p>
+            </section>
+            <section class="analytic-block" id="decision-WDO$-M5">
+              <h3>Decision</h3>
+              <p id="decision-value-WDO$-M5">N/A</p>
+            </section>
+            <section class="analytic-block" id="analysis-WDO$-M5">
+              <h3>Analysis</h3>
+              <p id="analysis-value-WDO$-M5">N/A</p>
+            </section>
+            <section class="analytic-block" id="indicators-WDO$-M5">
+              <h3>Indicators</h3>
+              <p id="indicators-value-WDO$-M5">N/A</p>
+            </section>
+          </div>
+        </article>
+
+        <article class="monitor-card inactive alert-low" id="monitor-WIN$-M5" data-ticker="WIN$" data-timeframe="M5">
           <div class="monitor-header">
             <div class="monitor-title">
               <span class="status-dot"></span>
-              WIN$ - M5
+              <span class="asset-label">WIN$ - M5</span>
             </div>
             <div class="monitor-controls">
-              <button class="btn btn-sm btn-success" onclick="startMonitor('WIN$', 'M5')">
+              <button class="btn btn-sm btn-success" data-action="start" data-ticker="WIN$" data-timeframe="M5" aria-label="Iniciar WIN$ M5">
                 <i class="fas fa-play"></i>
               </button>
-              <button class="btn btn-sm btn-danger" onclick="stopMonitor('WIN$', 'M5')" disabled>
+              <button class="btn btn-sm btn-danger" data-action="stop" data-ticker="WIN$" data-timeframe="M5" disabled aria-label="Parar WIN$ M5">
                 <i class="fas fa-stop"></i>
               </button>
             </div>
           </div>
-          
-          <div class="price-display" id="price-WIN$-M5">
-            ---.--
+
+          <div class="monitor-summary">
+            <div class="summary-price" id="close-WIN$-M5">N/A</div>
+            <div class="summary-change alert-low" id="change-WIN$-M5">N/A</div>
+            <div class="summary-time" id="time-WIN$-M5">N/A</div>
           </div>
-          
-          <div class="price-change" id="change-WIN$-M5">
-            <i class="fas fa-minus"></i> ---.-- (--.--%)
+
+          <div class="analytic-grid">
+            <section class="analytic-block" id="ml-WIN$-M5">
+              <h3>ML</h3>
+              <p id="ml-value-WIN$-M5">N/A</p>
+            </section>
+            <section class="analytic-block" id="decision-WIN$-M5">
+              <h3>Decision</h3>
+              <p id="decision-value-WIN$-M5">N/A</p>
+            </section>
+            <section class="analytic-block" id="analysis-WIN$-M5">
+              <h3>Analysis</h3>
+              <p id="analysis-value-WIN$-M5">N/A</p>
+            </section>
+            <section class="analytic-block" id="indicators-WIN$-M5">
+              <h3>Indicators</h3>
+              <p id="indicators-value-WIN$-M5">N/A</p>
+            </section>
           </div>
-          
-          <div class="indicators-grid">
-            <div class="indicator-box">
-              <div class="indicator-label">EMA(9)</div>
-              <div class="indicator-value" id="ema9-WIN$-M5">--</div>
-            </div>
-            <div class="indicator-box">
-              <div class="indicator-label">SMA(20)</div>
-              <div class="indicator-value" id="sma20-WIN$-M5">--</div>
-            </div>
-            <div class="indicator-box">
-              <div class="indicator-label">RSI(14)</div>
-              <div class="indicator-value" id="rsi-WIN$-M5">--</div>
-            </div>
-            <div class="indicator-box">
-              <div class="indicator-label">Tendência</div>
-              <div class="indicator-value" id="trend-WIN$-M5">--</div>
-            </div>
-            <div class="indicator-box">
-              <div class="indicator-label">ML</div>
-              <div class="indicator-value" id="ml-WIN$-M5">--</div>
-            </div>
-            <div class="indicator-box">
-              <div class="indicator-label">Decisão</div>
-              <div class="indicator-value" id="decision-WIN$-M5">--</div>
-            </div>
-          </div>
-        </div>
+        </article>
       </section>
 
-      <!-- Activity Log -->
-      <section>
+      <section class="activity-log-panel">
         <h2>
           <i class="fas fa-list"></i>
-          Log de Atividades
+          Eventos Recentes
         </h2>
         <div class="activity-log" id="activity-log">
-          <div class="log-entry info">
+          <div class="log-entry alert-low">
             <div class="log-timestamp">Aguardando início do monitoramento...</div>
             <div>Clique em <i class="fas fa-play"></i> para iniciar o monitor de um ativo.</div>
           </div>

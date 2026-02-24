@@ -118,3 +118,46 @@ def analyze(self, df: pd.DataFrame) -> pd.DataFrame:
 - [ ] Nunca passar `None` ou valores não-validados; sempre validar tipos antes de chamar
 - [ ] DataFrame retornado deve validar colunas obrigatórias antes de usar: `['open', 'high', 'low', 'close', 'volume']`
 - [ ] Sempre usar `pd.DataFrame.set_index('time')` e garantir que index é datetime com timezone UTC
+
+## 🚦 8. Regra Estrita de Consolidação de Sinais (ML + Análise Técnica) e UX
+
+Esta regra é **canônica do legado** e deve ser preservada no monólito (`run_monitor_gui.py` -> `src/gui/monitor_ui.py` -> `src/live/monitor_engine.py` + `context_analyzer.py`).
+
+### 8.1 Classificação por limiares de probabilidade (estrita)
+
+No legado, a classificação usa comparadores estritos (`>`), não inclusivos:
+
+- **ALERT (crítico):** `prob_class1 > 0.65` (ou `prob_pct > 65.0`)
+- **INFO (moderado):** `prob_class1 > 0.55` e não ALERT
+- **TICK (normal):** `prob_class1 <= 0.55`
+
+Observação importante de borda:
+- `prob_class1 == 0.65` **não** entra em ALERT (cai em INFO).
+- `prob_class1 == 0.55` **não** entra em INFO (cai em TICK).
+
+### 8.2 Trava de contexto técnico para validar/bloquear sinal
+
+A validação no legado acontece via `MarketContextAnalyzer.validate_signal(...)` e deve alimentar o bloco `decision` no payload.
+
+Regras de bloqueio:
+- Bloquear `CALL/COMPRA` quando `rsi_condition == 'SOBRECOMPRADO'`.
+- Bloquear `PUT/VENDA` quando `rsi_condition == 'SOBREVENDIDO'`.
+- Bloquear `CALL/COMPRA` quando `pattern == 'REJEICAO_ALTA'`.
+- Bloquear `PUT/VENDA` quando `pattern == 'REJEICAO_BAIXA'`.
+
+Regra opcional de tendência:
+- `require_trend_alignment=False` no fluxo realtime legado (tendência não bloqueia por padrão, apenas contextualiza).
+
+Resultado obrigatório de decisão:
+- `signal_valid: bool`
+- `validation_reason: str`
+- Para logs críticos: `Status: VALIDADO` quando `signal_valid=true`; caso contrário `Status: NÃO VALIDADO`.
+
+### 8.3 Mapeamento visual legado (categorias, cores e ícones)
+
+Padrão dos logs/tabelas na UI legado:
+- **ALERT**: fundo `#fff3cd`, texto `#856404`, ícone de criticidade `🚨`, mensagem de validação com `✅` (validado) ou `⚠️` (não validado).
+- **INFO**: fundo `#d1ecf1`, texto `#0c5460`, ícone `📊`.
+- **TICK**: fundo `#ffffff`, texto `#6c757d`.
+
+No frontend web (`monitor` em Grid), o CSS deve preservar esta semântica visual por categoria para manter equivalência operacional com o legado.

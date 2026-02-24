@@ -1,45 +1,388 @@
-/* Real-time Monitor WebSocket Client */
+/* Real-time Analytical Monitor WebSocket Client */
 
 let ws = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT = 10;
+const MAX_LOG_ITEMS = 120;
+
+function monitorKey(ticker, timeframe) {
+  return `${ticker}-${timeframe}`;
+}
+
+function monitorCardId(ticker, timeframe) {
+  return `monitor-${monitorKey(ticker, timeframe)}`;
+}
+
+function toNumberOrNull(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toDisplayNumber(value, decimals = 2) {
+  if (value === null || value === undefined) return 'N/A';
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 'N/A';
+  return parsed.toFixed(decimals);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function classifySeverity(probability) {
+  const prob = toNumberOrNull(probability);
+  if (prob === null) {
+    return {
+      label: 'TICK',
+      cssClass: 'alert-low',
+      icon: ''
+    };
+  }
+  if (prob > 0.65) {
+    return {
+      label: 'ALERT',
+      cssClass: 'alert-high',
+      icon: '🚨'
+    };
+  }
+  if (prob > 0.55) {
+    return {
+      label: 'INFO',
+      cssClass: 'alert-medium',
+      icon: '📊'
+    };
+  }
+  return {
+    label: 'TICK',
+    cssClass: 'alert-low',
+    icon: ''
+  };
+}
+
+function normalizeMonitorPayload(message) {
+  const payload = message?.payload || message?.data || message;
+  if (!payload || !payload.ticker || !payload.timeframe) {
+    return null;
+  }
+
+  const ohlcv = payload.ohlcv || {};
+  const indicators = payload.indicators || {};
+  const analysis = payload.analysis || {};
+  const ml = payload.ml || {};
+  const decision = payload.decision || {};
+
+  const probability = toNumberOrNull(ml.probability);
+  const derivedSeverity = classifySeverity(probability);
+  const decisionSeverity = String(decision.severity || '').toUpperCase();
+  const severity = ['ALERT', 'INFO', 'TICK'].includes(decisionSeverity)
+    ? {
+      label: decisionSeverity,
+      cssClass: decisionSeverity === 'ALERT'
+        ? 'alert-high'
+        : decisionSeverity === 'INFO'
+          ? 'alert-medium'
+          : 'alert-low',
+      icon: decisionSeverity === 'ALERT' ? '🚨' : decisionSeverity === 'INFO' ? '📊' : ''
+    }
+    : derivedSeverity;
+
+  const signalValid = decision.signal_valid === true;
+
+  return {
+    timestamp: payload.timestamp || new Date().toISOString(),
+    ticker: String(payload.ticker),
+    timeframe: String(payload.timeframe),
+    ohlcv: {
+      open: toNumberOrNull(ohlcv.open),
+      high: toNumberOrNull(ohlcv.high),
+      low: toNumberOrNull(ohlcv.low),
+      close: toNumberOrNull(ohlcv.close),
+      volume: toNumberOrNull(ohlcv.volume)
+    },
+    indicators: {
+      ema_9: toNumberOrNull(indicators.ema_9),
+      ema_20: toNumberOrNull(indicators.ema_20),
+      sma_20: toNumberOrNull(indicators.sma_20),
+      sma_50: toNumberOrNull(indicators.sma_50),
+      rsi_14: toNumberOrNull(indicators.rsi_14)
+    },
+    analysis: {
+      trend: analysis.trend || 'N/A',
+      trend_strength: analysis.trend_strength || 'N/A',
+      pattern: analysis.pattern || 'N/A',
+      rsi_condition: analysis.rsi_condition || 'N/A'
+    },
+    ml: {
+      signal: ml.signal || 'N/A',
+      direction: ml.direction || 'N/A',
+      probability
+    },
+    decision: {
+      signal_valid: signalValid,
+      status: decision.status || (signalValid ? 'VALIDADO' : 'NÃO VALIDADO'),
+      validation_reason: decision.validation_reason || '',
+      severity
+    }
+  };
+}
+
+function formatTimestamp(value) {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'N/A';
+  return `${date.getUTCDate().toString().padStart(2, '0')}/${(date.getUTCMonth() + 1).toString().padStart(2, '0')}/${date.getUTCFullYear()} ${date.getUTCHours().toString().padStart(2, '0')}:${date.getUTCMinutes().toString().padStart(2, '0')}:${date.getUTCSeconds().toString().padStart(2, '0')} UTC`;
+}
+
+function createMonitorCard(ticker, timeframe) {
+  const grid = document.getElementById('monitors-grid');
+  if (!grid) return null;
+
+  const id = monitorCardId(ticker, timeframe);
+  let card = document.getElementById(id);
+  if (card) return card;
+
+  card = document.createElement('article');
+  card.id = id;
+  card.dataset.ticker = ticker;
+  card.dataset.timeframe = timeframe;
+  card.className = 'monitor-card inactive alert-low';
+  card.innerHTML = `
+    <div class="monitor-header">
+      <div class="monitor-title">
+        <span class="status-dot"></span>
+        <span class="asset-label">${escapeHtml(ticker)} - ${escapeHtml(timeframe)}</span>
+      </div>
+      <div class="monitor-controls">
+        <button class="btn btn-sm btn-success" data-action="start" data-ticker="${escapeHtml(ticker)}" data-timeframe="${escapeHtml(timeframe)}" aria-label="Iniciar ${escapeHtml(ticker)} ${escapeHtml(timeframe)}">
+          <i class="fas fa-play"></i>
+        </button>
+        <button class="btn btn-sm btn-danger" data-action="stop" data-ticker="${escapeHtml(ticker)}" data-timeframe="${escapeHtml(timeframe)}" disabled aria-label="Parar ${escapeHtml(ticker)} ${escapeHtml(timeframe)}">
+          <i class="fas fa-stop"></i>
+        </button>
+      </div>
+    </div>
+    <div class="monitor-summary">
+      <div class="summary-price" id="close-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</div>
+      <div class="summary-change alert-low" id="change-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</div>
+      <div class="summary-time" id="time-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</div>
+    </div>
+    <div class="analytic-grid">
+      <section class="analytic-block" id="ml-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">
+        <h3>ML</h3>
+        <p id="ml-value-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</p>
+      </section>
+      <section class="analytic-block" id="decision-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">
+        <h3>Decision</h3>
+        <p id="decision-value-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</p>
+      </section>
+      <section class="analytic-block" id="analysis-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">
+        <h3>Analysis</h3>
+        <p id="analysis-value-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</p>
+      </section>
+      <section class="analytic-block" id="indicators-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">
+        <h3>Indicators</h3>
+        <p id="indicators-value-${escapeHtml(ticker)}-${escapeHtml(timeframe)}">N/A</p>
+      </section>
+    </div>
+  `;
+
+  grid.appendChild(card);
+  return card;
+}
+
+function setAlertClass(element, cssClass) {
+  if (!element) return;
+  element.classList.remove('alert-high', 'alert-medium', 'alert-low');
+  element.classList.add(cssClass);
+}
+
+function setDecisionClass(element, isValid) {
+  if (!element) return;
+  element.classList.remove('decision-valid', 'decision-blocked');
+  element.classList.add(isValid ? 'decision-valid' : 'decision-blocked');
+}
+
+function activateCard(card) {
+  if (!card) return;
+  card.classList.remove('inactive');
+  card.classList.add('active');
+  const dot = card.querySelector('.status-dot');
+  if (dot) dot.classList.add('active');
+  const stopBtn = card.querySelector('[data-action="stop"]');
+  if (stopBtn) stopBtn.disabled = false;
+}
+
+function deactivateCard(card) {
+  if (!card) return;
+  card.classList.remove('active');
+  card.classList.add('inactive');
+  const dot = card.querySelector('.status-dot');
+  if (dot) dot.classList.remove('active');
+  const stopBtn = card.querySelector('[data-action="stop"]');
+  if (stopBtn) stopBtn.disabled = true;
+}
+
+function updateMonitorCard(data) {
+  const { ticker, timeframe, ohlcv, indicators, analysis, ml, decision, timestamp } = data;
+  const card = createMonitorCard(ticker, timeframe);
+  if (!card) return;
+
+  const closeEl = document.getElementById(`close-${ticker}-${timeframe}`);
+  const changeEl = document.getElementById(`change-${ticker}-${timeframe}`);
+  const timeEl = document.getElementById(`time-${ticker}-${timeframe}`);
+  const mlEl = document.getElementById(`ml-value-${ticker}-${timeframe}`);
+  const decisionEl = document.getElementById(`decision-value-${ticker}-${timeframe}`);
+  const analysisEl = document.getElementById(`analysis-value-${ticker}-${timeframe}`);
+  const indicatorsEl = document.getElementById(`indicators-value-${ticker}-${timeframe}`);
+  const decisionBlock = document.getElementById(`decision-${ticker}-${timeframe}`);
+
+  if (closeEl) {
+    closeEl.textContent = toDisplayNumber(ohlcv.close);
+  }
+
+  const openValue = ohlcv.open;
+  const closeValue = ohlcv.close;
+  if (changeEl) {
+    if (openValue === null || closeValue === null || openValue === 0) {
+      changeEl.textContent = 'N/A';
+    } else {
+      const change = closeValue - openValue;
+      const changePct = (change / openValue) * 100;
+      changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePct.toFixed(2)}%)`;
+    }
+    setAlertClass(changeEl, decision.severity.cssClass);
+  }
+
+  if (timeEl) {
+    timeEl.textContent = formatTimestamp(timestamp);
+  }
+
+  if (mlEl) {
+    const probabilityText = ml.probability === null ? 'N/A' : `${(ml.probability * 100).toFixed(2)}%`;
+    const icon = decision.severity.icon ? `${decision.severity.icon} ` : '';
+    mlEl.textContent = `${icon}Sinal: ${ml.signal} | Direção: ${ml.direction} | Prob: ${probabilityText} | Severidade: ${decision.severity.label}`;
+  }
+
+  if (decisionEl) {
+    const stateLabel = decision.signal_valid ? '✅ VALIDADO' : '⚠️ NÃO VALIDADO';
+    const reason = !decision.signal_valid && decision.validation_reason
+      ? ` | Motivo: ${decision.validation_reason}`
+      : '';
+    decisionEl.textContent = `${stateLabel}${reason}`;
+  }
+
+  if (analysisEl) {
+    analysisEl.textContent = [
+      `Trend: ${analysis.trend || 'N/A'}`,
+      `Strength: ${analysis.trend_strength || 'N/A'}`,
+      `Pattern: ${analysis.pattern || 'N/A'}`,
+      `RSI Condition: ${analysis.rsi_condition || 'N/A'}`
+    ].join(' | ');
+  }
+
+  if (indicatorsEl) {
+    indicatorsEl.textContent = [
+      `EMA9: ${toDisplayNumber(indicators.ema_9)}`,
+      `EMA20: ${toDisplayNumber(indicators.ema_20)}`,
+      `SMA20: ${toDisplayNumber(indicators.sma_20)}`,
+      `SMA50: ${toDisplayNumber(indicators.sma_50)}`,
+      `RSI14: ${toDisplayNumber(indicators.rsi_14)}`
+    ].join(' | ');
+  }
+
+  setAlertClass(card, decision.severity.cssClass);
+  setDecisionClass(decisionBlock, decision.signal_valid);
+  activateCard(card);
+}
+
+function appendLogEntry(data) {
+  const logEl = document.getElementById('activity-log');
+  if (!logEl) return;
+
+  const { timestamp, ticker, timeframe, ohlcv, ml, decision } = data;
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${decision.severity.cssClass}`;
+
+  const change = ohlcv.close !== null && ohlcv.open !== null
+    ? ohlcv.close - ohlcv.open
+    : null;
+  const changePct = ohlcv.close !== null && ohlcv.open !== null && ohlcv.open !== 0
+    ? (change / ohlcv.open) * 100
+    : null;
+
+  const probabilityText = ml.probability === null ? 'N/A' : `${(ml.probability * 100).toFixed(2)}%`;
+  const decisionState = decision.signal_valid ? '✅ VALIDADO' : '⚠️ NÃO VALIDADO';
+  const reasonSuffix = !decision.signal_valid && decision.validation_reason
+    ? ` | ${decision.validation_reason}`
+    : '';
+  const icon = decision.severity.icon ? `${decision.severity.icon} ` : '';
+
+  entry.innerHTML = `
+    <div class="log-timestamp">${formatTimestamp(timestamp)} | ${escapeHtml(ticker)} ${escapeHtml(timeframe)}</div>
+    <div>
+      ${icon}Close: ${toDisplayNumber(ohlcv.close)} | Var: ${change === null ? 'N/A' : change.toFixed(2)} (${changePct === null ? 'N/A' : `${changePct.toFixed(2)}%`})
+      | ML: ${escapeHtml(ml.signal)} ${escapeHtml(ml.direction)} (${probabilityText})
+      | Decisão: ${decisionState}${reasonSuffix}
+    </div>
+  `;
+
+  logEl.insertBefore(entry, logEl.firstChild);
+
+  while (logEl.querySelectorAll('.log-entry').length > MAX_LOG_ITEMS) {
+    if (logEl.lastChild) {
+      logEl.removeChild(logEl.lastChild);
+    } else {
+      break;
+    }
+  }
+}
+
+function setConnectionStatus(connected) {
+  const statusEl = document.getElementById('ws-status');
+  if (!statusEl) return;
+  statusEl.classList.remove('connected', 'disconnected');
+  statusEl.classList.add(connected ? 'connected' : 'disconnected');
+  statusEl.innerHTML = connected
+    ? '<i class="fas fa-circle"></i><span>Conectado</span>'
+    : '<i class="fas fa-circle"></i><span>Desconectado</span>';
+}
 
 function connectWebSocket() {
   try {
     ws = new WebSocket(`ws://${window.location.host}/ws/monitor`);
-    const statusEl = document.getElementById('ws-status');
 
     ws.onopen = () => {
       reconnectAttempts = 0;
-      statusEl.classList.remove('disconnected');
-      statusEl.classList.add('connected');
-      statusEl.innerHTML = '<i class="fas fa-circle"></i><span>Conectado</span>';
+      setConnectionStatus(true);
       console.log('WebSocket connected');
     };
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'pong') return; // heartbeat
+        if (data.type === 'pong') return;
         const payload = normalizeMonitorPayload(data);
         if (!payload) return;
         updateMonitorCard(payload);
         appendLogEntry(payload);
-      } catch (err) {
-        console.error('Invalid WS message:', err);
+      } catch (error) {
+        console.error('Invalid WS message:', error);
       }
     };
 
     ws.onclose = () => {
-      statusEl.classList.remove('connected');
-      statusEl.classList.add('disconnected');
-      statusEl.innerHTML = '<i class="fas fa-circle"></i><span>Desconectado</span>';
+      setConnectionStatus(false);
       console.warn('WebSocket disconnected');
       attemptReconnect();
     };
 
-    ws.onerror = (err) => {
-      console.error('WebSocket error:', err);
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
     };
   } catch (error) {
     console.error('WS connection failed:', error);
@@ -47,55 +390,10 @@ function connectWebSocket() {
   }
 }
 
-function toSafeNumber(value, fallback = 0) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function normalizeMonitorPayload(message) {
-  const candidate = message?.payload || message?.data || message;
-  if (!candidate || !candidate.ticker || !candidate.timeframe) return null;
-
-  const ohlcv = candidate.ohlcv || {};
-  const indicators = candidate.indicators || {};
-  const analysis = candidate.analysis || {};
-  const ml = candidate.ml || {};
-  const decision = candidate.decision || {};
-
-  return {
-    timestamp: candidate.timestamp || new Date().toISOString(),
-    ticker: candidate.ticker,
-    timeframe: candidate.timeframe,
-    ohlcv: {
-      open: toSafeNumber(ohlcv.open),
-      high: toSafeNumber(ohlcv.high),
-      low: toSafeNumber(ohlcv.low),
-      close: toSafeNumber(ohlcv.close),
-      volume: toSafeNumber(ohlcv.volume)
-    },
-    indicators: {
-      ema_9: toSafeNumber(indicators.ema_9),
-      sma_20: toSafeNumber(indicators.sma_20),
-      rsi_14: toSafeNumber(indicators.rsi_14)
-    },
-    analysis,
-    ml: {
-      signal: ml.signal || 'HOLD',
-      direction: ml.direction || 'HOLD',
-      probability: toSafeNumber(ml.probability)
-    },
-    decision: {
-      signal_valid: decision.signal_valid !== false,
-      validation_reason: decision.validation_reason || ''
-    }
-  };
-}
-
 function attemptReconnect() {
   if (reconnectAttempts >= MAX_RECONNECT) return;
   reconnectAttempts += 1;
   const delay = Math.min(5000, reconnectAttempts * 1000);
-  console.log(`Reconnecting WebSocket in ${delay}ms...`);
   setTimeout(connectWebSocket, delay);
 }
 
@@ -105,20 +403,14 @@ function startMonitor(ticker, timeframe) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ticker, timeframe })
   })
-  .then(r => r.json())
-  .then(json => {
-    console.log('Start response:', json);
-    if (json.status === 'started' || json.status === 'already_running') {
-      const card = document.getElementById(`monitor-${ticker}-${timeframe}`);
-      card.classList.remove('inactive');
-      card.classList.add('active');
-      const statusDot = card.querySelector('.status-dot');
-      if (statusDot) statusDot.classList.add('active');
-      // Enable stop button
-      card.querySelector('.btn-danger').disabled = false;
-    }
-  })
-  .catch(err => console.error('Start monitor failed:', err));
+    .then((response) => response.json())
+    .then((json) => {
+      if (json.status === 'started' || json.status === 'already_running') {
+        const card = createMonitorCard(ticker, timeframe);
+        activateCard(card);
+      }
+    })
+    .catch((error) => console.error('Start monitor failed:', error));
 }
 
 function stopMonitor(ticker, timeframe) {
@@ -127,124 +419,51 @@ function stopMonitor(ticker, timeframe) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ticker, timeframe })
   })
-  .then(r => r.json())
-  .then(json => {
-    console.log('Stop response:', json);
-    if (json.status === 'stopped') {
-      const card = document.getElementById(`monitor-${ticker}-${timeframe}`);
-      card.classList.remove('active');
-      card.classList.add('inactive');
-      const statusDot = card.querySelector('.status-dot');
-      if (statusDot) statusDot.classList.remove('active');
-      // Disable stop button
-      card.querySelector('.btn-danger').disabled = true;
+    .then((response) => response.json())
+    .then((json) => {
+      if (json.status === 'stopped') {
+        const card = document.getElementById(monitorCardId(ticker, timeframe));
+        deactivateCard(card);
+      }
+    })
+    .catch((error) => console.error('Stop monitor failed:', error));
+}
+
+function setupControls() {
+  const monitorsGrid = document.getElementById('monitors-grid');
+  if (!monitorsGrid) return;
+
+  monitorsGrid.addEventListener('click', (event) => {
+    const target = event.target.closest('button[data-action]');
+    if (!target) return;
+
+    const action = target.dataset.action;
+    const ticker = target.dataset.ticker;
+    const timeframe = target.dataset.timeframe;
+    if (!ticker || !timeframe) return;
+
+    if (action === 'start') {
+      startMonitor(ticker, timeframe);
     }
-  })
-  .catch(err => console.error('Stop monitor failed:', err));
+    if (action === 'stop') {
+      stopMonitor(ticker, timeframe);
+    }
+  });
 }
 
-function updateMonitorCard(data) {
-  const { ticker, timeframe, ohlcv, indicators, analysis, ml, decision } = data;
-  const card = document.getElementById(`monitor-${ticker}-${timeframe}`);
-  if (!card) return;
-
-  // Update price
-  const priceEl = document.getElementById(`price-${ticker}-${timeframe}`);
-  if (priceEl) priceEl.textContent = ohlcv.close.toFixed(2);
-
-  // Compute change (requires previous value - for simplicity, using open vs close)
-  const change = ohlcv.close - ohlcv.open;
-  const changePct = ohlcv.open !== 0 ? (change / ohlcv.open) * 100 : 0;
-  const changeEl = document.getElementById(`change-${ticker}-${timeframe}`);
-  if (changeEl) {
-    changeEl.classList.remove('positive', 'negative');
-    changeEl.classList.add(change >= 0 ? 'positive' : 'negative');
-    changeEl.innerHTML = `
-      <i class="fas ${change >= 0 ? 'fa-arrow-up' : 'fa-arrow-down'}"></i>
-      ${Math.abs(change).toFixed(2)} (${changePct.toFixed(2)}%)
-    `;
-  }
-
-  // Update indicators
-  const emaEl = document.getElementById(`ema9-${ticker}-${timeframe}`);
-  const sma20El = document.getElementById(`sma20-${ticker}-${timeframe}`);
-  const rsiEl = document.getElementById(`rsi-${ticker}-${timeframe}`);
-  const trendEl = document.getElementById(`trend-${ticker}-${timeframe}`);
-  const mlEl = document.getElementById(`ml-${ticker}-${timeframe}`);
-  const decisionEl = document.getElementById(`decision-${ticker}-${timeframe}`);
-
-  if (emaEl) emaEl.textContent = indicators.ema_9 ? indicators.ema_9.toFixed(2) : '--';
-  if (sma20El) sma20El.textContent = indicators.sma_20 ? indicators.sma_20.toFixed(2) : '--';
-  if (rsiEl) rsiEl.textContent = indicators.rsi_14 ? indicators.rsi_14.toFixed(2) : '--';
-  if (trendEl) trendEl.textContent = analysis.trend || '--';
-  if (mlEl) {
-    mlEl.textContent = `${ml.signal} ${ml.probability > 0 ? `(${ml.probability.toFixed(1)}%)` : ''}`.trim();
-  }
-  if (decisionEl) {
-    decisionEl.textContent = decision.signal_valid ? 'VÁLIDA' : 'BLOQUEADA';
-    decisionEl.style.color = decision.signal_valid ? '#3bbf6b' : '#ff4d4d';
-  }
-
-  // Ensure active visual state on first tick
-  card.classList.remove('inactive');
-  card.classList.add('active');
-  const statusDot = card.querySelector('.status-dot');
-  if (statusDot) statusDot.classList.add('active');
-  const stopButton = card.querySelector('.btn-danger');
-  if (stopButton) stopButton.disabled = false;
-}
-
-function appendLogEntry(data) {
-  const logEl = document.getElementById('activity-log');
-  if (!logEl) return;
-
-  const { timestamp, ticker, timeframe, ohlcv, indicators, ml, decision } = data;
-  // Format timestamp to UTC without timezone info
-  const dt = new Date(timestamp);
-  const timeStr = `${dt.getUTCDate().toString().padStart(2, '0')}/${(dt.getUTCMonth() + 1).toString().padStart(2, '0')}/${dt.getUTCFullYear()} ${dt.getUTCHours().toString().padStart(2, '0')}:${dt.getUTCMinutes().toString().padStart(2, '0')}`;
-  const change = ohlcv.close - ohlcv.open;
-  const changePct = ohlcv.open !== 0 ? (change / ohlcv.open) * 100 : 0;
-
-  const entry = document.createElement('div');
-  entry.classList.add('log-entry');
-
-  // Determine entry type based on RSI or volatility (placeholder logic)
-  if (indicators.rsi_14 !== undefined) {
-    if (indicators.rsi_14 > 70) entry.classList.add('alert');
-    else if (indicators.rsi_14 > 55) entry.classList.add('info');
-  }
-
-  entry.innerHTML = `
-    <div class="log-timestamp">${timeStr} | ${ticker} ${timeframe}</div>
-    <div>
-      Close: ${ohlcv.close.toFixed(2)} | Var: ${change.toFixed(2)} (${changePct.toFixed(2)}%)
-      | EMA9: ${indicators.ema_9 ? indicators.ema_9.toFixed(2) : '--'}
-      | RSI14: ${indicators.rsi_14 ? indicators.rsi_14.toFixed(2) : '--'}
-      | ML: ${ml.signal}/${ml.direction} ${ml.probability > 0 ? `(${ml.probability.toFixed(1)}%)` : ''}
-      | Decisão: ${decision.signal_valid ? 'OK' : 'BLOCK'}${decision.validation_reason ? ` - ${decision.validation_reason}` : ''}
-    </div>
-  `;
-
-  // Prepend entry
-  logEl.insertBefore(entry, logEl.firstChild);
-
-  // Limit log size
-  const entries = logEl.querySelectorAll('.log-entry');
-  if (entries.length > 200) {
-    logEl.removeChild(logEl.lastChild);
-  }
-}
-
-// Heartbeat ping
 function heartbeat() {
   if (ws && ws.readyState === WebSocket.OPEN) {
-    try { ws.send('ping'); } catch (e) {}
+    try {
+      ws.send('ping');
+    } catch (_) {
+      // no-op
+    }
   }
   setTimeout(heartbeat, 15000);
 }
 
-// Initialize when DOM ready
 window.addEventListener('DOMContentLoaded', () => {
+  setupControls();
   connectWebSocket();
   heartbeat();
 });

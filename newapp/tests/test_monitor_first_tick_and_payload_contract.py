@@ -16,7 +16,10 @@ import pandas as pd
 from newapp.src.live import monitor_engine as monitor_engine_module
 from newapp.src.live.monitor_engine import RealtimeMarketMonitor
 from newapp.src.services.monitor_runtime import MonitorRuntime
-from newapp.src.services.prediction_service import _build_canonical_prediction_item
+from newapp.src.services.prediction_service import (
+    _build_canonical_prediction_item,
+    build_canonical_monitor_payload,
+)
 
 
 EXPECTED_CANONICAL_KEYS = {
@@ -227,3 +230,77 @@ def test_monitor_runtime_broadcast_keeps_canonical_root_keys() -> None:
     outbound = ws.messages[0]
     assert set(outbound.keys()) == EXPECTED_CANONICAL_KEYS
     assert isinstance(outbound["timestamp"], str)
+
+
+def test_decision_severity_uses_strict_threshold_edges() -> None:
+    """Severity must follow strict '>' comparisons on probability thresholds."""
+    base_args = {
+        "timestamp_value": "2026-02-20T12:00:00+00:00",
+        "ticker": "WDO$",
+        "timeframe": "M5",
+        "ohlcv": {"open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5, "volume": 1},
+        "indicators": {"ema_9": 1.2, "ema_20": 1.1, "sma_20": 1.0, "sma_50": 0.9, "rsi_14": 50.0},
+        "analysis": {"trend": "ALTA", "trend_strength": "FORTE", "support": 1.0, "resistance": 2.0, "pattern": "NEUTRO", "rsi_condition": "NEUTRO"},
+        "ml_signal": "COMPRA",
+        "ml_direction": "CALL",
+        "base_signal_valid": True,
+        "base_validation_reason": "ok",
+    }
+
+    payload_065 = build_canonical_monitor_payload(**base_args, ml_probability=0.65)
+    payload_055 = build_canonical_monitor_payload(**base_args, ml_probability=0.55)
+    payload_alert = build_canonical_monitor_payload(**base_args, ml_probability=0.65001)
+    payload_info = build_canonical_monitor_payload(**base_args, ml_probability=0.55001)
+
+    assert payload_065["decision"]["severity"] == "INFO"
+    assert payload_055["decision"]["severity"] == "TICK"
+    assert payload_alert["decision"]["severity"] == "ALERT"
+    assert payload_info["decision"]["severity"] == "INFO"
+
+
+def test_decision_blocks_buy_and_sell_by_technical_context() -> None:
+    """Decision must block conflicting COMPRA/VENDA signals by RSI/pattern."""
+    common_args = {
+        "timestamp_value": "2026-02-20T12:00:00+00:00",
+        "ticker": "WDO$",
+        "timeframe": "M5",
+        "ohlcv": {"open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5, "volume": 1},
+        "indicators": {"ema_9": 1.2, "ema_20": 1.1, "sma_20": 1.0, "sma_50": 0.9, "rsi_14": 75.0},
+        "ml_probability": 0.7,
+        "base_signal_valid": True,
+        "base_validation_reason": "ok",
+    }
+
+    buy_blocked_by_rsi = build_canonical_monitor_payload(
+        **common_args,
+        analysis={"trend": "ALTA", "trend_strength": "FORTE", "support": 1.0, "resistance": 2.0, "pattern": "NEUTRO", "rsi_condition": "SOBRECOMPRADO"},
+        ml_signal="COMPRA",
+        ml_direction="CALL",
+    )
+    buy_blocked_by_pattern = build_canonical_monitor_payload(
+        **common_args,
+        analysis={"trend": "ALTA", "trend_strength": "FORTE", "support": 1.0, "resistance": 2.0, "pattern": "REJEICAO_ALTA", "rsi_condition": "NEUTRO"},
+        ml_signal="COMPRA",
+        ml_direction="CALL",
+    )
+    sell_blocked_by_rsi = build_canonical_monitor_payload(
+        **common_args,
+        analysis={"trend": "BAIXA", "trend_strength": "FORTE", "support": 1.0, "resistance": 2.0, "pattern": "NEUTRO", "rsi_condition": "SOBREVENDIDO"},
+        ml_signal="VENDA",
+        ml_direction="PUT",
+    )
+    sell_blocked_by_pattern = build_canonical_monitor_payload(
+        **common_args,
+        analysis={"trend": "BAIXA", "trend_strength": "FORTE", "support": 1.0, "resistance": 2.0, "pattern": "REJEICAO_BAIXA", "rsi_condition": "NEUTRO"},
+        ml_signal="VENDA",
+        ml_direction="PUT",
+    )
+
+    for blocked in [
+        buy_blocked_by_rsi,
+        buy_blocked_by_pattern,
+        sell_blocked_by_rsi,
+        sell_blocked_by_pattern,
+    ]:
+        assert blocked["decision"]["signal_valid"] is False
+        assert blocked["decision"]["status"] == "NÃO VALIDADO"

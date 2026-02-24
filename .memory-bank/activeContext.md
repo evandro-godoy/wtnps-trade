@@ -1,17 +1,45 @@
 # Active Context: WTNPS-TRADE
 
 ## 🎯 Objetivo Atual (O que estamos construindo agora?)
-Estamos na fase de consolidação do "Monólito Funcional". O foco imediato é finalizar a integração entre o backend FastAPI (orquestrando o `MonitorEngine` e WebSockets) e a interface gráfica baseada em Jinja2 e Plotly (`charts_clean.html`). 
+Estamos na fase de consolidação do "Monólito Funcional". O foco imediato é finalizar a integração entre o backend FastAPI (orquestrando o `MonitorEngine` e WebSockets) e duas visões de frontend claramente separadas: Charts e Monitor.
 
 A meta é ter uma aplicação executável via VS Code, ponta a ponta, que:
 1. Conecte no MetaTrader 5 e carregue dados híbridos (Parquet + Live).
 2. Processe indicadores e inferência ML (modelos Keras) em background.
-3. Exiba o gráfico de candlesticks atualizado em tempo real na tela do usuário, plotando também as médias móveis e sinais sem travar o navegador.
+3. Exiba dados em tempo real sem travar o navegador, respeitando o propósito de cada visão.
+
+### Decisão Arquitetural de Frontend (Sprint Atual)
+* **Separação explícita de responsabilidades:**
+	* **Charts View:** responsável por visualização gráfica (candlestick/plotagem).
+	* **Monitor View:** responsável por leitura analítica rápida em **Grid** (cards/tabelas) com dados consolidados de `ml`, `decision`, `analysis` e `indicators`.
+* **Novo escopo do Monitor:** não renderizar candlestick/Plotly; priorizar interpretação de sinal e validação operacional.
+* **Contrato de dados mantido:** o Monitor continua consumindo payload unificado via WebSocket, sem alterar o loop do `MonitorEngine`.
+
+### Regra Estrita de Consolidação de Sinais (Legado)
+* **Classificação por probabilidade (comparador estrito):**
+	* `ALERT` quando `ml.probability > 0.65`.
+	* `INFO` quando `ml.probability > 0.55` e não `ALERT`.
+	* `TICK` nos demais casos (`<= 0.55`).
+* **Bordas obrigatórias:** `0.65` não é `ALERT`; `0.55` não é `INFO`.
+* **Trava de contexto técnico no bloco `decision`:**
+	* Bloquear `COMPRA/CALL` se `rsi_condition == SOBRECOMPRADO`.
+	* Bloquear `VENDA/PUT` se `rsi_condition == SOBREVENDIDO`.
+	* Bloquear `COMPRA/CALL` se `pattern == REJEICAO_ALTA`.
+	* Bloquear `VENDA/PUT` se `pattern == REJEICAO_BAIXA`.
+* **Alinhamento de tendência:** no realtime atual, tendência contextualiza; não bloqueia por padrão (`require_trend_alignment=False`).
+* **Semântica de decisão no payload:** sempre expor `decision.signal_valid`, `decision.validation_reason` e status equivalente a `VALIDADO`/`NÃO VALIDADO`.
+* **Semântica visual (equivalência com legado):**
+	* `ALERT`: fundo `#fff3cd`, texto `#856404`, ícone `🚨`.
+	* `INFO`: fundo `#d1ecf1`, texto `#0c5460`, ícone `📊`.
+	* `TICK`: fundo `#ffffff`, texto `#6c757d`.
+	* `decision.signal_valid=true`: destaque com `✅`; `false`: destaque com `⚠️`.
 
 ## 🚧 Tarefas Imediatas
 * Centralizar e estabilizar as rotas no `newapp/src/api/main.py`.
 * Garantir que o `WebSocketManager` envie corretamente os payloads JSON contendo as barras e indicadores (ex: SMA 21, SMA 200, EMA 9).
-* Ajustar o frontend (`live_chart.js` / `charts_clean.html`) para consumir o WebSocket de forma performática.
+* Ajustar o frontend de forma segmentada:
+	* Charts (`live_chart.js` / `charts_clean.html`) para visualização gráfica.
+	* Monitor (`monitor.html` / `monitor.js`) para grid analítico sem chart.
 * Ajustar os agentes de IA na IDE para que utilizem estritamente este Memory Bank e parem de propor refatorações arquiteturais prematuras (ex: EventBus puro).
 
 ## 🧭 Sprint Ativa (2026-02-20) — Monitor + Charts Integration
@@ -24,6 +52,7 @@ O foco imediato foi decomposto em 3 handoffs especializados com labels e escopo 
 Artefatos oficiais desta sprint:
 - `ISSUES/ISSUE_BACKENDQUANT_UNIFICACAO_ML_ANALISE_FIRST_TICK.md`
 - `ISSUES/ISSUE_FULLSTACK_CHARTS_ANALISE_E_MONITOR_WS.md`
+- `ISSUES/ISSUE_FULLSTACK_MONITOR_GRID_ANALITICO_SEM_CANDLESTICK.md`
 - `ISSUES/ISSUE_GUARDIAN_TESTES_PAYLOAD_COMBINADO.md`
 - `.memory-bank/SPRINT_2026-02-20_MONITOR_CHARTS_HANDOFF.md`
 
