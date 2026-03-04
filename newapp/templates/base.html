@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{% block title %}WTNPS Trade{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css?v={{ version }}" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  {% block head_extra %}{% endblock %}
+</head>
+<body class="layout-with-sidebar {% block body_class %}{% endblock %}">
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <h2 class="sidebar-logo">
+        <i class="fas fa-chart-line"></i>
+        <span>WTNPS</span>
+      </h2>
+    </div>
+
+    <ul class="sidebar-menu">
+      <li class="menu-item {% if request.url.path == '/home' %}active{% endif %}">
+        <a href="/home">
+          <i class="fas fa-home"></i>
+          <span>Home</span>
+        </a>
+      </li>
+      <li class="menu-item {% if request.url.path.startswith('/charts') %}active{% endif %}">
+        <a href="/charts">
+          <i class="fas fa-chart-candlestick"></i>
+          <span>Gráficos</span>
+        </a>
+      </li>
+      <li class="menu-item {% if request.url.path == '/monitor' %}active{% endif %}">
+        <a href="/monitor">
+          <i class="fas fa-tv"></i>
+          <span>Monitor</span>
+        </a>
+      </li>
+      <li class="menu-item {% if request.url.path == '/analysis' %}active{% endif %}">
+        <a href="/analysis">
+          <i class="fas fa-brain"></i>
+          <span>Análise</span>
+        </a>
+      </li>
+      <li class="menu-item {% if request.url.path == '/backtest' %}active{% endif %}">
+        <a href="/backtest">
+          <i class="fas fa-clock-rotate-left"></i>
+          <span>Backtest</span>
+        </a>
+      </li>
+      <li class="menu-item {% if request.url.path == '/settings' %}active{% endif %}">
+        <a href="/settings">
+          <i class="fas fa-gear"></i>
+          <span>Configurações</span>
+        </a>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <i class="fas fa-user-circle"></i>
+        <span>Trader Pro</span>
+      </div>
+      <div class="version-info">v{{ app_version }}</div>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block scripts %}
+  <script src="/static/js/app.js?v={{ version }}"></script>
+  {% endblock %}
+</body>
+</html>
