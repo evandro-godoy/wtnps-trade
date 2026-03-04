@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+import logging
 
 from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
@@ -14,6 +15,8 @@ from newapp.src.database import close_database, init_database
 from newapp.src.ml.legacy_monitor_engine import get_legacy_monitor_engine
 from newapp.src.ml.prediction_engine import get_prediction_engine
 from newapp.src.services.monitor_runtime import MonitorRuntime
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -29,6 +32,11 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         legacy_monitor_engine=get_legacy_monitor_engine(),
         monitor_runtime=MonitorRuntime(),
     )
+
+    try:
+        await app.state.container.monitor_runtime.start_default_monitors()
+    except Exception as exc:
+        logger.error("always_on_monitor_bootstrap_failed error=%s", exc, exc_info=True)
 
     try:
         yield

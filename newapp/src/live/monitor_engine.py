@@ -20,7 +20,6 @@ import pandas as pd
 
 from newapp.src.data_handler.provider import get_default_provider
 from newapp.src.analysis.context_analyzer import MarketContextAnalyzer
-from newapp.src.database.repository import AssetsRatesRepository
 from newapp.src.ml.legacy_monitor_engine import get_legacy_monitor_engine
 from newapp.src.services.prediction_service import build_canonical_monitor_payload
 from newapp.configs.config import DEFAULT_SYMBOL, DEFAULT_TIMEFRAME
@@ -85,11 +84,7 @@ class RealtimeMarketMonitor:
         self.analyzer = MarketContextAnalyzer()
         self.legacy_monitor_engine = get_legacy_monitor_engine()
         
-        if enable_db_persistence:
-            logger.info("Initializing database repository...")
-            self.repository = AssetsRatesRepository()
-        else:
-            self.repository = None
+        self.repository = None
         
         # State
         self.buffer_df: Optional[pd.DataFrame] = None
@@ -186,32 +181,6 @@ class RealtimeMarketMonitor:
                 analysis_context=analysis_context,
                 ml_result=ml_result,
             )
-            
-            # Persist to DB if enabled
-            if self.enable_db_persistence and self.repository:
-                try:
-                    # Convert to DataFrame row for repository
-                    df_row = pd.DataFrame([{
-                        'open': result['ohlcv']['open'],
-                        'high': result['ohlcv']['high'],
-                        'low': result['ohlcv']['low'],
-                        'close': result['ohlcv']['close'],
-                        'volume': result['ohlcv']['volume'],
-                        **result['indicators']
-                    }], index=[candle_time])
-                    
-                    # Map timeframe to seconds
-                    timeframe_seconds = self._timeframe_to_seconds(self.timeframe_str)
-                    
-                    logger.debug(
-                        "DB persistence requested but monitor engine has no scoped Session; skipping write. "
-                        "ticker=%s timeframe=%s timeframe_seconds=%s",
-                        self.ticker,
-                        self.timeframe_str,
-                        timeframe_seconds,
-                    )
-                except Exception as e:
-                    logger.error(f"DB persistence failed: {e}")
             
             return result
             
