@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Iterable
 
@@ -18,14 +20,39 @@ from newapp.src.services.monitor_registry import MonitorRegistry
 logger = logging.getLogger(__name__)
 
 
+FREQUENCY_TICK = "tick"
+FREQUENCY_CLOSE = "close"
+FREQUENCY_HYBRID = "hybrid"
+VALID_FREQUENCY_MODES = {
+    FREQUENCY_TICK,
+    FREQUENCY_CLOSE,
+    FREQUENCY_HYBRID,
+}
+
+
+@dataclass(slots=True)
+class WebSocketClientState:
+    """Store per-client websocket delivery preferences and counters."""
+
+    mode: str = FREQUENCY_TICK
+    last_sent_monotonic: float = 0.0
+    sent_count_window: int = 0
+    dropped_count_window: int = 0
+    window_started_monotonic: float = field(default_factory=time.monotonic)
+
+
 class MonitorRuntime:
     """Manage monitor instances, async tasks and websocket connections."""
+
+    hybrid_heartbeat_seconds: float = 2.0
+    frequency_log_window_seconds: float = 30.0
 
     def __init__(self) -> None:
         self._registry = MonitorRegistry()
         self._monitors: dict[str, RealtimeMarketMonitor] = {}
         self._monitor_tasks: dict[str, asyncio.Task[Any]] = {}
         self._ws_connections: list[WebSocket] = []
+        self._ws_client_state: dict[WebSocket, WebSocketClientState] = {}
         self._callbacks_registered: set[str] = set()
 
         self._persist_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
@@ -66,16 +93,53 @@ class MonitorRuntime:
         self._monitors[key] = monitor
         return monitor
 
-    async def register_websocket(self, websocket: WebSocket) -> None:
-        """Register active websocket client."""
+    async def register_websocket(
+        self,
+        websocket: WebSocket,
+        mode: str = FREQUENCY_TICK,
+    ) -> str:
+        """Register active websocket client and return normalized mode."""
         await websocket.accept()
         self._ws_connections.append(websocket)
+        normalized_mode = self._normalize_frequency_mode(mode)
+        self._ws_client_state[websocket] = WebSocketClientState(mode=normalized_mode)
         logger.info("WebSocket connected. total=%s", len(self._ws_connections))
+        return normalized_mode
+
+    @staticmethod
+    def _normalize_frequency_mode(mode: str | None) -> str:
+        """Normalize client frequency mode to supported values."""
+        candidate = str(mode or FREQUENCY_TICK).strip().lower()
+        if candidate in VALID_FREQUENCY_MODES:
+            return candidate
+        logger.warning("Invalid frequency mode '%s'. Falling back to tick.", mode)
+        return FREQUENCY_TICK
+
+    def set_websocket_frequency(self, websocket: WebSocket, mode: str | None) -> str:
+        """Set frequency mode for one websocket client and return active mode."""
+        if websocket not in self._ws_connections:
+            raise ValueError("WebSocket not registered")
+
+        normalized_mode = self._normalize_frequency_mode(mode)
+        state = self._ws_client_state.setdefault(websocket, WebSocketClientState())
+        state.mode = normalized_mode
+        logger.info(
+            "WebSocket frequency updated. mode=%s total=%s",
+            normalized_mode,
+            len(self._ws_connections),
+        )
+        return normalized_mode
+
+    def get_websocket_frequency(self, websocket: WebSocket) -> str:
+        """Get configured frequency mode for one websocket client."""
+        state = self._ws_client_state.get(websocket)
+        return state.mode if state else FREQUENCY_TICK
 
     def unregister_websocket(self, websocket: WebSocket) -> None:
         """Unregister websocket client."""
         if websocket in self._ws_connections:
             self._ws_connections.remove(websocket)
+            self._ws_client_state.pop(websocket, None)
             logger.info("WebSocket removed. total=%s", len(self._ws_connections))
 
     def _validate_payload(self, data: dict[str, Any]) -> MonitorPayload | None:
@@ -103,14 +167,79 @@ class MonitorRuntime:
             )
             return None
 
-    async def _broadcast_validated_payload(self, payload: MonitorPayload) -> None:
+    def _should_send_for_mode(
+        self,
+        state: WebSocketClientState,
+        is_closed: bool,
+        now_monotonic: float,
+    ) -> bool:
+        """Decide if payload should be delivered to a websocket client."""
+        if state.mode == FREQUENCY_TICK:
+            return True
+        if state.mode == FREQUENCY_CLOSE:
+            return is_closed
+        if is_closed:
+            return True
+        return (
+            now_monotonic - state.last_sent_monotonic
+            >= self.hybrid_heartbeat_seconds
+        )
+
+    def _track_delivery_stats(
+        self,
+        state: WebSocketClientState,
+        sent: bool,
+        now_monotonic: float,
+    ) -> None:
+        """Track sent/dropped counters and emit periodic frequency logs."""
+        if sent:
+            state.sent_count_window += 1
+            state.last_sent_monotonic = now_monotonic
+        else:
+            state.dropped_count_window += 1
+
+        if (
+            now_monotonic - state.window_started_monotonic
+            >= self.frequency_log_window_seconds
+        ):
+            logger.info(
+                "ws_frequency_window mode=%s sent=%s dropped=%s window_seconds=%s",
+                state.mode,
+                state.sent_count_window,
+                state.dropped_count_window,
+                self.frequency_log_window_seconds,
+            )
+            state.window_started_monotonic = now_monotonic
+            state.sent_count_window = 0
+            state.dropped_count_window = 0
+
+    async def _broadcast_validated_payload(
+        self,
+        payload: MonitorPayload,
+        *,
+        is_closed: bool,
+    ) -> None:
         """Broadcast validated payload to all websocket clients."""
         if not self._ws_connections:
             return
 
         message = payload.model_dump(mode="json", exclude_none=True)
         dead_connections: list[WebSocket] = []
+        now_monotonic = time.monotonic()
         for ws in self._ws_connections:
+            state = self._ws_client_state.setdefault(ws, WebSocketClientState())
+            should_send = self._should_send_for_mode(
+                state=state,
+                is_closed=is_closed,
+                now_monotonic=now_monotonic,
+            )
+            self._track_delivery_stats(
+                state=state,
+                sent=should_send,
+                now_monotonic=now_monotonic,
+            )
+            if not should_send:
+                continue
             try:
                 await ws.send_json(message)
             except Exception:
@@ -139,7 +268,8 @@ class MonitorRuntime:
         if payload is None:
             return
 
-        await self._broadcast_validated_payload(payload)
+        is_closed = bool(data.get("is_closed", True))
+        await self._broadcast_validated_payload(payload, is_closed=is_closed)
         await self._enqueue_persistence(payload)
 
     async def broadcast_update(self, data: dict[str, Any]) -> None:
@@ -150,7 +280,8 @@ class MonitorRuntime:
         payload = self._validate_payload(data)
         if payload is None:
             return
-        await self._broadcast_validated_payload(payload)
+        is_closed = bool(data.get("is_closed", True))
+        await self._broadcast_validated_payload(payload, is_closed=is_closed)
 
     async def _ensure_persist_worker(self) -> None:
         """Ensure persistence worker task is running."""
