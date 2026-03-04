@@ -89,7 +89,7 @@ function appendEventRow(payload) {
     return;
   }
 
-  if (tbody.querySelector('td[colspan="7"]')) {
+  if (tbody.querySelector('td[colspan]')) {
     tbody.innerHTML = '';
   }
 
@@ -101,6 +101,8 @@ function appendEventRow(payload) {
   const signal = String(payload.ml.signal || 'HOLD').toUpperCase();
   const statusIcon = payload.decision.signal_valid ? '✅' : '⚠️';
   const statusText = payload.decision.signal_valid ? 'VALID' : 'BLOCKED';
+  const validationReason = String(payload.decision.validation_reason ?? '');
+  const escapedValidationReason = escapeHtml(validationReason);
 
   row.innerHTML = `
     <td class="col-time">${formatTime(payload.timestamp)}</td>
@@ -110,6 +112,7 @@ function appendEventRow(payload) {
     <td class="col-prob">${formatProbability(payload.ml.probability)}</td>
     <td class="col-signal">${escapeHtml(signal)}</td>
     <td class="col-status">${statusIcon} ${statusText}</td>
+    <td class="col-reason"><span class="reason-text" title="${escapedValidationReason}">${escapedValidationReason}</span></td>
   `;
 
   tbody.insertBefore(row, tbody.firstChild);
@@ -158,6 +161,7 @@ function updateStickyHeader(payload) {
 
   const lastTickEl = document.getElementById('last-tick-time');
   const countMonitorsEl = document.getElementById('count-monitors');
+  const lastValidationReasonEl = document.getElementById('last-validation-reason');
 
   if (lastTickEl) {
     lastTickEl.textContent = formatTime(payload.timestamp);
@@ -165,6 +169,12 @@ function updateStickyHeader(payload) {
 
   if (countMonitorsEl) {
     countMonitorsEl.textContent = String(activeMonitors.size);
+  }
+
+  if (lastValidationReasonEl) {
+    const validationReason = String(payload.decision.validation_reason ?? '');
+    lastValidationReasonEl.textContent = validationReason || '--';
+    lastValidationReasonEl.title = validationReason || '--';
   }
 }
 
