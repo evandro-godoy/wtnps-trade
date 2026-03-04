@@ -8,6 +8,7 @@ This suite validates two critical guarantees:
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -15,7 +16,12 @@ import pandas as pd
 
 from newapp.src.live import monitor_engine as monitor_engine_module
 from newapp.src.live.monitor_engine import RealtimeMarketMonitor
-from newapp.src.services.monitor_runtime import MonitorRuntime
+from newapp.src.services.monitor_runtime import (
+    FREQUENCY_CLOSE,
+    FREQUENCY_HYBRID,
+    MonitorRuntime,
+    WebSocketClientState,
+)
 from newapp.src.services.prediction_service import (
     _build_canonical_prediction_item,
     build_canonical_monitor_payload,
@@ -304,3 +310,79 @@ def test_decision_blocks_buy_and_sell_by_technical_context() -> None:
     ]:
         assert blocked["decision"]["signal_valid"] is False
         assert blocked["decision"]["status"] == "NÃO VALIDADO"
+
+
+def test_runtime_close_mode_only_sends_closed_candle() -> None:
+    """Close mode must skip open candles and deliver only closed candles."""
+
+    class _DummyWebSocket:
+        """Capture outgoing websocket payloads."""
+
+        def __init__(self) -> None:
+            self.messages: list[dict[str, Any]] = []
+
+        async def send_json(self, message: dict[str, Any]) -> None:
+            """Store message for assertions."""
+            self.messages.append(message)
+
+    runtime = MonitorRuntime()
+    ws = _DummyWebSocket()
+    runtime._ws_connections.append(ws)
+    runtime._ws_client_state[ws] = WebSocketClientState(mode=FREQUENCY_CLOSE)
+
+    source_payload = {
+        "timestamp": datetime(2026, 2, 20, 12, 10, tzinfo=timezone.utc),
+        "ticker": "WDO$",
+        "timeframe": "M5",
+        "ohlcv": {"open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 10},
+        "indicators": {"ema_9": 1.1},
+        "analysis": {"trend": "ALTA"},
+        "ml": {"signal": "COMPRA"},
+        "decision": {"signal_valid": True},
+    }
+
+    asyncio.run(runtime.broadcast_update({**source_payload, "is_closed": False}))
+    asyncio.run(runtime.broadcast_update({**source_payload, "is_closed": True}))
+
+    assert len(ws.messages) == 1
+
+
+def test_runtime_hybrid_mode_throttles_between_closes() -> None:
+    """Hybrid mode must send close events and throttle open-candle bursts."""
+
+    class _DummyWebSocket:
+        """Capture outgoing websocket payloads."""
+
+        def __init__(self) -> None:
+            self.messages: list[dict[str, Any]] = []
+
+        async def send_json(self, message: dict[str, Any]) -> None:
+            """Store message for assertions."""
+            self.messages.append(message)
+
+    runtime = MonitorRuntime()
+    runtime.hybrid_heartbeat_seconds = 5.0
+
+    ws = _DummyWebSocket()
+    runtime._ws_connections.append(ws)
+    runtime._ws_client_state[ws] = WebSocketClientState(mode=FREQUENCY_HYBRID)
+    runtime._ws_client_state[ws].last_sent_monotonic = time.monotonic()
+
+    source_payload = {
+        "timestamp": datetime(2026, 2, 20, 12, 10, tzinfo=timezone.utc),
+        "ticker": "WDO$",
+        "timeframe": "M5",
+        "ohlcv": {"open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 10},
+        "indicators": {"ema_9": 1.1},
+        "analysis": {"trend": "ALTA"},
+        "ml": {"signal": "COMPRA"},
+        "decision": {"signal_valid": True},
+    }
+
+    asyncio.run(runtime.broadcast_update({**source_payload, "is_closed": False}))
+    runtime._ws_client_state[ws].last_sent_monotonic = 0.0
+    asyncio.run(runtime.broadcast_update({**source_payload, "is_closed": False}))
+    asyncio.run(runtime.broadcast_update({**source_payload, "is_closed": False}))
+    asyncio.run(runtime.broadcast_update({**source_payload, "is_closed": True}))
+
+    assert len(ws.messages) == 2

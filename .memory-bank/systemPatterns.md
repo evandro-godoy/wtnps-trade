@@ -280,3 +280,25 @@ Para coordenação de múltiplos agentes no Slice 1, o fluxo oficial de integra�
 1. Todos os commits e Pull Requests do Slice 1 devem ter como alvo `feature/monitor-slice-1`.
 2. Issues do Slice 1 devem explicitar essa regra no enunciado para evitar desvios de fluxo.
 3. A revisão final arquitetural consolida backend, frontend e testes antes de qualquer merge para `main`.
+
+## 🌊 13. Client-Side Throttling/Filtering no WebSocket (Slice 3)
+
+No Slice 3, o controle de densidade de eventos em tempo real passa a ser uma responsabilidade da camada de conexões WebSocket por cliente, sem alterar o ritmo do motor central.
+
+* **Motor agnóstico a preferências de UI:** `RealtimeMarketMonitor` continua processando e emitindo no ritmo máximo disponível.
+* **Filtro por sessão WS:** cada conexão mantém estado próprio de frequência (`tick`, `close`, `hybrid`).
+* **Decisão de envio no fan-out:** ao receber um evento do motor, o `WebSocketManager` decide por cliente se envia, adia ou descarta conforme o modo configurado.
+* **Sem impacto no loop principal:** throttling não pode bloquear o loop do monitor nem criar backpressure global.
+
+### 13.1 Modos canônicos de frequência
+
+1. `tick`: encaminha todos os eventos recebidos do motor.
+2. `close`: encaminha apenas eventos com candle fechado (`is_closed=true`).
+3. `hybrid`: encaminha evento de fechamento ou eventos intermediários em janela temporal fixa (heartbeat de atualização).
+
+### 13.2 Regras de arquitetura obrigatórias
+
+1. A preferência de frequência é persistida por cliente conectado, não em estado global do monitor.
+2. O contrato de payload canônico permanece único; muda apenas a política de entrega.
+3. Reconexão de cliente restaura modo padrão seguro (`close` ou política definida) até nova configuração explícita.
+4. O filtro WS deve ser determinístico e observável (logs/métricas por modo e taxa de descarte).
