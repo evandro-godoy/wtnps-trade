@@ -3,6 +3,20 @@
 ## 🎯 Objetivo Atual (O que estamos construindo agora?)
 Estamos na fase de estabilização do módulo de monitoramento de mercado em fatias verticais (**Vertical Slicing**).
 
+### Status Atual de Slices (Atualizado em 2026-03-04)
+* **Slice 1 (Fundação):** encerrado e integrado.
+* **Slice 2 (Motor de Regras):** encerrado e integrado com sucesso.
+* **Slice 3 (Controlo de Fluxo e Frequência):** iniciado.
+
+### Sprint Ativa (2026-03-04) — Slice 3: Controlo de Fluxo e Frequência
+Objetivo desta sprint: permitir que cada cliente WebSocket escolha a densidade de atualização (`tick`, `close`, `hybrid`) sem alterar o throughput do motor singleton.
+
+### Fluxo de integração definido (Git) para o Slice 3
+* **Modelo:** Shared Feature Branch para coordenação multiagente.
+* **Branch oficial do slice:** `feature/monitor-slice-3-frequency` (baseada em `main`).
+* **Regra ativa:** todos os PRs do Slice 3 devem apontar exclusivamente para `feature/monitor-slice-3-frequency`.
+* **Gate de merge:** promoção para `main` apenas após validação ponta a ponta do Architect.
+
 ### Status do Slice 1 (Fundação)
 **Concluído em arquitetura e pronto para execução técnica.**
 
