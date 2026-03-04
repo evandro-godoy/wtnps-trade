@@ -1,70 +1,10 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <title>WTNPS Trade - Monitor Analítico</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="/static/css/style.css?v={{ version }}" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-</head>
-<body class="layout-with-sidebar monitor-page">
-  <nav class="sidebar">
-    <div class="sidebar-header">
-      <h2 class="sidebar-logo">
-        <i class="fas fa-chart-line"></i>
-        <span>WTNPS</span>
-      </h2>
-    </div>
+{% extends 'base.html' %}
 
-    <ul class="sidebar-menu">
-      <li class="menu-item">
-        <a href="/home">
-          <i class="fas fa-home"></i>
-          <span>Home</span>
-        </a>
-      </li>
-      <li class="menu-item">
-        <a href="/charts">
-          <i class="fas fa-chart-candlestick"></i>
-          <span>Gráficos</span>
-        </a>
-      </li>
-      <li class="menu-item active">
-        <a href="/monitor">
-          <i class="fas fa-tv"></i>
-          <span>Monitor</span>
-        </a>
-      </li>
-      <li class="menu-item">
-        <a href="/analysis">
-          <i class="fas fa-brain"></i>
-          <span>Análise</span>
-        </a>
-      </li>
-      <li class="menu-item">
-        <a href="/backtest">
-          <i class="fas fa-clock-rotate-left"></i>
-          <span>Backtest</span>
-        </a>
-      </li>
-      <li class="menu-item">
-        <a href="/settings">
-          <i class="fas fa-gear"></i>
-          <span>Configurações</span>
-        </a>
-      </li>
-    </ul>
+{% block title %}WTNPS Trade - Monitor Analítico{% endblock %}
 
-    <div class="sidebar-footer">
-      <div class="user-info">
-        <i class="fas fa-user-circle"></i>
-        <span>Trader Pro</span>
-      </div>
-      <div class="version-info">v{{ app_version }}</div>
-    </div>
-  </nav>
+{% block body_class %}monitor-page{% endblock %}
 
-  <main class="main-content">
+{% block content %}
     <header class="page-header">
       <h1>
         <i class="fas fa-tv"></i>
@@ -111,22 +51,6 @@
         </div>
       </div>
 
-      <!-- CONTROL ACTIONS -->
-      <div class="monitor-actions">
-        <button class="btn btn-sm btn-success" data-action="start" data-ticker="WDO$" data-timeframe="M5">
-          <i class="fas fa-play"></i> Iniciar WDO$ M5
-        </button>
-        <button class="btn btn-sm btn-success" data-action="start" data-ticker="WIN$" data-timeframe="M5">
-          <i class="fas fa-play"></i> Iniciar WIN$ M5
-        </button>
-        <button class="btn btn-sm btn-danger" data-action="stop" data-ticker="WDO$" data-timeframe="M5">
-          <i class="fas fa-stop"></i> Parar WDO$ M5
-        </button>
-        <button class="btn btn-sm btn-danger" data-action="stop" data-ticker="WIN$" data-timeframe="M5">
-          <i class="fas fa-stop"></i> Parar WIN$ M5
-        </button>
-      </div>
-
       <!-- DENSE EVENT TABLE -->
       <div class="monitor-events-table-container">
         <table class="monitor-events-table">
@@ -144,16 +68,16 @@
           <tbody id="events-tbody">
             <tr class="event-row row-alert-low">
               <td class="col-time" colspan="7" style="text-align:center;">
-                Aguardando início do monitoramento... Clique nos botões acima para iniciar.
+                Aguardando stream do monitor em tempo real...
               </td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
-  </main>
+{% endblock %}
 
+{% block scripts %}
   <script src="/static/js/app.js?v={{ version }}"></script>
   <script src="/static/js/monitor.js?v={{ version }}"></script>
-</body>
-</html>
+{% endblock %}

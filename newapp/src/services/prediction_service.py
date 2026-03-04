@@ -5,93 +5,16 @@ from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
+from pydantic import ValidationError
+
+from newapp.src.analysis.decision_strategy import (
+    DefaultDecisionValidationStrategy,
+)
+from newapp.src.schemas.monitor_payload import MonitorPayload
 
 logger = logging.getLogger(__name__)
 
-
-def _classify_severity(probability: float) -> str:
-    """Classify signal severity using strict legacy thresholds.
-
-    Rules:
-    - ALERT when probability > 0.65
-    - INFO when probability > 0.55 and not ALERT
-    - TICK otherwise
-    """
-    if probability > 0.65:
-        return "ALERT"
-    if probability > 0.55:
-        return "INFO"
-    return "TICK"
-
-
-def _normalize_signal_direction(signal: str, direction: str) -> str:
-    """Normalize ML signal direction to COMPRA/VENDA/HOLD."""
-    signal_norm = str(signal or "").upper()
-    direction_norm = str(direction or "").upper()
-
-    buy_tokens = {"COMPRA", "CALL", "BUY"}
-    sell_tokens = {"VENDA", "PUT", "SELL"}
-
-    if signal_norm in buy_tokens or direction_norm in buy_tokens:
-        return "COMPRA"
-    if signal_norm in sell_tokens or direction_norm in sell_tokens:
-        return "VENDA"
-    return "HOLD"
-
-
-def _build_decision_block(
-    ml_signal: str,
-    ml_direction: str,
-    probability: float,
-    analysis_context: dict[str, Any],
-    base_signal_valid: bool | None = None,
-    base_validation_reason: str = "",
-) -> dict[str, Any]:
-    """Build decision block with strict technical lock and severity.
-
-    Technical lock rules (legacy-compatible):
-    - Block COMPRA/CALL if RSI is SOBRECOMPRADO
-    - Block VENDA/PUT if RSI is SOBREVENDIDO
-    - Block COMPRA/CALL if pattern is REJEICAO_ALTA
-    - Block VENDA/PUT if pattern is REJEICAO_BAIXA
-    """
-    normalized_side = _normalize_signal_direction(ml_signal, ml_direction)
-    rsi_condition = str(analysis_context.get("rsi_condition", "INDEFINIDO")).upper()
-    pattern = str(analysis_context.get("pattern", "INDEFINIDO")).upper()
-
-    signal_valid = True
-    validation_reason = "Sinal validado pelo contexto técnico"
-
-    if normalized_side == "HOLD":
-        signal_valid = False
-        validation_reason = "Sem sinal acionável no candle atual"
-    elif normalized_side == "COMPRA" and rsi_condition == "SOBRECOMPRADO":
-        signal_valid = False
-        validation_reason = "Sinal de COMPRA mas RSI está SOBRECOMPRADO"
-    elif normalized_side == "VENDA" and rsi_condition == "SOBREVENDIDO":
-        signal_valid = False
-        validation_reason = "Sinal de VENDA mas RSI está SOBREVENDIDO"
-    elif normalized_side == "COMPRA" and pattern == "REJEICAO_ALTA":
-        signal_valid = False
-        validation_reason = "Sinal de COMPRA mas há REJEIÇÃO da ALTA"
-    elif normalized_side == "VENDA" and pattern == "REJEICAO_BAIXA":
-        signal_valid = False
-        validation_reason = "Sinal de VENDA mas há REJEIÇÃO da BAIXA"
-    elif base_signal_valid is False:
-        signal_valid = False
-        validation_reason = (
-            str(base_validation_reason).strip()
-            or "Sinal não validado pelo pipeline base"
-        )
-    elif str(base_validation_reason).strip():
-        validation_reason = str(base_validation_reason).strip()
-
-    return {
-        "signal_valid": signal_valid,
-        "validation_reason": validation_reason,
-        "status": "VALIDADO" if signal_valid else "NÃO VALIDADO",
-        "severity": _classify_severity(probability),
-    }
+_default_decision_strategy = DefaultDecisionValidationStrategy()
 
 
 def build_canonical_monitor_payload(
@@ -109,16 +32,16 @@ def build_canonical_monitor_payload(
     base_validation_reason: str = "",
 ) -> dict[str, Any]:
     """Build canonical monitor payload shared by realtime WS and API endpoint."""
-    decision = _build_decision_block(
+    decision = _default_decision_strategy.validate(
         ml_signal=ml_signal,
         ml_direction=ml_direction,
         probability=ml_probability,
         analysis_context=analysis,
         base_signal_valid=base_signal_valid,
         base_validation_reason=base_validation_reason,
-    )
+    ).to_dict()
 
-    return {
+    raw_payload = {
         "timestamp": timestamp_value,
         "ticker": ticker,
         "timeframe": timeframe,
@@ -132,6 +55,19 @@ def build_canonical_monitor_payload(
         },
         "decision": decision,
     }
+
+    try:
+        validated_payload = MonitorPayload.from_runtime_payload(raw_payload)
+        return validated_payload.model_dump(mode="python", exclude_none=True)
+    except ValidationError as exc:
+        logger.error(
+            "monitor_payload_validation_failed source=prediction_service "
+            "ticker=%s timeframe=%s error=%s",
+            ticker,
+            timeframe,
+            exc,
+        )
+        raise
 
 
 def _build_canonical_prediction_item(

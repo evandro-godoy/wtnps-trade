@@ -47,7 +47,7 @@ async def stop_monitor(
     selected_ticker = body.ticker if body and body.ticker else ticker
     selected_timeframe = body.timeframe if body and body.timeframe else timeframe
 
-    result = state.monitor_runtime.stop_monitor(selected_ticker, selected_timeframe)
+    result = await state.monitor_runtime.stop_monitor(selected_ticker, selected_timeframe)
     return JSONResponse(result)
 
 

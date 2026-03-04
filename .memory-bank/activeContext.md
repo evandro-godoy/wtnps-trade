@@ -1,7 +1,36 @@
 # Active Context: WTNPS-TRADE
 
 ## 🎯 Objetivo Atual (O que estamos construindo agora?)
-Estamos na fase de consolidação do "Monólito Funcional". O foco imediato é finalizar a integração entre o backend FastAPI (orquestrando o `MonitorEngine` e WebSockets) e duas visões de frontend claramente separadas: Charts e Monitor.
+Estamos na fase de estabilização do módulo de monitoramento de mercado em fatias verticais (**Vertical Slicing**).
+
+### Status do Slice 1 (Fundação)
+**Concluído em arquitetura e pronto para execução técnica.**
+
+### Fluxo de integração definido (Git)
+* **Modelo:** Shared Feature Branch para coordenação multiagente no Slice 1.
+* **Branch oficial do slice:** `feature/monitor-slice-1` (baseada em `main`).
+* **Regra ativa:** nenhum PR desta fase deve apontar para `main`; todos devem apontar para `feature/monitor-slice-1`.
+* **Gate de merge:** promoção para `main` somente após validação ponta a ponta do Architect.
+
+O foco imediato da equipe é o **Slice 1: Fundação do Monitor em Tempo Real**, com três pilares estruturantes:
+1. **Backend Always-On:** `RealtimeMarketMonitor` como singleton centralizado, inicializado no `lifespan` do FastAPI para os ativos principais (`WDO$` e `WIN$`).
+2. **WebSocket passivo no frontend:** clientes apenas consomem e exibem stream, sem acionar start/stop do motor central.
+3. **Template Inheritance no Jinja2:** adoção de `base.html` para eliminar duplicação de layout (ex.: sidebar) entre `monitor.html` e `charts.html`.
+
+### Progresso de definições arquiteturais do Slice 1
+As definições-base da fundação foram expandidas e agora incluem também a estratégia de inferência ML:
+* **Lazy Loading de modelos/scalers:** artefatos `.keras` e `.joblib` são carregados sob demanda no primeiro candle com predição.
+* **Cache em memória:** após o primeiro load, modelos permanecem em cache por ativo/estratégia/timeframe.
+* **Proteção do Event Loop:** carregamento pesado de TensorFlow/Keras/Joblib deve ocorrer em thread separada (`asyncio.to_thread`) para não bloquear API nem WebSockets.
+* **Persistência desacoplada (Eventual Consistency):** envio via WebSocket é prioritário; gravação em banco ocorre em background assíncrono (queue/task), sem bloquear `_process_new_candle`.
+* **Contrato estrito WS com Pydantic:** payload é validado/serializado no backend com schema canônico (`MonitorPayload`) e formato pronto para UI.
+
+### Estratégia de Testes definida para Slice 1 (realtime)
+O fluxo de testes automatizados do `RealtimeMarketMonitor` foi definido e congelado para esta fase:
+* **Padrão:** Replay Engine com banco de dados usando Injeção de Dependência (DI) da fonte de candles.
+* **Fonte de teste:** tabelas históricas do banco do projeto (Assets/Rates) em SQLite/SQL Server/Postgres.
+* **Regra de ouro:** o comportamento de produção do MT5 **não pode** ser alterado; em `pytest`, o MT5 não deve ser invocado.
+* **Meta:** validar o loop de negócio e o payload canônico de eventos sem depender de terminal MetaTrader no CI.
 
 A meta é ter uma aplicação executável via VS Code, ponta a ponta, que:
 1. Conecte no MetaTrader 5 e carregue dados híbridos (Parquet + Live).
@@ -35,12 +64,16 @@ A meta é ter uma aplicação executável via VS Code, ponta a ponta, que:
 	* `decision.signal_valid=true`: destaque com `✅`; `false`: destaque com `⚠️`.
 
 ## 🚧 Tarefas Imediatas
-* Centralizar e estabilizar as rotas no `newapp/src/api/main.py`.
-* Garantir que o `WebSocketManager` envie corretamente os payloads JSON contendo as barras e indicadores (ex: SMA 21, SMA 200, EMA 9).
-* Ajustar o frontend de forma segmentada:
-	* Charts (`live_chart.js` / `charts_clean.html`) para visualização gráfica.
-	* Monitor (`monitor.html` / `monitor.js`) para grid analítico sem chart.
-* Ajustar os agentes de IA na IDE para que utilizem estritamente este Memory Bank e parem de propor refatorações arquiteturais prematuras (ex: EventBus puro).
+* Executar implementação do `MonitorPayload` (Pydantic) no backend WS e remover regras de fallback/formatação do frontend.
+* Concluir refactors já definidos no Slice 1: singleton always-on, lazy loading ML, persistência desacoplada e suíte de testes Guardian.
+* Consolidar validação de contrato canônico entre backend, WS e testes automatizados.
+
+## 🧭 Sprint Ativa (2026-03-04) — Slice 1: Fundação do Monitor em Tempo Real
+O recorte atual foi definido como fundação arquitetural para os próximos slices:
+
+1. **@BackendQuant** — motor realtime always-on + singleton por ativo/timeframe + broadcast desacoplado da UI.
+2. **@Fullstack** — base template compartilhado (Jinja2 inheritance) + monitor frontend passivo ao WS.
+3. **@Guardian** — testes de singleton e continuidade de emissão de eventos WS.
 
 ## 🧭 Sprint Ativa (2026-02-20) — Monitor + Charts Integration
 O foco imediato foi decomposto em 3 handoffs especializados com labels e escopo fechado:

@@ -14,6 +14,7 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 from datetime import datetime
+from threading import Lock
 from newapp.src.analysis.context_analyzer import MarketContextAnalyzer
 from newapp.src.data_handler.provider import get_default_provider
 
@@ -41,6 +42,8 @@ class LegacyMonitorEngine:
         
         # Cache para modelos carregados
         self._model_cache: Dict[str, Tuple] = {}
+        self._model_locks: Dict[str, Lock] = {}
+        self._cache_lock = Lock()
         
         logger.info("LegacyMonitorEngine initialized")
     
@@ -76,29 +79,48 @@ class LegacyMonitorEngine:
     def _load_model(self, symbol: str, strategy_name: str, timeframe: str, module_name: str):
         """Load trained model exactly like legacy."""
         cache_key = f"{symbol}_{strategy_name}_{timeframe}"
-        if cache_key in self._model_cache:
-            return self._model_cache[cache_key]
+        with self._cache_lock:
+            cached_model = self._model_cache.get(cache_key)
+            if cached_model is not None:
+                logger.debug("cache_hit key=%s", cache_key)
+                return cached_model
+            if cache_key not in self._model_locks:
+                self._model_locks[cache_key] = Lock()
+            model_lock = self._model_locks[cache_key]
+
+        logger.debug("cache_miss key=%s", cache_key)
+
+        with model_lock:
+            with self._cache_lock:
+                cached_model = self._model_cache.get(cache_key)
+                if cached_model is not None:
+                    logger.debug("cache_hit_after_lock key=%s", cache_key)
+                    return cached_model
         
-        model_prefix = self.models_dir / f"{symbol}_{strategy_name}_{timeframe}_prod"
-        strategy_class = self._load_strategy_class(strategy_name, module_name)
+            model_prefix = self.models_dir / f"{symbol}_{strategy_name}_{timeframe}_prod"
+            strategy_class = self._load_strategy_class(strategy_name, module_name)
         
-        try:
-            import joblib
-            model = strategy_class.load(str(model_prefix))
-            
-            scaler_path = f"{model_prefix}_scaler.joblib"
-            params_path = f"{model_prefix}_params.joblib"
-            
-            scaler = joblib.load(scaler_path) if Path(scaler_path).exists() else None
-            params = joblib.load(params_path) if Path(params_path).exists() else {}
-            
-            self._model_cache[cache_key] = (model, scaler, params)
-            logger.info(f"Model loaded: {model_prefix}")
-            return model, scaler, params
-            
-        except Exception as e:
-            logger.error(f"Error loading model {cache_key}: {e}")
-            raise
+            try:
+                logger.info("loading_started key=%s", cache_key)
+                import joblib
+
+                model = strategy_class.load(str(model_prefix))
+
+                scaler_path = f"{model_prefix}_scaler.joblib"
+                params_path = f"{model_prefix}_params.joblib"
+
+                scaler = joblib.load(scaler_path) if Path(scaler_path).exists() else None
+                params = joblib.load(params_path) if Path(params_path).exists() else {}
+
+                loaded_artifacts = (model, scaler, params)
+                with self._cache_lock:
+                    self._model_cache[cache_key] = loaded_artifacts
+
+                logger.info("loading_finished key=%s", cache_key)
+                return loaded_artifacts
+            except Exception as e:
+                logger.error("loading_failed key=%s error=%s", cache_key, e)
+                raise
     
     def predict_on_candle(
         self,
