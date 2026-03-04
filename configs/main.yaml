@@ -67,6 +67,9 @@ assets:
       enabled: true
       ticker_order: "WDOX25"
       timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
+      active_rules:
+        - "RsiOverboughtOversoldRule"
+        - "TrendAlignmentRule"
       execution_mode: "suggest" # "suggest" ou "execute"
       trade_volume: 3.0       # quantidade de contratos
 
@@ -143,6 +146,9 @@ assets:
       enabled: false
       ticker_order: "WINZ25"
       timeframe_str: "M5" # Timeframe para este ativo (M1, M5, H1, D1, etc.)
+      active_rules:
+        - "RsiOverboughtOversoldRule"
+        - "TrendAlignmentRule"
       execution_mode: "suggest" # "suggest" ou "execute"
       trade_volume: 1.0       # quantidade de contratos
 

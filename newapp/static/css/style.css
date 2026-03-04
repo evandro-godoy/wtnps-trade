@@ -1252,6 +1252,7 @@ footer {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .resumo-label {
@@ -1265,6 +1266,15 @@ footer {
   font-size: 20px;
   font-weight: 700;
   color: #e0e3e6;
+}
+
+.resumo-extra {
+  max-width: 100%;
+  font-size: 11px;
+  color: #a0aec0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* CONTROL ACTIONS */
@@ -1365,6 +1375,19 @@ footer {
   width: 75px;
   text-align: center;
   font-size: 11px;
+}
+
+.col-reason {
+  width: 260px;
+  text-align: left;
+}
+
+.reason-text {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ROW SEVERITY BACKGROUNDS (FULL ROW) */

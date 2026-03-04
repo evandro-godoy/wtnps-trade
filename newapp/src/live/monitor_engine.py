@@ -14,12 +14,15 @@ import time
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional, Dict, Any, Callable
 
 import pandas as pd
+import yaml
 
 from newapp.src.data_handler.provider import get_default_provider
 from newapp.src.analysis.context_analyzer import MarketContextAnalyzer
+from newapp.src.live.rules import BaseDecisionRule, RULE_REGISTRY
 from newapp.src.ml.legacy_monitor_engine import get_legacy_monitor_engine
 from newapp.src.services.prediction_service import build_canonical_monitor_payload
 from newapp.configs.config import DEFAULT_SYMBOL, DEFAULT_TIMEFRAME
@@ -57,7 +60,8 @@ class RealtimeMarketMonitor:
         ticker: str = DEFAULT_SYMBOL,
         timeframe_str: str = DEFAULT_TIMEFRAME,
         buffer_size: int = 500,
-        enable_db_persistence: bool = False
+        enable_db_persistence: bool = False,
+        config_path: str = "configs/main.yaml",
     ):
         """Initialize real-time monitor.
         
@@ -75,6 +79,7 @@ class RealtimeMarketMonitor:
         self.timeframe_str = timeframe_str
         self.buffer_size = buffer_size
         self.enable_db_persistence = enable_db_persistence
+        self.config_path = config_path
         
         # Initialize components
         logger.info("Initializing data provider...")
@@ -91,9 +96,141 @@ class RealtimeMarketMonitor:
         self.callbacks: list[Callable] = []
         self.running = False
         self.last_processed_time: Optional[datetime] = None
+        self.decision_rules: list[BaseDecisionRule] = self._load_active_rules()
         
         logger.info(f"✅ Monitor initialized: {ticker} @ {timeframe_str}")
+        logger.info(
+            "✅ Decision rules loaded: %s",
+            [rule.__class__.__name__ for rule in self.decision_rules],
+        )
         logger.info("=" * 80)
+
+    def _load_active_rules(self) -> list[BaseDecisionRule]:
+        """Load and instantiate active decision rules from YAML config."""
+        active_rule_names = self._read_active_rules_from_config()
+        if not active_rule_names:
+            logger.warning(
+                "No active_rules configured for %s @ %s; decision block keeps base strategy result",
+                self.ticker,
+                self.timeframe_str,
+            )
+            return []
+
+        instances: list[BaseDecisionRule] = []
+        for rule_name in active_rule_names:
+            rule_class = RULE_REGISTRY.get(rule_name)
+            if rule_class is None:
+                logger.warning(
+                    "Skipping unknown decision rule '%s' for %s @ %s",
+                    rule_name,
+                    self.ticker,
+                    self.timeframe_str,
+                )
+                continue
+            instances.append(rule_class())
+
+        return instances
+
+    def _read_active_rules_from_config(self) -> list[str]:
+        """Read active_rules from configs/main.yaml with graceful fallback."""
+        config = self._load_yaml_config()
+        if not config:
+            return []
+
+        assets = config.get("assets", []) if isinstance(config, dict) else []
+        ticker_norm = str(self.ticker or "").upper()
+        timeframe_norm = str(self.timeframe_str or "").upper()
+
+        for asset in assets:
+            if not isinstance(asset, dict):
+                continue
+            if str(asset.get("ticker", "")).upper() != ticker_norm:
+                continue
+
+            live_trading = asset.get("live_trading", {})
+            if isinstance(live_trading, dict):
+                asset_timeframe = str(
+                    live_trading.get("timeframe_str", "")
+                ).upper()
+                if asset_timeframe in {"", timeframe_norm}:
+                    rules = live_trading.get("active_rules")
+                    if isinstance(rules, list):
+                        return [str(item) for item in rules if str(item).strip()]
+
+            asset_rules = asset.get("active_rules")
+            if isinstance(asset_rules, list):
+                return [str(item) for item in asset_rules if str(item).strip()]
+
+        monitor_rules = config.get("monitor_rules", {})
+        if isinstance(monitor_rules, dict):
+            rules = monitor_rules.get("active_rules")
+            if isinstance(rules, list):
+                return [str(item) for item in rules if str(item).strip()]
+
+        return []
+
+    def _load_yaml_config(self) -> dict[str, Any]:
+        """Load monitor YAML config from project-level path."""
+        possible_paths = [
+            Path(self.config_path),
+            Path(__file__).resolve().parents[3] / "configs" / "main.yaml",
+        ]
+
+        for config_candidate in possible_paths:
+            try:
+                if not config_candidate.exists():
+                    continue
+                with config_candidate.open("r", encoding="utf-8") as config_file:
+                    parsed = yaml.safe_load(config_file) or {}
+                    if isinstance(parsed, dict):
+                        return parsed
+            except Exception as exc:
+                logger.warning(
+                    "Failed to read monitor config path=%s error=%s",
+                    config_candidate,
+                    exc,
+                )
+
+        logger.warning("Unable to load monitor rules config from known paths")
+        return {}
+
+    def _apply_decision_rules(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Apply active decision rules in order and update decision block."""
+        if not self.decision_rules:
+            return payload
+
+        decision = dict(payload.get("decision", {}))
+        base_valid = bool(decision.get("signal_valid", False))
+        default_reason = str(
+            decision.get("validation_reason", "Sinal validado pelas regras ativas")
+        )
+        if not base_valid:
+            decision["status"] = "NÃO VALIDADO"
+            decision["validation_reason"] = default_reason
+            payload["decision"] = decision
+            return payload
+
+        decision["signal_valid"] = True
+        decision["status"] = "VALIDADO"
+        decision["validation_reason"] = default_reason
+
+        final_reason = default_reason
+        for rule in self.decision_rules:
+            rule_valid, reason = rule.evaluate(payload)
+            if str(reason).strip():
+                final_reason = str(reason).strip()
+            if not rule_valid:
+                decision["signal_valid"] = False
+                decision["status"] = "NÃO VALIDADO"
+                decision["validation_reason"] = str(reason).strip() or (
+                    f"Sinal bloqueado pela regra {rule.__class__.__name__}"
+                )
+                payload["decision"] = decision
+                return payload
+
+        decision["validation_reason"] = final_reason
+        payload["decision"] = decision
+        return payload
     
     def register_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """Register callback function for market updates.
@@ -239,7 +376,7 @@ class RealtimeMarketMonitor:
             base_signal_valid = False
             base_validation_reason = "Sem resultado ML para o candle atual"
 
-        return build_canonical_monitor_payload(
+        payload = build_canonical_monitor_payload(
             timestamp_value=candle_time,
             ticker=self.ticker,
             timeframe=self.timeframe_str,
@@ -252,6 +389,8 @@ class RealtimeMarketMonitor:
             base_signal_valid=base_signal_valid,
             base_validation_reason=base_validation_reason,
         )
+
+        return self._apply_decision_rules(payload)
     
     def _get_rsi_condition(self, rsi: Optional[float]) -> str:
         """Get RSI condition label.
