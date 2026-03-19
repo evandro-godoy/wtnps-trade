@@ -29,7 +29,7 @@ assets:
 
         data:
           start_date: "2022-05-01"
-          end_date: "2025-11-19"
+          end_date: "2026-03-04"
           timeframe_model: "M5"  # Timeframe usado para treinar o modelo (M15 = ~96 períodos por dia)
 
         strategy_params:
@@ -94,7 +94,7 @@ assets:
 
         data:
           start_date: "2022-05-01"
-          end_date: "2025-11-19"
+          end_date: "2026-03-04"
           timeframe_model: "M5"  # Timeframe usado para treinar o modelo (M15 = ~96 períodos por dia)
 
         strategy_params:
